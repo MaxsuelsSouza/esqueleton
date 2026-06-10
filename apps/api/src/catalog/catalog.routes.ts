@@ -1,0 +1,162 @@
+import type { FastifyPluginAsync } from 'fastify'
+import { productSchema } from './catalog.schema'
+
+const PAGE_SIZE = 20
+
+// Transforma o produto do formato Prisma (com relação categories) para o formato do tipo compartilhado (com categoryIds)
+function toProductResponse(product: { categories: { categoryId: string }[]; [key: string]: unknown }) {
+  const { categories, ...rest } = product
+  return { ...rest, categoryIds: categories.map((c) => c.categoryId) }
+}
+
+export const catalogRoutes: FastifyPluginAsync = async (app) => {
+  // ── Rotas públicas ──────────────────────────────────────────────
+
+  // Listagem paginada com filtros opcionais por query string
+  app.get('/', async (request) => {
+    const query = request.query as {
+      page?: string
+      pageSize?: string
+      search?: string
+      categoryIds?: string   // IDs separados por vírgula
+      ids?: string           // Busca por IDs específicos (usado para seção em destaque)
+      priceMin?: string
+      priceMax?: string
+      sortBy?: string
+    }
+
+    // Busca por IDs específicos — ignora paginação e filtros
+    if (query.ids) {
+      const ids = query.ids.split(',').filter(Boolean)
+      const products = await app.prisma.product.findMany({
+        where: { id: { in: ids } },
+        include: { categories: { select: { categoryId: true } } },
+      })
+      return { data: products.map(toProductResponse), total: products.length, page: 1, pageSize: ids.length, totalPages: 1 }
+    }
+
+    const page = Math.max(1, Number(query.page ?? 1))
+    const pageSize = Math.min(Number(query.pageSize ?? PAGE_SIZE), 500)
+    const skip = (page - 1) * pageSize
+
+    // Monta o filtro do Prisma conforme os parâmetros recebidos
+    const where: Record<string, unknown> = {}
+
+    if (query.search) {
+      where.OR = [
+        { name: { contains: query.search, mode: 'insensitive' } },
+        { description: { contains: query.search, mode: 'insensitive' } },
+      ]
+    }
+
+    if (query.categoryIds) {
+      const ids = query.categoryIds.split(',').filter(Boolean)
+      where.categories = { some: { categoryId: { in: ids } } }
+    }
+
+    if (query.priceMin) where.price = { ...(where.price as object ?? {}), gte: Number(query.priceMin) }
+    if (query.priceMax) where.price = { ...(where.price as object ?? {}), lte: Number(query.priceMax) }
+
+    const orderBy =
+      query.sortBy === 'price-asc'  ? { price: 'asc' as const } :
+      query.sortBy === 'price-desc' ? { price: 'desc' as const } :
+      { createdAt: 'desc' as const }
+
+    const [products, total] = await Promise.all([
+      app.prisma.product.findMany({
+        where,
+        orderBy,
+        skip,
+        take: pageSize,
+        include: { categories: { select: { categoryId: true } } },
+      }),
+      app.prisma.product.count({ where }),
+    ])
+
+    return {
+      data: products.map(toProductResponse),
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    }
+  })
+
+  app.get('/:id', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const product = await app.prisma.product.findUnique({
+      where: { id },
+      include: { categories: { select: { categoryId: true } } },
+    })
+    if (!product) {
+      return reply.status(404).send({ message: 'Produto não encontrado' })
+    }
+    return toProductResponse(product)
+  })
+
+  // ── Rotas protegidas (requer JWT) ───────────────────────────────
+
+  app.post(
+    '/',
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const { categoryIds, ...fields } = productSchema.parse(request.body)
+
+      const product = await app.prisma.product.create({
+        data: {
+          ...fields,
+          categories: {
+            create: categoryIds.map((categoryId) => ({ categoryId })),
+          },
+        },
+        include: { categories: { select: { categoryId: true } } },
+      })
+
+      return reply.status(201).send(toProductResponse(product))
+    }
+  )
+
+  app.put(
+    '/:id',
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string }
+      const { categoryIds, ...fields } = productSchema.partial().parse(request.body)
+
+      try {
+        const product = await app.prisma.$transaction(async (tx) => {
+          if (categoryIds !== undefined) {
+            await tx.productCategory.deleteMany({ where: { productId: id } })
+            await tx.productCategory.createMany({
+              data: categoryIds.map((categoryId) => ({ productId: id, categoryId })),
+            })
+          }
+
+          return tx.product.update({
+            where: { id },
+            data: fields,
+            include: { categories: { select: { categoryId: true } } },
+          })
+        })
+
+        return toProductResponse(product)
+      } catch {
+        return reply.status(404).send({ message: 'Produto não encontrado' })
+      }
+    }
+  )
+
+  app.delete(
+    '/:id',
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string }
+      try {
+        await app.prisma.product.delete({ where: { id } })
+        return reply.status(204).send()
+      } catch {
+        return reply.status(404).send({ message: 'Produto não encontrado' })
+      }
+    }
+  )
+}

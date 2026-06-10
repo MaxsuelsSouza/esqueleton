@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+}
+
+model Product {
+  id            String            @id @default(cuid())
+  brand         String?
+  name          String
+  description   String?
+  price         Float
+  originalPrice Float?
+  imageUrl      String?
+  // Quantidade em estoque — null significa estoque não controlado
+  stock         Int?
+  categories    ProductCategory[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+}
+
+// Categoria do catálogo com suporte a hierarquia (pai → filhos) de qualquer profundidade
+model Category {
+  id        String            @id @default(cuid())
+  name      String
+  parentId  String?
+  parent    Category?         @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[]        @relation("CategoryTree")
+  products  ProductCategory[]
+  createdAt DateTime          @default(now())
+}
+
+// Seção "Em destaque" exibida no topo do catálogo — apenas uma pode estar ativa por vez
+model Featured {
+  id         String   @id @default(cuid())
+  title      String
+  // Texto da tag no canto direito do cabeçalho (ex: "Destaque", "Oferta")
+  tag        String
+  // IDs dos produtos exibidos na seção
+  productIds String[]
+  startDate  String?
+  endDate    String?
+  startTime  String?
+  endTime    String?
+  active     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+// Promoção aplicada automaticamente a produtos do catálogo
+model Promotion {
+  id             String   @id @default(cuid())
+  name           String
+  // Tipo é apenas um rótulo visual — todos os campos estão sempre disponíveis
+  type           String
+  discountPercent Float?
+  discountValue  Float?
+  buyQuantity    Int?
+  getQuantity    Int?
+  kitPrice       Float?
+  // IDs dos produtos incluídos na promoção
+  productIds     String[]
+  startTime      String?
+  endTime        String?
+  startDate      String?
+  endDate        String?
+  description    String?
+  // Cor hexadecimal da borda exibida no card do produto (ex: "#f97316")
+  color          String?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+}
+
+// Cupom de desconto que o cliente digita no checkout
+model Coupon {
+  id                String   @id @default(cuid())
+  code              String   @unique
+  description       String?
+  // Tipo de desconto: percentage = percentual, fixed = valor fixo em reais
+  discountType      String
+  discountPercent   Float?
+  discountValue     Float?
+  minimumOrderValue Float?
+  // null = sem limite de usos
+  maxUses           Int?
+  usedCount         Int      @default(0)
+  maxUsesPerUser    Int?
+  // IDs dos produtos elegíveis — vazio significa todos os produtos
+  productIds        String[]
+  startDate         String?
+  endDate           String?
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+}
+
+// Perfil único da loja — sempre existe um único registro (id fixo = "singleton")
+model StoreProfile {
+  id         String   @id @default("singleton")
+  storeName  String   @default("Minha Loja")
+  address    String?
+  whatsapp   String?
+  instagram  String?
+  logoUrl    String?
+  // Cor principal do tema em hex (ex: "#e11d48") — usada nos botões e acentos do catálogo
+  themeColor    String   @default("#000000")
+  // Mensagens exibidas na barra acima do cabeçalho em rotação
+  announcements String[]
+  updatedAt     DateTime @updatedAt
+}
+
+// Pedido gerado quando o cliente clica em "Enviar pelo WhatsApp" — confirmado depois pelo admin
+model Order {
+  id            String   @id @default(cuid())
+  // Número de 6 dígitos exibido na mensagem do WhatsApp — usado para busca no dashboard
+  orderNumber   String   @unique
+  customerName  String?
+  customerPhone String?
+  // Itens do pedido serializados em JSON — Array de { productId, productName, quantity, unitPrice, lineTotal, promotionName? }
+  items         Json
+  subtotal      Float
+  discount      Float    @default(0)
+  total         Float
+  couponCode    String?
+  // PENDING = aguardando confirmação | SOLD = venda confirmada | NOT_SOLD = não vendido
+  status        String   @default("PENDING")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([orderNumber])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Cliente identificado — nome e telefone coletados na sacola antes de enviar pelo WhatsApp
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  // Telefone usado como identificador único — upsert ao cadastrar o mesmo número novamente
+  phone     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Registro de eventos de produto para analytics — sacola e envio pelo WhatsApp
+model ProductEvent {
+  id            String   @id @default(cuid())
+  productId     String
+  // Nome denormalizado para preservar histórico mesmo se o produto for excluído
+  productName   String
+  // 'CART_ADD' = adicionado à sacola, 'WHATSAPP_SEND' = pedido enviado pelo WhatsApp
+  eventType     String
+  // Promoção ativa no momento do evento — null se o produto estava sem promoção
+  promotionId   String?
+  promotionName String?
+  // Cupom aplicado — preenchido apenas em WHATSAPP_SEND
+  couponCode    String?
+  createdAt     DateTime @default(now())
+
+  @@index([productId])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+// Tabela de junção — permite que um produto pertença a várias categorias
+model ProductCategory {
+  productId  String
+  categoryId String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([productId, categoryId])
+}

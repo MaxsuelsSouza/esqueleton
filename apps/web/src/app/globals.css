@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  /* Impede que qualquer elemento cause scroll horizontal na página */
+  overflow-x: hidden;
+  max-width: 100%;
+}
