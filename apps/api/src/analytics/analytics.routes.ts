@@ -6,7 +6,8 @@ export async function analyticsRoutes(app: FastifyInstance) {
 
   // POST /api/analytics/events — público, sem autenticação
   // Chamado pelo frontend sempre que um produto é visualizado, favoritado, adicionado à sacola ou enviado pelo WhatsApp
-  app.post('/events', async (request, reply) => {
+  // Limite por IP — impede que alguém infle as métricas com eventos falsos em massa
+  app.post('/events', { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } }, async (request, reply) => {
     const data = createEventSchema.parse(request.body)
     await app.prisma.productEvent.create({ data })
     return reply.status(201).send({ message: 'Evento registrado.' })

@@ -3,7 +3,6 @@
 // Contexto global da sacola de compras — persiste os itens no localStorage
 import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import type { Product, Coupon } from '@esqueleton/shared'
-import { validateCoupon, couponErrorMessage } from '@/utils/coupons'
 import { couponsService } from '@/services/coupons.service'
 import { analyticsService } from '@/services/analytics.service'
 
@@ -50,7 +49,6 @@ const STORAGE_KEY = 'bag_items'
 
 export function BagProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<BagItem[]>([])
-  const [coupons, setCoupons] = useState<Coupon[]>([])
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null)
   const [couponInput, setCouponInput] = useState('')
   const [couponError, setCouponError] = useState<string | null>(null)
@@ -65,11 +63,6 @@ export function BagProvider({ children }: { children: React.ReactNode }) {
       const saved = localStorage.getItem(STORAGE_KEY)
       if (saved) setItems(JSON.parse(saved))
     } catch {}
-  }, [])
-
-  // Carrega os cupons disponíveis para validação
-  useEffect(() => {
-    couponsService.listCoupons().then(setCoupons).catch(() => {})
   }, [])
 
   // Salva a sacola no navegador sempre que mudar —
@@ -124,15 +117,23 @@ export function BagProvider({ children }: { children: React.ReactNode }) {
     setAppliedCoupon(null)
   }
 
-  function applyCoupon() {
-    const result = validateCoupon(couponInput, coupons)
-    if (!result.valid) {
-      setCouponError(couponErrorMessage(result.error))
+  // Valida o código na API — o servidor confere se o cupom existe, está ativo
+  // e dentro do prazo, e devolve apenas os dados necessários para o desconto
+  async function applyCoupon() {
+    const code = couponInput.trim()
+    if (!code) {
+      setCouponError('Digite um código de cupom.')
       return
     }
-    setAppliedCoupon(result.coupon)
-    setCouponInput('')
-    setCouponError(null)
+    try {
+      const coupon = await couponsService.getCouponByCode(code)
+      setAppliedCoupon(coupon)
+      setCouponInput('')
+      setCouponError(null)
+    } catch (error) {
+      // A API retorna a mensagem do motivo (não encontrado, expirado, limite atingido…)
+      setCouponError(error instanceof Error ? error.message : 'Cupom não encontrado.')
+    }
   }
 
   function removeCoupon() {

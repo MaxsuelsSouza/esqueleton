@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { categorySchema } from './category.schema'
+import { idParamSchema } from '../common/validation'
 
 export const categoryRoutes: FastifyPluginAsync = async (app) => {
   // ── Rotas públicas ──────────────────────────────────────────────
@@ -10,7 +11,7 @@ export const categoryRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.get('/:id', async (request, reply) => {
-    const { id } = request.params as { id: string }
+    const { id } = idParamSchema.parse(request.params)
     const category = await app.prisma.category.findUnique({ where: { id } })
     if (!category) {
       return reply.status(404).send({ message: 'Categoria não encontrada' })
@@ -43,7 +44,7 @@ export const categoryRoutes: FastifyPluginAsync = async (app) => {
     '/:id',
     { preHandler: [app.authenticate] },
     async (request, reply) => {
-      const { id } = request.params as { id: string }
+      const { id } = idParamSchema.parse(request.params)
       const data = categorySchema.partial().parse(request.body)
 
       // Impede que uma categoria seja definida como filha de si mesma
@@ -65,7 +66,7 @@ export const categoryRoutes: FastifyPluginAsync = async (app) => {
     '/:id',
     { preHandler: [app.authenticate] },
     async (request, reply) => {
-      const { id } = request.params as { id: string }
+      const { id } = idParamSchema.parse(request.params)
 
       const category = await app.prisma.category.findUnique({ where: { id } })
       if (!category) {

@@ -21,7 +21,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const apiClient = {
-  get: <T>(path: string) => request<T>(path),
+  get: <T>(path: string, token?: string) =>
+    request<T>(path, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    }),
 
   post: <T>(path: string, body: unknown, token?: string) =>
     request<T>(path, {

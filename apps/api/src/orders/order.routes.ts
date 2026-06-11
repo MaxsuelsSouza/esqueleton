@@ -5,7 +5,8 @@ import { createOrderSchema, updateOrderStatusSchema } from './order.schema'
 export async function orderRoutes(app: FastifyInstance) {
 
   // POST /api/orders — público, chamado quando o cliente clica em "Enviar pelo WhatsApp"
-  app.post('/', async (request, reply) => {
+  // Limite por IP — impede que alguém crie pedidos falsos em massa
+  app.post('/', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request, reply) => {
     const data = createOrderSchema.parse(request.body)
 
     const order = await app.prisma.order.create({
@@ -45,12 +46,14 @@ export async function orderRoutes(app: FastifyInstance) {
   app.get('/search', { preHandler: [app.authenticate] }, async (request, reply) => {
     const { orderNumber } = request.query as { orderNumber?: string }
 
-    if (!orderNumber?.trim()) {
+    // Aceita apenas letras, números e hífen — mesmo formato usado na criação do pedido
+    const numero = orderNumber?.trim().slice(0, 20) ?? ''
+    if (!numero || !/^[A-Za-z0-9-]+$/.test(numero)) {
       return reply.status(400).send({ message: 'Informe o número do pedido.' })
     }
 
     const order = await app.prisma.order.findUnique({
-      where: { orderNumber: orderNumber.trim() },
+      where: { orderNumber: numero },
     })
 
     if (!order) {
@@ -64,8 +67,11 @@ export async function orderRoutes(app: FastifyInstance) {
   app.get('/', { preHandler: [app.authenticate] }, async (request, reply) => {
     const { status } = request.query as { status?: string }
 
+    // Só aceita os status conhecidos — qualquer outro valor é ignorado
+    const validStatus = ['PENDING', 'SOLD', 'NOT_SOLD'].includes(status ?? '') ? status : undefined
+
     const orders = await app.prisma.order.findMany({
-      where: status ? { status } : undefined,
+      where: validStatus ? { status: validStatus } : undefined,
       orderBy: { createdAt: 'desc' },
       take: 100,
     })
@@ -75,7 +81,12 @@ export async function orderRoutes(app: FastifyInstance) {
 
   // PATCH /api/orders/:orderNumber/status — protegido, confirma ou rejeita um pedido
   app.patch('/:orderNumber/status', { preHandler: [app.authenticate] }, async (request, reply) => {
-    const { orderNumber } = request.params as { orderNumber: string }
+    // Valida o formato do número do pedido recebido na URL
+    const rawOrderNumber = (request.params as { orderNumber: string }).orderNumber
+    if (!/^[A-Za-z0-9-]{1,20}$/.test(rawOrderNumber)) {
+      return reply.status(400).send({ message: 'Número do pedido inválido.' })
+    }
+    const orderNumber = rawOrderNumber
     const { status } = updateOrderStatusSchema.parse(request.body)
 
     const order = await app.prisma.order.findUnique({ where: { orderNumber } })

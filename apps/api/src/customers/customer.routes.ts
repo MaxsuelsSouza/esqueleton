@@ -6,7 +6,8 @@ export async function customerRoutes(app: FastifyInstance) {
 
   // POST /api/customers — público, sem autenticação
   // Se o telefone já existir, atualiza o nome; caso contrário, cria um novo registro
-  app.post('/', async (request, reply) => {
+  // Limite por IP — impede cadastro de clientes falsos em massa
+  app.post('/', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request, reply) => {
     const { name, phone } = upsertCustomerSchema.parse(request.body)
 
     const customer = await app.prisma.customer.upsert({
@@ -15,7 +16,8 @@ export async function customerRoutes(app: FastifyInstance) {
       create: { name, phone },
     })
 
-    return reply.status(201).send(customer)
+    // Responde apenas a confirmação — os dados do cliente ficam visíveis só no painel admin
+    return reply.status(201).send({ id: customer.id, message: 'Cliente registrado.' })
   })
 
   // GET /api/customers — protegido, lista todos os clientes para o admin

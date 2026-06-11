@@ -111,7 +111,7 @@ export default function AdminDashboardPage() {
         catalogService.listProducts({ pageSize: 500 }),
         categoriesService.listCategories(),
         promotionsService.listPromotions(),
-        couponsService.listCoupons(),
+        couponsService.listCoupons(localStorage.getItem('admin_token') ?? ''),
         featuredService.listFeatured(),
       ])
 

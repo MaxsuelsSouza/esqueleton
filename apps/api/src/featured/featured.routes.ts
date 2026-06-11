@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { featuredSchema } from './featured.schema'
+import { idParamSchema } from '../common/validation'
 
 export const featuredRoutes: FastifyPluginAsync = async (app) => {
   // ── Rotas públicas ──────────────────────────────────────────────
@@ -9,7 +10,7 @@ export const featuredRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.get('/:id', async (request, reply) => {
-    const { id } = request.params as { id: string }
+    const { id } = idParamSchema.parse(request.params)
     const featured = await app.prisma.featured.findUnique({ where: { id } })
     if (!featured) {
       return reply.status(404).send({ message: 'Destaque não encontrado' })
@@ -39,7 +40,7 @@ export const featuredRoutes: FastifyPluginAsync = async (app) => {
     '/:id',
     { preHandler: [app.authenticate] },
     async (request, reply) => {
-      const { id } = request.params as { id: string }
+      const { id } = idParamSchema.parse(request.params)
       const data = featuredSchema.partial().parse(request.body)
 
       // Se este destaque está sendo ativado, desativa todos os outros primeiro
@@ -63,7 +64,7 @@ export const featuredRoutes: FastifyPluginAsync = async (app) => {
     '/:id',
     { preHandler: [app.authenticate] },
     async (request, reply) => {
-      const { id } = request.params as { id: string }
+      const { id } = idParamSchema.parse(request.params)
       try {
         await app.prisma.featured.delete({ where: { id } })
         return reply.status(204).send()

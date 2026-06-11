@@ -1,5 +1,6 @@
 // Rotas de notificações — lista, marca como lida e verifica expirações
 import type { FastifyInstance } from 'fastify'
+import { idParamSchema } from '../common/validation'
 
 export async function notificationRoutes(app: FastifyInstance) {
 
@@ -14,7 +15,7 @@ export async function notificationRoutes(app: FastifyInstance) {
 
   // PATCH /api/notifications/:id/read — marca uma notificação como lida
   app.patch('/:id/read', { preHandler: [app.authenticate] }, async (request, reply) => {
-    const { id } = request.params as { id: string }
+    const { id } = idParamSchema.parse(request.params)
     try {
       await app.prisma.notification.update({ where: { id }, data: { status: 'READ' } })
       return reply.send({ message: 'Notificação marcada como lida.' })
@@ -31,7 +32,7 @@ export async function notificationRoutes(app: FastifyInstance) {
 
   // DELETE /api/notifications/:id — remove uma notificação
   app.delete('/:id', { preHandler: [app.authenticate] }, async (request, reply) => {
-    const { id } = request.params as { id: string }
+    const { id } = idParamSchema.parse(request.params)
     try {
       await app.prisma.notification.delete({ where: { id } })
       return reply.status(204).send()

@@ -1,9 +1,10 @@
 import { z } from 'zod'
+import { idSchema, shortText } from '../common/validation'
 
 export const categorySchema = z.object({
-  name: z.string().min(1, 'Nome é obrigatório'),
-  // null indica categoria raiz (sem pai)
-  parentId: z.string().nullable().default(null),
+  name: shortText(120, 'Nome é obrigatório'),
+  // null indica categoria raiz (sem pai) — quando informado, o formato do ID é validado
+  parentId: idSchema.nullable().default(null),
 })
 
 export type CategoryInput = z.infer<typeof categorySchema>

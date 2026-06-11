@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { promotionSchema } from './promotion.schema'
+import { idParamSchema } from '../common/validation'
 
 export const promotionRoutes: FastifyPluginAsync = async (app) => {
   // ── Rotas públicas ──────────────────────────────────────────────
@@ -9,7 +10,7 @@ export const promotionRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.get('/:id', async (request, reply) => {
-    const { id } = request.params as { id: string }
+    const { id } = idParamSchema.parse(request.params)
     const promotion = await app.prisma.promotion.findUnique({ where: { id } })
     if (!promotion) {
       return reply.status(404).send({ message: 'Promoção não encontrada' })
@@ -33,7 +34,7 @@ export const promotionRoutes: FastifyPluginAsync = async (app) => {
     '/:id',
     { preHandler: [app.authenticate] },
     async (request, reply) => {
-      const { id } = request.params as { id: string }
+      const { id } = idParamSchema.parse(request.params)
       const data = promotionSchema.partial().parse(request.body)
       try {
         const promotion = await app.prisma.promotion.update({ where: { id }, data })
@@ -48,7 +49,7 @@ export const promotionRoutes: FastifyPluginAsync = async (app) => {
     '/:id',
     { preHandler: [app.authenticate] },
     async (request, reply) => {
-      const { id } = request.params as { id: string }
+      const { id } = idParamSchema.parse(request.params)
       try {
         await app.prisma.promotion.delete({ where: { id } })
         return reply.status(204).send()

@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { productSchema } from './catalog.schema'
+import { idParamSchema } from '../common/validation'
 
 const PAGE_SIZE = 20
 
@@ -26,8 +27,12 @@ export const catalogRoutes: FastifyPluginAsync = async (app) => {
     }
 
     // Busca por IDs específicos — ignora paginação e filtros
+    // Limitado a 100 IDs e apenas no formato válido, para evitar consultas montadas por terceiros
     if (query.ids) {
-      const ids = query.ids.split(',').filter(Boolean)
+      const ids = query.ids
+        .split(',')
+        .filter((id) => /^[A-Za-z0-9_-]{1,64}$/.test(id))
+        .slice(0, 100)
       const products = await app.prisma.product.findMany({
         where: { id: { in: ids } },
         include: { categories: { select: { categoryId: true } } },
@@ -35,27 +40,39 @@ export const catalogRoutes: FastifyPluginAsync = async (app) => {
       return { data: products.map(toProductResponse), total: products.length, page: 1, pageSize: ids.length, totalPages: 1 }
     }
 
-    const page = Math.max(1, Number(query.page ?? 1))
-    const pageSize = Math.min(Number(query.pageSize ?? PAGE_SIZE), 500)
+    // "|| 1" e "|| PAGE_SIZE" cobrem valores não numéricos (ex: ?page=abc), que viravam NaN e quebravam a consulta
+    const page = Math.max(1, Math.floor(Number(query.page) || 1))
+    const pageSize = Math.min(Math.max(1, Math.floor(Number(query.pageSize) || PAGE_SIZE)), 500)
     const skip = (page - 1) * pageSize
 
     // Monta o filtro do Prisma conforme os parâmetros recebidos
     const where: Record<string, unknown> = {}
 
-    if (query.search) {
+    // Texto de busca limitado a 200 caracteres — evita consultas pesadas com textos gigantes
+    const search = query.search?.trim().slice(0, 200)
+    if (search) {
       where.OR = [
-        { name: { contains: query.search, mode: 'insensitive' } },
-        { description: { contains: query.search, mode: 'insensitive' } },
+        { name: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
       ]
     }
 
     if (query.categoryIds) {
-      const ids = query.categoryIds.split(',').filter(Boolean)
-      where.categories = { some: { categoryId: { in: ids } } }
+      // Aceita apenas IDs no formato válido, limitados a 100
+      const ids = query.categoryIds
+        .split(',')
+        .filter((id) => /^[A-Za-z0-9_-]{1,64}$/.test(id))
+        .slice(0, 100)
+      if (ids.length > 0) {
+        where.categories = { some: { categoryId: { in: ids } } }
+      }
     }
 
-    if (query.priceMin) where.price = { ...(where.price as object ?? {}), gte: Number(query.priceMin) }
-    if (query.priceMax) where.price = { ...(where.price as object ?? {}), lte: Number(query.priceMax) }
+    // Filtros de preço — ignora valores não numéricos (ex: ?priceMin=abc), que quebravam a consulta
+    const priceMin = Number(query.priceMin)
+    const priceMax = Number(query.priceMax)
+    if (query.priceMin && Number.isFinite(priceMin)) where.price = { ...(where.price as object ?? {}), gte: priceMin }
+    if (query.priceMax && Number.isFinite(priceMax)) where.price = { ...(where.price as object ?? {}), lte: priceMax }
 
     const orderBy =
       query.sortBy === 'price-asc'  ? { price: 'asc' as const } :
@@ -83,7 +100,8 @@ export const catalogRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.get('/:id', async (request, reply) => {
-    const { id } = request.params as { id: string }
+    // Valida o formato do ID recebido na URL antes de consultar o banco
+    const { id } = idParamSchema.parse(request.params)
     const product = await app.prisma.product.findUnique({
       where: { id },
       include: { categories: { select: { categoryId: true } } },
@@ -120,7 +138,7 @@ export const catalogRoutes: FastifyPluginAsync = async (app) => {
     '/:id',
     { preHandler: [app.authenticate] },
     async (request, reply) => {
-      const { id } = request.params as { id: string }
+      const { id } = idParamSchema.parse(request.params)
       const { categoryIds, ...fields } = productSchema.partial().parse(request.body)
 
       try {
@@ -170,7 +188,7 @@ export const catalogRoutes: FastifyPluginAsync = async (app) => {
     '/:id',
     { preHandler: [app.authenticate] },
     async (request, reply) => {
-      const { id } = request.params as { id: string }
+      const { id } = idParamSchema.parse(request.params)
       try {
         await app.prisma.product.delete({ where: { id } })
         return reply.status(204).send()

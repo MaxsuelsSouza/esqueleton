@@ -1,16 +1,18 @@
 import { z } from 'zod'
+import { httpUrlSchema, idListSchema, shortText } from '../common/validation'
 
 export const productSchema = z.object({
-  brand: z.string().nullish().transform(v => v || undefined),
-  name: z.string().min(1, 'Nome é obrigatório'),
-  description: z.string().nullish().transform(v => v || undefined),
-  price: z.number().positive('Preço deve ser maior que zero'),
-  originalPrice: z.number().positive('Preço original deve ser maior que zero').nullish().transform(v => v ?? undefined),
-  imageUrl: z.string().url('URL da imagem inválida').or(z.literal('')).or(z.null()).optional().transform(v => v || undefined),
+  brand: shortText(120).nullish().transform(v => v || undefined),
+  name: shortText(200, 'Nome é obrigatório'),
+  description: shortText(2000).nullish().transform(v => v || undefined),
+  price: z.number().positive('Preço deve ser maior que zero').max(99999999, 'Preço muito alto'),
+  originalPrice: z.number().positive('Preço original deve ser maior que zero').max(99999999, 'Preço muito alto').nullish().transform(v => v ?? undefined),
+  // Aceita apenas URLs http/https — bloqueia conteúdo malicioso no campo de imagem
+  imageUrl: httpUrlSchema.or(z.literal('')).or(z.null()).optional().transform(v => v || undefined),
   // Quantidade em estoque — null significa que o estoque não é controlado
-  stock: z.number().int('Quantidade deve ser um número inteiro').nonnegative('Quantidade não pode ser negativa').nullish().transform(v => v ?? null),
-  // IDs das categorias às quais o produto pertence
-  categoryIds: z.array(z.string()).default([]),
+  stock: z.number().int('Quantidade deve ser um número inteiro').nonnegative('Quantidade não pode ser negativa').max(999999, 'Quantidade muito alta').nullish().transform(v => v ?? null),
+  // IDs das categorias às quais o produto pertence — formato validado para impedir valores arbitrários
+  categoryIds: idListSchema.default([]),
 })
 
 export type ProductInput = z.infer<typeof productSchema>

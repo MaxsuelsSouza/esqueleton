@@ -60,7 +60,7 @@ export default function AdminCuponsPage() {
       return
     }
     const [couponsData, prodsPage, catsData] = await Promise.all([
-      couponsService.listCoupons(),
+      couponsService.listCoupons(localStorage.getItem('admin_token') ?? ''),
       catalogService.listProducts({ pageSize: 500 }),
       categoriesService.listCategories(),
     ])
@@ -71,7 +71,7 @@ export default function AdminCuponsPage() {
 
   async function loadCoupons() {
     if (USE_MOCK_DATA) { setCoupons(getMockCoupons()); return }
-    setCoupons(await couponsService.listCoupons())
+    setCoupons(await couponsService.listCoupons(localStorage.getItem('admin_token') ?? ''))
   }
 
   function openCreateModal() {

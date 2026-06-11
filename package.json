@@ -4,7 +4,8 @@
   "scripts": {
     "dev": "docker-compose up -d && pnpm --parallel -r dev",
     "build": "pnpm -r build",
-    "lint": "pnpm -r lint"
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r --no-bail test"
   },
   "devDependencies": {
     "typescript": "^5.4.0"

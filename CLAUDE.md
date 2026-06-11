@@ -47,7 +47,22 @@ pnpm --filter @esqueleton/api db:studio    # open Prisma Studio
 
 # Type-check all packages
 pnpm lint
+
+# Run all tests (Vitest — API route tests + web unit tests)
+pnpm test
+pnpm --filter @esqueleton/api test
+pnpm --filter @esqueleton/web test
 ```
+
+## Security rules
+
+- `POST /api/auth/register` is open only while no user exists (initial setup). After that it requires a valid JWT.
+- `JWT_SECRET` is **required** in production — the API refuses to start without it. Tokens expire in 1 day.
+- `GET /api/coupons` and `GET /api/coupons/:id` require JWT (the list would expose all discount codes). The public checkout uses `GET /api/coupons/codigo/:code`, which validates server-side and returns only the fields needed to apply the discount.
+- Rate limiting via `@fastify/rate-limit`: 300 req/min global, stricter per-route limits on login (10/min), register (5/min), public POSTs (orders/customers 10/min, analytics 120/min) and coupon code lookup (20/min).
+- Reusable input validators live in `apps/api/src/common/validation.ts` (`idSchema`, `dateSchema`, `timeSchema`, `hexColorSchema`, `httpUrlSchema`, `phoneSchema`, `shortText`). Use them in every new schema — IDs, dates, colors and URLs must match the expected format before reaching Prisma.
+- Error handler hides internals: 5xx responses always return `"Erro interno do servidor"`.
+- API tests inject a fake Prisma client via `buildApp({ prisma })` — see `apps/api/src/test/test-helpers.ts`. No real database needed.
 
 ## Architecture
 
@@ -155,7 +170,7 @@ Categories are self-referential (`parentId`). Utilities in `utils/categories.ts`
 2. **Cupom** (`applyCouponToProduct`) — sobrescreve preço dos produtos elegíveis
 3. **Filtros/ordenação** — aplicados sobre o resultado final
 
-O cliente digita um código de cupom no campo acima do catálogo. O cupom é validado localmente (active, dates, maxUses) e aplicado ao preço exibido. Cupons com `productIds` não vazios afetam apenas esses produtos.
+O cliente digita um código de cupom no campo acima do catálogo. O cupom é validado **no servidor** via `GET /api/coupons/codigo/:code` (active, dates, maxUses) — a API retorna apenas os campos necessários para aplicar o desconto, sem expor os demais cupons. Cupons com `productIds` não vazios afetam apenas esses produtos.
 
 **Featured sections**: `getActiveFeatured` picks the first `Featured` where `active === true` and date/time is within range. The banner is hidden when none is active.
 
