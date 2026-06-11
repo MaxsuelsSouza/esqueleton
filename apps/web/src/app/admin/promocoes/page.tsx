@@ -11,7 +11,7 @@ import { promotionsService } from '@/services/promotions.service'
 import { catalogService } from '@/services/catalog.service'
 import { getMockPromotions, setMockPromotions } from '@/mocks/promotions-store'
 import { getMockProducts } from '@/mocks/products-store'
-import type { Promotion, PromotionType, Product } from '@esqueleton/shared'
+import type { Promotion, PromotionType, ProductOption } from '@esqueleton/shared'
 
 const USE_MOCK_DATA = false
 
@@ -58,7 +58,7 @@ const PRESET_COLORS = [
 
 export default function AdminPromocoesPage() {
   const [promotions, setPromotions] = useState<Promotion[]>([])
-  const [products, setProducts] = useState<Product[]>([])
+  const [products, setProducts] = useState<ProductOption[]>([])
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null)
@@ -82,12 +82,12 @@ export default function AdminPromocoesPage() {
       setProducts(getMockProducts())
       return
     }
-    const [promos, prodsPage] = await Promise.all([
+    const [promos, prodsOptions] = await Promise.all([
       promotionsService.listPromotions(localStorage.getItem('admin_token') ?? ''),
-      catalogService.listProducts({ pageSize: 500 }),
+      catalogService.listProductOptions(),
     ])
     setPromotions(promos)
-    setProducts(prodsPage.data)
+    setProducts(prodsOptions)
   }
 
   function openCreateModal() {

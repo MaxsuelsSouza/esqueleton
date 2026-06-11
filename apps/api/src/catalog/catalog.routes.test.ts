@@ -132,7 +132,7 @@ describe('escrita de produtos (POST/PUT/DELETE)', () => {
     expect(response.statusCode).toBe(201)
   })
 
-  it('rejeita imageUrl que não seja http/https (ex: javascript:)', async () => {
+  it('rejeita imageUrl com esquema perigoso (ex: javascript:)', async () => {
     app = await buildTestApp(createPrismaFake({}))
     const token = await createTestToken(app)
 
@@ -144,6 +144,42 @@ describe('escrita de produtos (POST/PUT/DELETE)', () => {
     })
 
     expect(response.statusCode).toBe(400)
+  })
+
+  it('rejeita data URI que não seja imagem (ex: data:text/html)', async () => {
+    app = await buildTestApp(createPrismaFake({}))
+    const token = await createTestToken(app)
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/products',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: 'Produto', price: 10, imageUrl: 'data:text/html;base64,PHNjcmlwdD4=' },
+    })
+
+    expect(response.statusCode).toBe(400)
+  })
+
+  it('aceita imagem enviada pelo painel (data:image/...;base64)', async () => {
+    app = await buildTestApp(
+      createPrismaFake({
+        product: { create: vi.fn(async () => produto) },
+      })
+    )
+    const token = await createTestToken(app)
+
+    // PNG transparente de 1x1 — imagem base64 válida que o uploader geraria
+    const pngBase64 =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/products',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: 'Produto', price: 10, imageUrl: pngBase64 },
+    })
+
+    expect(response.statusCode).toBe(201)
   })
 
   it('rejeita preço negativo ou zero', async () => {

@@ -11,7 +11,7 @@ import { featuredService } from '@/services/featured.service'
 import { catalogService } from '@/services/catalog.service'
 import { getMockFeatured, setMockFeatured } from '@/mocks/featured-store'
 import { getMockProducts } from '@/mocks/products-store'
-import type { Featured, Product } from '@esqueleton/shared'
+import type { Featured, ProductOption } from '@esqueleton/shared'
 
 const USE_MOCK_DATA = false
 
@@ -53,12 +53,12 @@ export default function AdminDestaquesPage() {
       setProducts(getMockProducts())
       return
     }
-    const [featured, prodsPage] = await Promise.all([
+    const [featured, prodsOptions] = await Promise.all([
       featuredService.listFeatured(localStorage.getItem('admin_token') ?? ''),
-      catalogService.listProducts({ pageSize: 500 }),
+      catalogService.listProductOptions(),
     ])
     setSections(featured)
-    setProducts(prodsPage.data)
+    setProducts(prodsOptions)
   }
 
   // Seção atualmente ativa (considera data e horário)

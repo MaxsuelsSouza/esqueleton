@@ -31,6 +31,17 @@ export interface Product {
   updatedAt: string
 }
 
+// Versão enxuta do produto, usada nos seletores do admin (cupons, promoções, destaques).
+// Não inclui a imagem nem a descrição — apenas o necessário para escolher produtos —
+// para que a listagem não trafegue as fotos (que podem ser grandes) sem necessidade.
+export interface ProductOption {
+  id: string
+  name: string
+  brand?: string
+  price: number
+  categoryIds?: string[]
+}
+
 // Categoria do catálogo — pode ter subcategorias formando uma árvore de qualquer profundidade
 export interface Category {
   id: string

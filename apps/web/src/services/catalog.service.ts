@@ -1,6 +1,6 @@
 // Todas as operações relacionadas a produtos do catálogo
 import { apiClient } from './api-client'
-import type { Product } from '@esqueleton/shared'
+import type { Product, ProductOption } from '@esqueleton/shared'
 
 export interface ProductsPage {
   data: Product[]
@@ -42,6 +42,10 @@ export const catalogService = {
   // Busca produtos por IDs específicos (usado para seção em destaque)
   getProductsByIds: (ids: string[]) =>
     apiClient.get<ProductsPage>(`/products?ids=${ids.join(',')}`),
+
+  // Lista enxuta (sem imagem) para os seletores de produto do admin — leve na memória
+  listProductOptions: () =>
+    apiClient.get<ProductOption[]>('/products/options'),
 
   // Busca um produto pelo ID (público)
   getProduct: (id: string) => apiClient.get<Product>(`/products/${id}`),

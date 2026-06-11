@@ -8,7 +8,7 @@ import { catalogService } from '@/services/catalog.service'
 import { categoriesService } from '@/services/categories.service'
 import { getMockCoupons, setMockCoupons } from '@/mocks/coupons-store'
 import { buildCategoryTree, flattenCategories, expandSelectedCategories } from '@/utils/categories'
-import type { Coupon, Product, Category } from '@esqueleton/shared'
+import type { Coupon, ProductOption, Category } from '@esqueleton/shared'
 
 const USE_MOCK_DATA = false
 
@@ -34,7 +34,7 @@ const EMPTY_FORM: CouponFormData = {
 
 export default function AdminCuponsPage() {
   const [coupons, setCoupons] = useState<Coupon[]>([])
-  const [products, setProducts] = useState<Product[]>([])
+  const [products, setProducts] = useState<ProductOption[]>([])
   const [categoryTree, setCategoryTree] = useState<Category[]>([])
   const [modalOpen, setModalOpen] = useState(false)
   const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null)
@@ -59,13 +59,13 @@ export default function AdminCuponsPage() {
       setCoupons(getMockCoupons())
       return
     }
-    const [couponsData, prodsPage, catsData] = await Promise.all([
+    const [couponsData, prodsOptions, catsData] = await Promise.all([
       couponsService.listCoupons(localStorage.getItem('admin_token') ?? ''),
-      catalogService.listProducts({ pageSize: 500 }),
+      catalogService.listProductOptions(),
       categoriesService.listCategories(),
     ])
     setCoupons(couponsData)
-    setProducts(prodsPage.data)
+    setProducts(prodsOptions)
     setCategoryTree(buildCategoryTree(catsData))
   }
 
@@ -782,9 +782,6 @@ function ProductSelector({
                   onChange={() => toggleProduct(product.id)}
                   className="h-3.5 w-3.5 accent-gray-900"
                 />
-                {product.imageUrl && (
-                  <img src={product.imageUrl} alt="" className="h-8 w-8 shrink-0 rounded-lg object-cover" />
-                )}
                 <div className="min-w-0">
                   {product.brand && (
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{product.brand}</p>

@@ -53,6 +53,7 @@ export const catalogRoutes: FastifyPluginAsync = async (app) => {
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
+        { brand: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } },
       ]
     }
@@ -77,6 +78,7 @@ export const catalogRoutes: FastifyPluginAsync = async (app) => {
     const orderBy =
       query.sortBy === 'price-asc'  ? { price: 'asc' as const } :
       query.sortBy === 'price-desc' ? { price: 'desc' as const } :
+      query.sortBy === 'name'       ? { name: 'asc' as const } :
       { createdAt: 'desc' as const }
 
     const [products, total] = await Promise.all([
@@ -97,6 +99,29 @@ export const catalogRoutes: FastifyPluginAsync = async (app) => {
       pageSize,
       totalPages: Math.ceil(total / pageSize),
     }
+  })
+
+  // Lista enxuta para os seletores do admin (cupons, promoções, destaques).
+  // Retorna apenas id, nome, marca, preço e categorias — sem a imagem, que pode ser
+  // grande (base64) e tornaria a listagem de centenas de produtos pesada na memória.
+  app.get('/options', async () => {
+    const products = await app.prisma.product.findMany({
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        brand: true,
+        price: true,
+        categories: { select: { categoryId: true } },
+      },
+    })
+    return products.map((p) => ({
+      id: p.id,
+      name: p.name,
+      brand: p.brand ?? undefined,
+      price: p.price,
+      categoryIds: p.categories.map((c) => c.categoryId),
+    }))
   })
 
   app.get('/:id', async (request, reply) => {

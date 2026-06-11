@@ -29,6 +29,10 @@ export function buildApp(options: BuildAppOptions = {}) {
     // x-forwarded-for — sem isso o limite de requisições trataria todos os
     // visitantes como um único IP (o do proxy)
     trustProxy: true,
+    // Imagens de produto e logo são enviadas embutidas (base64) no corpo da requisição.
+    // O padrão do Fastify é apenas 1 MB, o que rejeitaria fotos comuns — 5 MB cobre a
+    // imagem (limitada a ~3 MB pelo schema) mais os demais campos do formulário.
+    bodyLimit: 5 * 1024 * 1024,
   })
 
   // Cabeçalhos de segurança HTTP (X-Content-Type-Options, X-Frame-Options etc.)

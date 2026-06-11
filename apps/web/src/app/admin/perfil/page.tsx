@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from 'react'
 import { ImagePlus, Camera, X, Save, Store, Plus, Megaphone } from 'lucide-react'
 import { storeProfileService } from '@/services/store-profile.service'
 import { useStoreProfile } from '@/contexts/store-profile-context'
+import { compressImage } from '@/utils/image'
 import type { StoreProfile } from '@esqueleton/shared'
 
 // Cores predefinidas para o tema
@@ -413,12 +414,18 @@ function LogoUploader({
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const [chooserOpen, setChooserOpen] = useState(false)
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => onChange(reader.result as string)
-    reader.readAsDataURL(file)
+    try {
+      // Comprime e redimensiona antes de enviar — mantém o tamanho dentro do limite da API
+      onChange(await compressImage(file))
+    } catch {
+      // Se a compressão falhar, envia o arquivo original como base64
+      const reader = new FileReader()
+      reader.onload = () => onChange(reader.result as string)
+      reader.readAsDataURL(file)
+    }
   }
 
   function handleRemove(e: React.MouseEvent) {

@@ -107,8 +107,10 @@ export default function AdminDashboardPage() {
       }
 
       const now = new Date()
+      // Busca só os 5 mais recentes — o campo "total" da resposta já traz a contagem completa,
+      // então não há motivo para carregar todos os produtos (e suas imagens) aqui
       const [prodsPage, cats, promotions, coupons, featured] = await Promise.all([
-        catalogService.listProducts({ pageSize: 500 }),
+        catalogService.listProducts({ pageSize: 5 }),
         categoriesService.listCategories(),
         promotionsService.listPromotions(localStorage.getItem('admin_token') ?? ''),
         couponsService.listCoupons(localStorage.getItem('admin_token') ?? ''),

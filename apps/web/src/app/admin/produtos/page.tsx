@@ -2,16 +2,20 @@
 
 // Página de gestão de produtos — listagem com ações de criar, editar e excluir
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Pencil, Trash2, X, PackageSearch, ImagePlus, Camera, ChevronRight, ChevronDown, Search } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, PackageSearch, ImagePlus, Camera, ChevronLeft, ChevronRight, ChevronDown, Search } from 'lucide-react'
 import { catalogService } from '@/services/catalog.service'
 import { categoriesService } from '@/services/categories.service'
 import { getMockProducts, setMockProducts } from '@/mocks/products-store'
 import { getMockCategories } from '@/mocks/categories-store'
 import { buildCategoryTree } from '@/utils/categories'
+import { compressImage } from '@/utils/image'
 import type { Product, Category } from '@esqueleton/shared'
 
 // Troque para false quando a API estiver pronta
 const USE_MOCK_DATA = false
+
+// Quantidade de produtos por página — a listagem busca uma página por vez no servidor
+const PAGE_SIZE = 24
 
 // Campos editáveis de um produto (sem id e datas que são gerados pela API)
 type ProductFormData = {
@@ -42,6 +46,11 @@ export default function AdminProdutosPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Paginação no servidor
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+
   // Controle do modal de criar/editar
   const [modalOpen, setModalOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
@@ -59,14 +68,39 @@ export default function AdminProdutosPage() {
   const [sortBy, setSortBy] = useState('newest')
   const [searchFocused, setSearchFocused] = useState(false)
 
+  // Carrega a lista de categorias uma única vez (para o filtro e o formulário)
   useEffect(() => {
-    loadProducts()
+    loadCategories()
   }, [])
+
+  // Recarrega os produtos sempre que a página ou os filtros mudarem.
+  // O pequeno atraso (debounce) evita uma requisição a cada tecla digitada na busca.
+  useEffect(() => {
+    const timer = setTimeout(() => { loadProducts() }, 300)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, search, filterCategory, sortBy])
+
+  async function loadCategories() {
+    if (USE_MOCK_DATA) {
+      setCategories(buildCategoryTree(getMockCategories()))
+      return
+    }
+    try {
+      const cats = await categoriesService.listCategories()
+      // A API retorna lista plana — monta a árvore para exibir os checkboxes corretamente
+      setCategories(buildCategoryTree(cats))
+    } catch {
+      // Sem categorias o filtro apenas não aparece — não bloqueia a página
+    }
+  }
 
   async function loadProducts() {
     if (USE_MOCK_DATA) {
-      setProducts(getMockProducts())
-      setCategories(buildCategoryTree(getMockCategories()))
+      const all = getMockProducts()
+      setProducts(all)
+      setTotal(all.length)
+      setTotalPages(1)
       setIsLoading(false)
       return
     }
@@ -74,13 +108,17 @@ export default function AdminProdutosPage() {
     setIsLoading(true)
     setError(null)
     try {
-      const [prodsPage, cats] = await Promise.all([
-        catalogService.listProducts({ pageSize: 500 }),
-        categoriesService.listCategories(),
-      ])
-      setProducts(prodsPage.data)
-      // A API retorna lista plana — monta a árvore para exibir os checkboxes corretamente
-      setCategories(buildCategoryTree(cats))
+      // Paginação no servidor — carrega apenas a página atual, não todos os produtos de uma vez
+      const result = await catalogService.listProducts({
+        page,
+        pageSize: PAGE_SIZE,
+        search: search.trim() || undefined,
+        categoryIds: filterCategory || undefined,
+        sortBy,
+      })
+      setProducts(result.data)
+      setTotal(result.total)
+      setTotalPages(result.totalPages)
     } catch {
       setError('Não foi possível carregar os produtos.')
     } finally {
@@ -195,33 +233,15 @@ export default function AdminProdutosPage() {
     }
   }
 
-  // Aplica busca, categoria e ordenação na lista carregada
-  const filteredProducts = products
-    .filter((p) => {
-      const matchesSearch =
-        !search ||
-        p.name.toLowerCase().includes(search.toLowerCase()) ||
-        p.brand?.toLowerCase().includes(search.toLowerCase())
-
-      const matchesCategory =
-        !filterCategory ||
-        p.categoryIds?.includes(filterCategory)
-
-      return matchesSearch && matchesCategory
-    })
-    .sort((a, b) => {
-      // Produtos esgotados (stock = 0) sempre aparecem no topo, independente do filtro
-      const aEsgotado = a.stock === 0
-      const bEsgotado = b.stock === 0
-      if (aEsgotado && !bEsgotado) return -1
-      if (!aEsgotado && bEsgotado) return 1
-
-      if (sortBy === 'price-asc') return a.price - b.price
-      if (sortBy === 'price-desc') return b.price - a.price
-      if (sortBy === 'name') return a.name.localeCompare(b.name)
-      // newest (padrão)
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    })
+  // A busca, a categoria e a ordenação são aplicadas no servidor.
+  // Aqui só reordenamos a página atual para mostrar os produtos esgotados no topo.
+  const pageProducts = [...products].sort((a, b) => {
+    const aEsgotado = a.stock === 0
+    const bEsgotado = b.stock === 0
+    if (aEsgotado && !bEsgotado) return -1
+    if (!aEsgotado && bEsgotado) return 1
+    return 0
+  })
 
   const activeFilterCount =
     (search ? 1 : 0) + (filterCategory ? 1 : 0) + (sortBy !== 'newest' ? 1 : 0)
@@ -230,6 +250,7 @@ export default function AdminProdutosPage() {
     setSearch('')
     setFilterCategory('')
     setSortBy('newest')
+    setPage(1)
   }
 
   // Lista plana de categorias para o select
@@ -689,10 +710,16 @@ function ImageUploader({ value, onChange }: { value: string; onChange: (url: str
   const [chooserOpen, setChooserOpen] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
 
-  function readFile(file: File) {
-    const reader = new FileReader()
-    reader.onload = () => onChange(reader.result as string)
-    reader.readAsDataURL(file)
+  async function readFile(file: File) {
+    try {
+      // Comprime e redimensiona antes de enviar — mantém o tamanho dentro do limite da API
+      onChange(await compressImage(file))
+    } catch {
+      // Se a compressão falhar, envia o arquivo original como base64
+      const reader = new FileReader()
+      reader.onload = () => onChange(reader.result as string)
+      reader.readAsDataURL(file)
+    }
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
