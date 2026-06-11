@@ -235,8 +235,8 @@ export default function CatalogPage() {
               <DisplayToggle current={displayMode} onChange={handleDisplayChange} />
             </div>
 
-            {/* Seção em destaque — oculta quando qualquer filtro estiver ativo */}
-            {!isLoading && activeFeatured && !hasActiveFilters && (
+            {/* Seção em destaque — visível apenas na primeira página e sem filtros ativos */}
+            {!isLoading && activeFeatured && !hasActiveFilters && page === 1 && (
               <FeaturedSection
                 products={promotedFeatured}
                 title={activeFeatured.title}

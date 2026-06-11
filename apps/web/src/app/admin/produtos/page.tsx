@@ -141,8 +141,9 @@ export default function AdminProdutosPage() {
       brand: product.brand ?? '',
       name: product.name,
       description: product.description ?? '',
-      price: String(product.price),
-      originalPrice: product.originalPrice !== undefined ? String(product.originalPrice) : '',
+      price: '',
+      // Ao editar, mostra o preço de venda atual no campo "Preço"
+      originalPrice: String(product.price),
       stock: product.stock != null ? String(product.stock) : '',
       imageUrl: product.imageUrl ?? '',
       categoryIds: product.categoryIds ?? [],
@@ -156,7 +157,7 @@ export default function AdminProdutosPage() {
       setFormError('O nome do produto é obrigatório.')
       return
     }
-    if (!formData.price || isNaN(Number(formData.price))) {
+    if (!formData.originalPrice || isNaN(Number(formData.originalPrice))) {
       setFormError('Informe um preço válido.')
       return
     }
@@ -164,12 +165,15 @@ export default function AdminProdutosPage() {
     setIsSaving(true)
     setFormError(null)
 
+    const preco = Number(formData.originalPrice)
     const payload = {
       brand: formData.brand.trim() || undefined,
       name: formData.name.trim(),
       description: formData.description.trim() || null,
-      price: Number(formData.price),
-      originalPrice: formData.originalPrice ? Number(formData.originalPrice) : undefined,
+      // O campo do formulário "Preço" (originalPrice) é usado como o preço de venda (price).
+      // originalPrice não é mais definido pelo formulário — pode ser configurado via promoções.
+      price: preco,
+      originalPrice: undefined,
       stock: formData.stock !== '' ? Number(formData.stock) : null,
       imageUrl: formData.imageUrl.trim() || null,
       categoryIds: formData.categoryIds,
@@ -272,8 +276,8 @@ export default function AdminProdutosPage() {
           <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">Produtos</h1>
           <p className="mt-0.5 text-sm text-gray-500">
             {isLoading ? '' : activeFilterCount > 0
-              ? `${filteredProducts.length} de ${products.length} produto${products.length !== 1 ? 's' : ''}`
-              : `${products.length} produto${products.length !== 1 ? 's' : ''} cadastrado${products.length !== 1 ? 's' : ''}`}
+              ? `${total} produto${total !== 1 ? 's' : ''} encontrado${total !== 1 ? 's' : ''}`
+              : `${total} produto${total !== 1 ? 's' : ''} cadastrado${total !== 1 ? 's' : ''}`}
           </p>
         </div>
         <button
@@ -378,7 +382,7 @@ export default function AdminProdutosPage() {
       )}
 
       {/* Lista vazia */}
-      {!isLoading && filteredProducts.length === 0 && !error && (
+      {!isLoading && pageProducts.length === 0 && !error && (
         <div className="flex flex-col items-center justify-center gap-3 py-20 text-center text-gray-400">
           <PackageSearch size={40} strokeWidth={1.5} />
           <p className="text-sm">
@@ -394,20 +398,19 @@ export default function AdminProdutosPage() {
       )}
 
       {/* Tabela de produtos */}
-      {!isLoading && filteredProducts.length > 0 && (
+      {!isLoading && pageProducts.length > 0 && (
         <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-gray-50 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">
                 <th className="w-12 px-4 py-3" />
                 <th className="px-4 py-3">Produto</th>
-                <th className="px-4 py-3">Preço</th>
                 <th className="px-4 py-3">Estoque</th>
                 <th className="w-24 px-4 py-3 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filteredProducts.map((product) => (
+              {pageProducts.map((product) => (
                 <tr key={product.id} className="transition-colors hover:bg-gray-50">
 
                   {/* Foto */}
@@ -431,16 +434,6 @@ export default function AdminProdutosPage() {
                       </p>
                     )}
                     <p className="font-medium text-gray-900">{product.name}</p>
-                  </td>
-
-                  {/* Preço */}
-                  <td className="px-4 py-3 text-gray-600">
-                    {product.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    {product.originalPrice && (
-                      <span className="ml-2 text-xs text-gray-400 line-through">
-                        {product.originalPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                      </span>
-                    )}
                   </td>
 
                   {/* Estoque */}
@@ -507,30 +500,17 @@ export default function AdminProdutosPage() {
               />
             </FormField>
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField label="Preço (R$)">
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={formData.price}
-                  onChange={(e) => setFormData((f) => ({ ...f, price: e.target.value }))}
-                  placeholder="0,00"
-                  className={inputClass}
-                />
-              </FormField>
-              <FormField label="Preço original" optional>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={formData.originalPrice}
-                  onChange={(e) => setFormData((f) => ({ ...f, originalPrice: e.target.value }))}
-                  placeholder="Sem desconto"
-                  className={inputClass}
-                />
-              </FormField>
-            </div>
+            <FormField label="Preço (R$)">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.originalPrice}
+                onChange={(e) => setFormData((f) => ({ ...f, originalPrice: e.target.value }))}
+                placeholder="0,00"
+                className={inputClass}
+              />
+            </FormField>
 
             <FormField label="Estoque" optional>
               <input

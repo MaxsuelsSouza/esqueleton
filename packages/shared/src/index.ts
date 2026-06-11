@@ -111,6 +111,8 @@ export interface Promotion {
   // Cor da borda exibida ao redor do card do produto no catálogo (hex, ex: "#f97316")
   color?: string
   active: boolean
+  // Ordem de prioridade — promoção com menor valor tem preferência sobre as demais
+  priority: number
   createdAt: string
 }
 

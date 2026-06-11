@@ -15,4 +15,8 @@ export const promotionsService = {
 
   deletePromotion: (id: string, token: string) =>
     apiClient.delete(`/promotions/${id}`, token),
+
+  // Atualiza a ordem de prioridade — envia os IDs na nova posição
+  reorderPromotions: (ids: string[], token: string) =>
+    apiClient.put<{ message: string }>('/promotions/reorder', { ids }, token),
 }

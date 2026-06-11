@@ -17,14 +17,17 @@ export function isPromotionActive(promotion: Promotion): boolean {
   return true
 }
 
-// Retorna a primeira promoção ativa que inclui o produto
+// Retorna a primeira promoção ativa que inclui o produto.
+// Quando productIds está vazio, a promoção vale para todos os produtos.
 export function getActivePromotionForProduct(
   productId: string,
   promotions: Promotion[],
 ): Promotion | null {
   return (
     promotions.find(
-      (promo) => promo.productIds.includes(productId) && isPromotionActive(promo),
+      (promo) =>
+        (promo.productIds.length === 0 || promo.productIds.includes(productId)) &&
+        isPromotionActive(promo),
     ) ?? null
   )
 }
@@ -43,7 +46,7 @@ export interface PromotedProduct {
 
 // Aplica uma promoção ao produto — modifica preço e define badge conforme o tipo
 export function applyPromotionToProduct(product: Product, promotion: Promotion): PromotedProduct {
-  const badgeColor = promotion.color ?? '#000000'
+  const badgeColor = promotion.color
   // Metadados da promoção passados adiante para registro de analytics
   const promoMeta = { promotionId: promotion.id, promotionName: promotion.name }
 

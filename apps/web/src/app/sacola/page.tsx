@@ -2,9 +2,9 @@
 
 // Página da sacola de compras — mostra itens, cupom e total
 // O botão "Enviar pedido" abre o WhatsApp com o resumo formatado
-import { useState, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Trash2, Plus, Minus, ShoppingBag, Tag, X, ArrowLeft, User, Phone } from 'lucide-react'
+import { Trash2, Plus, Minus, ShoppingBag, Tag, X, ArrowLeft, User, Phone, CheckSquare, Square } from 'lucide-react'
 import { useBag } from '@/contexts/bag-context'
 import { useCustomer } from '@/contexts/customer-context'
 import { useStoreProfile } from '@/contexts/store-profile-context'
@@ -21,6 +21,73 @@ export default function SacolaPage() {
   } = useBag()
   const { customer, setCustomer } = useCustomer()
   const { profile } = useStoreProfile()
+
+  // Itens selecionados para envio — começa com todos marcados
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(
+    () => new Set(items.map((i) => i.product.id)),
+  )
+
+  // Sincroniza a seleção quando a sacola muda:
+  // remove IDs de produtos que saíram e adiciona os recém-adicionados
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      for (const id of next) {
+        if (!items.find((i) => i.product.id === id)) next.delete(id)
+      }
+      for (const { product } of items) {
+        if (!next.has(product.id)) next.add(product.id)
+      }
+      return next
+    })
+  }, [items])
+
+  function toggleSelect(productId: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(productId)) next.delete(productId)
+      else next.add(productId)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === items.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(items.map((i) => i.product.id)))
+    }
+  }
+
+  // Apenas os itens que o usuário marcou para enviar agora
+  const selectedItems = items.filter((i) => selectedIds.has(i.product.id))
+
+  // Recalcula os totais somente sobre os itens selecionados —
+  // o contexto calcula sobre tudo, então ignoramos seus valores aqui
+  const selectedSubtotal = selectedItems.reduce(
+    (sum, { product, quantity }) => sum + product.price * quantity,
+    0,
+  )
+
+  let selectedDiscount = 0
+  if (appliedCoupon) {
+    const eligible = selectedItems.filter(
+      ({ product }) =>
+        !appliedCoupon.productIds?.length ||
+        appliedCoupon.productIds.includes(product.id),
+    )
+    const eligibleTotal = eligible.reduce(
+      (sum, { product, quantity }) => sum + product.price * quantity,
+      0,
+    )
+    if (appliedCoupon.discountType === 'percentage' && appliedCoupon.discountPercent) {
+      selectedDiscount = Math.round(eligibleTotal * (appliedCoupon.discountPercent / 100) * 100) / 100
+    } else if (appliedCoupon.discountType === 'fixed' && appliedCoupon.discountValue) {
+      selectedDiscount = Math.min(appliedCoupon.discountValue, eligibleTotal)
+    }
+  }
+
+  const selectedTotal = Math.max(0, selectedSubtotal - selectedDiscount)
 
   // Controle do modal de identificação do cliente
   const [identModalOpen, setIdentModalOpen] = useState(false)
@@ -60,7 +127,7 @@ export default function SacolaPage() {
     lines.push(`📦 *PRODUTOS*`)
     lines.push(divider)
 
-    items.forEach(({ product, quantity, promotionName }, index) => {
+    selectedItems.forEach(({ product, quantity, promotionName }, index) => {
       const name = product.brand ? `${product.brand} ${product.name}` : product.name
       const unitPrice = product.price
       const lineTotal = unitPrice * quantity
@@ -90,15 +157,15 @@ export default function SacolaPage() {
     lines.push('')
 
     if (appliedCoupon) {
-      lines.push(`Subtotal: ${formatCurrency(subtotal)}`)
-      lines.push(`🎟️ Cupom *${appliedCoupon.code}*: -${formatCurrency(discount)}`)
+      lines.push(`Subtotal: ${formatCurrency(selectedSubtotal)}`)
+      lines.push(`🎟️ Cupom *${appliedCoupon.code}*: -${formatCurrency(selectedDiscount)}`)
       if (appliedCoupon.description) {
         lines.push(`   _${appliedCoupon.description}_`)
       }
       lines.push('')
     }
 
-    lines.push(`💳 *TOTAL: ${formatCurrency(total)}*`)
+    lines.push(`💳 *TOTAL: ${formatCurrency(selectedTotal)}*`)
     lines.push('')
     lines.push(divider)
     lines.push('Aguardando confirmação ✅')
@@ -120,12 +187,12 @@ export default function SacolaPage() {
       : `https://wa.me/?text=${message}`
     window.open(url, '_blank')
 
-    // 3. Salva o pedido no banco — fire and forget
+    // 3. Salva o pedido no banco com apenas os itens selecionados — fire and forget
     ordersService.create({
       orderNumber,
       customerName: customerInfo.name,
       customerPhone: customerInfo.phone,
-      items: items.map(({ product, quantity, promotionName }) => ({
+      items: selectedItems.map(({ product, quantity, promotionName }) => ({
         productId: product.id,
         productName: product.brand ? `${product.brand} ${product.name}` : product.name,
         quantity,
@@ -134,14 +201,14 @@ export default function SacolaPage() {
         promotionName: promotionName ?? undefined,
         originalPrice: product.originalPrice ?? undefined,
       })),
-      subtotal,
-      discount,
-      total,
+      subtotal: selectedSubtotal,
+      discount: selectedDiscount,
+      total: selectedTotal,
       couponCode: appliedCoupon?.code ?? undefined,
     })
 
     // 4. Registra analytics — fire and forget
-    for (const { product, promotionId, promotionName } of items) {
+    for (const { product, promotionId, promotionName } of selectedItems) {
       analyticsService.recordEvent({
         productId: product.id,
         productName: product.brand ? `${product.brand} ${product.name}` : product.name,
@@ -225,22 +292,48 @@ export default function SacolaPage() {
           <div>
             <h1 className="text-xl font-bold text-gray-900">Sacola</h1>
             <p className="text-sm text-gray-500">
-              {totalItems} {totalItems === 1 ? 'item' : 'itens'}
+              {selectedIds.size} de {totalItems} {totalItems === 1 ? 'item' : 'itens'} selecionado{selectedIds.size !== 1 ? 's' : ''}
             </p>
           </div>
-          {/* Limpar sacola */}
-          <button
-            onClick={clear}
-            className="ml-auto text-xs text-gray-400 hover:text-red-500"
-          >
-            Limpar
-          </button>
+          {/* Selecionar todos / desmarcar todos + limpar sacola */}
+          <div className="ml-auto flex items-center gap-3">
+            <button
+              onClick={toggleSelectAll}
+              className="text-xs text-gray-500 hover:text-gray-900"
+            >
+              {selectedIds.size === items.length ? 'Desmarcar todos' : 'Selecionar todos'}
+            </button>
+            <button
+              onClick={clear}
+              className="text-xs text-gray-400 hover:text-red-500"
+            >
+              Limpar
+            </button>
+          </div>
         </div>
 
         {/* Lista de itens */}
         <div className="mb-4 flex flex-col gap-3">
-          {items.map(({ product, quantity }) => (
-            <div key={product.id} className="flex gap-3 rounded-2xl border border-gray-100 bg-white p-3 shadow-sm">
+          {items.map(({ product, quantity }) => {
+            const isSelected = selectedIds.has(product.id)
+            return (
+            <div
+              key={product.id}
+              className={`flex gap-3 rounded-2xl border bg-white p-3 shadow-sm transition-opacity ${
+                isSelected ? 'border-gray-100' : 'border-gray-100 opacity-50'
+              }`}
+            >
+              {/* Checkbox de seleção */}
+              <button
+                onClick={() => toggleSelect(product.id)}
+                aria-label={isSelected ? 'Desmarcar item' : 'Selecionar item'}
+                className="shrink-0 self-center text-gray-400 hover:text-gray-700"
+              >
+                {isSelected
+                  ? <CheckSquare size={20} className="text-gray-900" />
+                  : <Square size={20} />
+                }
+              </button>
 
               {/* Foto */}
               <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-gray-100">
@@ -315,7 +408,7 @@ export default function SacolaPage() {
                 </div>
               </div>
             </div>
-          ))}
+          )})}
         </div>
 
         {/* Cupom de desconto */}
@@ -368,20 +461,20 @@ export default function SacolaPage() {
         <div className="mb-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-2">
             <div className="flex justify-between text-sm text-gray-600">
-              <span>Subtotal</span>
-              <span>{formatCurrency(subtotal)}</span>
+              <span>Subtotal ({selectedIds.size} {selectedIds.size === 1 ? 'item' : 'itens'})</span>
+              <span>{formatCurrency(selectedSubtotal)}</span>
             </div>
 
-            {discount > 0 && (
+            {selectedDiscount > 0 && (
               <div className="flex justify-between text-sm text-green-600">
                 <span>Desconto {appliedCoupon ? `(${appliedCoupon.code})` : ''}</span>
-                <span>-{formatCurrency(discount)}</span>
+                <span>-{formatCurrency(selectedDiscount)}</span>
               </div>
             )}
 
             <div className="mt-1 flex justify-between border-t pt-2 text-base font-bold text-gray-900">
               <span>Total</span>
-              <span>{formatCurrency(total)}</span>
+              <span>{formatCurrency(selectedTotal)}</span>
             </div>
           </div>
         </div>
@@ -402,10 +495,11 @@ export default function SacolaPage() {
           </div>
         )}
 
-        {/* Botão enviar pedido pelo WhatsApp */}
+        {/* Botão enviar pedido pelo WhatsApp — desabilitado se nenhum item selecionado */}
         <button
           onClick={handleSendWhatsApp}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-green-500 py-4 text-base font-bold text-white shadow-sm transition-colors hover:bg-green-600 active:scale-[0.98]"
+          disabled={selectedIds.size === 0}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-green-500 py-4 text-base font-bold text-white shadow-sm transition-colors hover:bg-green-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
         >
           {/* Ícone do WhatsApp em SVG */}
           <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">

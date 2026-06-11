@@ -77,6 +77,8 @@ model Promotion {
   // Cor hexadecimal da borda exibida no card do produto (ex: "#f97316")
   color          String?
   active         Boolean  @default(true)
+  // Ordem de prioridade — promoção com menor valor tem preferência sobre as demais
+  priority       Int      @default(0)
   createdAt      DateTime @default(now())
 }
 

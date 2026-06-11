@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify'
+import { z } from 'zod'
 import { promotionSchema } from './promotion.schema'
 import { idParamSchema } from '../common/validation'
 
@@ -11,7 +12,7 @@ export const promotionRoutes: FastifyPluginAsync = async (app) => {
     const isAdmin = await request.jwtVerify().then(() => true).catch(() => false)
     return app.prisma.promotion.findMany({
       where: isAdmin ? undefined : { active: true },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }],
     })
   })
 
@@ -27,6 +28,22 @@ export const promotionRoutes: FastifyPluginAsync = async (app) => {
   })
 
   // ── Rotas protegidas (requer JWT) ───────────────────────────────
+
+  // Reordena as promoções — recebe uma lista de IDs na nova ordem e
+  // atribui priority = posição do ID na lista (0, 1, 2, …)
+  app.put(
+    '/reorder',
+    { preHandler: [app.authenticate] },
+    async (request) => {
+      const { ids } = z.object({ ids: z.array(z.string().cuid()).min(1) }).parse(request.body)
+      await app.prisma.$transaction(
+        ids.map((id, index) =>
+          app.prisma.promotion.update({ where: { id }, data: { priority: index } }),
+        ),
+      )
+      return { message: 'Ordem atualizada' }
+    }
+  )
 
   app.post(
     '/',

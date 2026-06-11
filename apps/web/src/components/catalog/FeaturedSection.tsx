@@ -32,7 +32,7 @@ export function FeaturedSection({
   return (
     // Fundo usa a cor do tema com 15% de opacidade para criar um tom suave
     <section
-      className="mb-10 mx-auto w-fit max-w-full rounded-2xl p-3 sm:p-4"
+      className="mb-10 rounded-2xl p-3 sm:p-4"
       style={{ backgroundColor: themeColor + '26' }}
     >
 
@@ -50,17 +50,16 @@ export function FeaturedSection({
         </div>
       </div>
 
-      {/* Produtos centralizados — flex com quebra de linha para alinhar ao centro quando há menos itens que colunas */}
-      <div className="flex flex-wrap justify-center gap-3">
+      {/* Produtos em grade — 2 por linha no mobile, 3 no tablet, 4 no desktop */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {products.map((product) => (
-          <div key={product.id} className="w-44 sm:w-52 lg:w-56 xl:w-64">
-            <ProductCard
-              product={product}
-              displayMode="grid"
-              featuredId={featuredId}
-              featuredName={featuredName ?? title}
-            />
-          </div>
+          <ProductCard
+            key={product.id}
+            product={product}
+            displayMode="grid"
+            featuredId={featuredId}
+            featuredName={featuredName ?? title}
+          />
         ))}
       </div>
 

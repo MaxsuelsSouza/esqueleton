@@ -20,6 +20,7 @@ export const promotionSchema = z.object({
   description: shortText(1000).nullish().transform(v => v || undefined),
   color: hexColorSchema.nullish().transform(v => v || undefined),
   active: z.boolean().default(true),
+  priority: z.number().int().min(0).default(0),
 })
 
 export type PromotionInput = z.infer<typeof promotionSchema>

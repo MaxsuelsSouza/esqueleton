@@ -2,16 +2,19 @@
 
 // Página de promoções — crie qualquer tipo de promoção de forma livre
 // O tipo é apenas um rótulo visual; todos os campos estão sempre disponíveis
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Plus, Pencil, Trash2, X, Clock, Calendar,
   BadgePercent, PackageSearch, ToggleLeft, ToggleRight, Search,
+  ChevronDown, ChevronRight, GripVertical,
 } from 'lucide-react'
 import { promotionsService } from '@/services/promotions.service'
 import { catalogService } from '@/services/catalog.service'
+import { categoriesService } from '@/services/categories.service'
 import { getMockPromotions, setMockPromotions } from '@/mocks/promotions-store'
 import { getMockProducts } from '@/mocks/products-store'
-import type { Promotion, PromotionType, ProductOption } from '@esqueleton/shared'
+import { buildCategoryTree, flattenCategories, expandSelectedCategories } from '@/utils/categories'
+import type { Promotion, PromotionType, ProductOption, Category } from '@esqueleton/shared'
 
 const USE_MOCK_DATA = false
 
@@ -23,6 +26,9 @@ const PROMOTION_TYPES: { value: PromotionType; label: string; color: string }[] 
   { value: 'kit', label: 'Kit', color: 'bg-orange-100 text-orange-700' },
   { value: 'custom', label: 'Personalizada', color: 'bg-gray-100 text-gray-700' },
 ]
+
+// Como o desconto será restrito: todos os produtos, por categoria, ou por produto específico
+type RestrictionMode = 'all' | 'categories' | 'products'
 
 type PromotionFormData = Omit<Promotion, 'id' | 'createdAt'>
 
@@ -59,6 +65,11 @@ const PRESET_COLORS = [
 export default function AdminPromocoesPage() {
   const [promotions, setPromotions] = useState<Promotion[]>([])
   const [products, setProducts] = useState<ProductOption[]>([])
+  const [categoryTree, setCategoryTree] = useState<Category[]>([])
+  // Modo de restrição de produtos da promoção
+  const [restrictionMode, setRestrictionMode] = useState<RestrictionMode>('all')
+  // Categorias selecionadas na UI — expandidas para productIds ao salvar
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null)
@@ -71,6 +82,8 @@ export default function AdminPromocoesPage() {
   // Controles opcionais do formulário
   const [hasTimeWindow, setHasTimeWindow] = useState(false)
   const [hasDateRange, setHasDateRange] = useState(false)
+  // Controla se a borda colorida será exibida no catálogo
+  const [hasColor, setHasColor] = useState(true)
 
   useEffect(() => {
     loadData()
@@ -82,12 +95,14 @@ export default function AdminPromocoesPage() {
       setProducts(getMockProducts())
       return
     }
-    const [promos, prodsOptions] = await Promise.all([
+    const [promos, prodsOptions, catsData] = await Promise.all([
       promotionsService.listPromotions(localStorage.getItem('admin_token') ?? ''),
       catalogService.listProductOptions(),
+      categoriesService.listCategories(),
     ])
     setPromotions(promos)
     setProducts(prodsOptions)
+    setCategoryTree(buildCategoryTree(catsData))
   }
 
   function openCreateModal() {
@@ -95,6 +110,9 @@ export default function AdminPromocoesPage() {
     setForm(EMPTY_FORM)
     setHasTimeWindow(false)
     setHasDateRange(false)
+    setHasColor(true)
+    setRestrictionMode('all')
+    setSelectedCategoryIds([])
     setFormError(null)
     setModalOpen(true)
   }
@@ -120,6 +138,9 @@ export default function AdminPromocoesPage() {
     })
     setHasTimeWindow(!!(promo.startTime || promo.endTime))
     setHasDateRange(!!(promo.startDate || promo.endDate))
+    setHasColor(!!promo.color)
+    setRestrictionMode(promo.productIds?.length ? 'products' : 'all')
+    setSelectedCategoryIds([])
     setFormError(null)
     setModalOpen(true)
   }
@@ -133,13 +154,29 @@ export default function AdminPromocoesPage() {
     setIsSaving(true)
     setFormError(null)
 
+    // Resolve os productIds com base no modo de restrição escolhido
+    let resolvedProductIds: string[] = []
+    if (restrictionMode === 'products') {
+      resolvedProductIds = form.productIds ?? []
+    } else if (restrictionMode === 'categories' && selectedCategoryIds.length > 0) {
+      // Expande as categorias selecionadas (incluindo subcategorias) e coleta os produtos
+      const flatCats = flattenCategories(categoryTree)
+      const expandedCatIds = expandSelectedCategories(selectedCategoryIds, flatCats)
+      resolvedProductIds = products
+        .filter((p) => p.categoryIds?.some((cid) => expandedCatIds.has(cid)))
+        .map((p) => p.id)
+    }
+
     const payload = {
       ...form,
       name: form.name.trim(),
+      productIds: resolvedProductIds,
       startTime: hasTimeWindow ? form.startTime : undefined,
       endTime: hasTimeWindow ? form.endTime : undefined,
       startDate: hasDateRange ? form.startDate : undefined,
       endDate: hasDateRange ? form.endDate : undefined,
+      // Quando o toggle de cor está desligado, envia undefined — sem borda no catálogo
+      color: hasColor ? form.color : undefined,
     }
 
     if (USE_MOCK_DATA) {
@@ -214,6 +251,45 @@ export default function AdminPromocoesPage() {
     loadData()
   }
 
+  // ── Drag-and-drop para reordenar prioridade ──
+  const dragIndexRef = useRef<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+
+  function handleDragStart(index: number) {
+    dragIndexRef.current = index
+  }
+
+  function handleDragOver(e: React.DragEvent, index: number) {
+    e.preventDefault()
+    setDragOverIndex(index)
+  }
+
+  function handleDragEnd() {
+    dragIndexRef.current = null
+    setDragOverIndex(null)
+  }
+
+  async function handleDrop(targetIndex: number) {
+    const fromIndex = dragIndexRef.current
+    if (fromIndex === null || fromIndex === targetIndex) {
+      handleDragEnd()
+      return
+    }
+
+    // Reordena localmente para feedback imediato
+    const reordered = [...promotions]
+    const [moved] = reordered.splice(fromIndex, 1)
+    reordered.splice(targetIndex, 0, moved)
+    setPromotions(reordered)
+    handleDragEnd()
+
+    // Persiste no servidor
+    if (!USE_MOCK_DATA) {
+      const token = localStorage.getItem('admin_token') ?? ''
+      await promotionsService.reorderPromotions(reordered.map((p) => p.id), token)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
 
@@ -248,17 +324,32 @@ export default function AdminPromocoesPage() {
         </div>
       )}
 
-      {/* Cards de promoção */}
+      {/* Cards de promoção — arrastar para reordenar prioridade */}
+      {promotions.length > 1 && (
+        <p className="text-xs text-gray-400">Arraste para reordenar — a primeira promoção tem prioridade sobre as demais.</p>
+      )}
       <div className="flex flex-col gap-3">
-        {promotions.map((promo) => (
-          <PromotionCard
+        {promotions.map((promo, index) => (
+          <div
             key={promo.id}
-            promo={promo}
-            products={products}
-            onEdit={() => openEditModal(promo)}
-            onDelete={() => setDeletingPromotion(promo)}
-            onToggleActive={() => toggleActive(promo.id)}
-          />
+            draggable
+            onDragStart={() => handleDragStart(index)}
+            onDragOver={(e) => handleDragOver(e, index)}
+            onDragEnd={handleDragEnd}
+            onDrop={() => handleDrop(index)}
+            className={`transition-all ${
+              dragOverIndex === index ? 'border-t-2 border-gray-900' : ''
+            }`}
+          >
+            <PromotionCard
+              promo={promo}
+              products={products}
+              position={index + 1}
+              onEdit={() => openEditModal(promo)}
+              onDelete={() => setDeletingPromotion(promo)}
+              onToggleActive={() => toggleActive(promo.id)}
+            />
+          </div>
         ))}
       </div>
 
@@ -271,7 +362,14 @@ export default function AdminPromocoesPage() {
           setHasTimeWindow={setHasTimeWindow}
           hasDateRange={hasDateRange}
           setHasDateRange={setHasDateRange}
+          hasColor={hasColor}
+          setHasColor={setHasColor}
           products={products}
+          categoryTree={categoryTree}
+          restrictionMode={restrictionMode}
+          setRestrictionMode={setRestrictionMode}
+          selectedCategoryIds={selectedCategoryIds}
+          setSelectedCategoryIds={setSelectedCategoryIds}
           formError={formError}
           isEditing={!!editingPromotion}
           isSaving={isSaving}
@@ -315,12 +413,14 @@ export default function AdminPromocoesPage() {
 function PromotionCard({
   promo,
   products,
+  position,
   onEdit,
   onDelete,
   onToggleActive,
 }: {
   promo: Promotion
-  products: Product[]
+  products: ProductOption[]
+  position: number
   onEdit: () => void
   onDelete: () => void
   onToggleActive: () => void
@@ -338,6 +438,12 @@ function PromotionCard({
   return (
     <div className={`rounded-2xl border bg-white p-4 transition-opacity ${!promo.active ? 'opacity-60' : ''}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+
+        {/* Alça de arrastar + número da posição */}
+        <div className="flex shrink-0 cursor-grab items-center gap-1 text-gray-300 active:cursor-grabbing sm:flex-col sm:items-center sm:pt-1">
+          <GripVertical size={18} />
+          <span className="text-[10px] font-bold text-gray-400">{position}º</span>
+        </div>
 
         {/* Informações principais */}
         <div className="flex flex-1 flex-col gap-2">
@@ -442,7 +548,11 @@ function PromotionModal({
   form, setForm,
   hasTimeWindow, setHasTimeWindow,
   hasDateRange, setHasDateRange,
-  products, formError, isEditing, isSaving,
+  hasColor, setHasColor,
+  products, categoryTree,
+  restrictionMode, setRestrictionMode,
+  selectedCategoryIds, setSelectedCategoryIds,
+  formError, isEditing, isSaving,
   onSave, onClose,
 }: {
   form: PromotionFormData
@@ -451,34 +561,22 @@ function PromotionModal({
   setHasTimeWindow: (v: boolean) => void
   hasDateRange: boolean
   setHasDateRange: (v: boolean) => void
-  products: Product[]
+  hasColor: boolean
+  setHasColor: (v: boolean) => void
+  products: ProductOption[]
+  categoryTree: Category[]
+  restrictionMode: RestrictionMode
+  setRestrictionMode: (v: RestrictionMode) => void
+  selectedCategoryIds: string[]
+  setSelectedCategoryIds: (ids: string[]) => void
   formError: string | null
   isEditing: boolean
   isSaving: boolean
   onSave: () => void
   onClose: () => void
 }) {
-  const [productSearch, setProductSearch] = useState('')
-
-  const filteredProducts = useMemo(
-    () =>
-      products.filter(
-        (p) =>
-          p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-          p.brand?.toLowerCase().includes(productSearch.toLowerCase()),
-      ),
-    [products, productSearch],
-  )
-
   function set<K extends keyof PromotionFormData>(key: K, value: PromotionFormData[K]) {
     setForm((f) => ({ ...f, [key]: value }))
-  }
-
-  function toggleProduct(id: string) {
-    const updated = form.productIds.includes(id)
-      ? form.productIds.filter((p) => p !== id)
-      : [...form.productIds, id]
-    set('productIds', updated)
   }
 
   return (
@@ -524,53 +622,69 @@ function PromotionModal({
               </div>
             </div>
 
-            {/* Cor da borda exibida no card do produto */}
-            <div className="flex flex-col gap-1.5">
-              <label className={labelClass}>
-                Cor da borda
-                <span className="ml-1 text-xs font-normal text-gray-400">(exibida ao redor do produto no catálogo)</span>
-              </label>
-              <div className="flex flex-wrap items-center gap-2">
-                {PRESET_COLORS.map((c) => (
-                  <button
-                    key={c.value}
-                    type="button"
-                    title={c.label}
-                    onClick={() => set('color', c.value)}
-                    className="h-7 w-7 rounded-full border-2 transition-transform hover:scale-110"
-                    style={{
-                      backgroundColor: c.value,
-                      borderColor: form.color === c.value ? '#111827' : 'transparent',
-                      outline: form.color === c.value ? '2px solid #111827' : 'none',
-                      outlineOffset: '2px',
-                    }}
-                  />
-                ))}
-                {/* Input de cor personalizada */}
-                <div className="relative flex items-center gap-1.5 rounded-xl border border-gray-200 px-2.5 py-1.5">
-                  <input
-                    type="color"
-                    value={form.color ?? '#f97316'}
-                    onChange={(e) => set('color', e.target.value)}
-                    className="h-5 w-5 cursor-pointer rounded border-none bg-transparent p-0"
-                    title="Cor personalizada"
-                  />
-                  <span className="font-mono text-xs text-gray-500">{form.color ?? '#f97316'}</span>
-                </div>
-              </div>
-              {/* Preview da borda */}
-              <div
-                className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs text-gray-500"
-                style={{ border: `2px solid ${form.color ?? '#f97316'}` }}
-              >
-                <span
-                  className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white"
-                  style={{ backgroundColor: form.color ?? '#f97316' }}
+            {/* Toggle + seletor de cor da borda */}
+            <div className="flex flex-col gap-2">
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+                <div
+                  onClick={() => setHasColor(!hasColor)}
+                  className={`flex h-5 w-9 items-center rounded-full transition-colors ${
+                    hasColor ? 'bg-gray-900' : 'bg-gray-300'
+                  }`}
                 >
-                  {form.name || 'Preview da tag'}
-                </span>
-                Assim ficará o card do produto
-              </div>
+                  <span
+                    className={`mx-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                      hasColor ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </div>
+                Exibir borda colorida no catálogo
+              </label>
+
+              {hasColor && (
+                <div className="flex flex-col gap-2 pl-11">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {PRESET_COLORS.map((c) => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        title={c.label}
+                        onClick={() => set('color', c.value)}
+                        className="h-7 w-7 rounded-full border-2 transition-transform hover:scale-110"
+                        style={{
+                          backgroundColor: c.value,
+                          borderColor: form.color === c.value ? '#111827' : 'transparent',
+                          outline: form.color === c.value ? '2px solid #111827' : 'none',
+                          outlineOffset: '2px',
+                        }}
+                      />
+                    ))}
+                    {/* Input de cor personalizada */}
+                    <div className="flex items-center gap-1.5 rounded-xl border border-gray-200 px-2.5 py-1.5">
+                      <input
+                        type="color"
+                        value={form.color ?? '#f97316'}
+                        onChange={(e) => set('color', e.target.value)}
+                        className="h-5 w-5 cursor-pointer rounded border-none bg-transparent p-0"
+                        title="Cor personalizada"
+                      />
+                      <span className="font-mono text-xs text-gray-500">{form.color ?? '#f97316'}</span>
+                    </div>
+                  </div>
+                  {/* Preview da borda */}
+                  <div
+                    className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs text-gray-500"
+                    style={{ border: `2px solid ${form.color ?? '#f97316'}` }}
+                  >
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white"
+                      style={{ backgroundColor: form.color ?? '#f97316' }}
+                    >
+                      {form.name || 'Preview da tag'}
+                    </span>
+                    Assim ficará o card do produto
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Toggle ativo */}
@@ -670,47 +784,60 @@ function PromotionModal({
         </Section>
 
         {/* ── Produtos ── */}
-        <Section title={`Produtos ${form.productIds.length > 0 ? `(${form.productIds.length} selecionados)` : ''}`}>
+        <Section title="Produtos">
           <div className="flex flex-col gap-2">
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-                placeholder="Buscar produto..."
-                className="w-full rounded-xl border border-gray-200 py-2 pl-8 pr-3 text-sm outline-none focus:border-gray-900"
-              />
-            </div>
-            <div className="flex max-h-48 flex-col gap-0.5 overflow-y-auto rounded-xl border border-gray-100 p-1">
-              {filteredProducts.length === 0 && (
-                <p className="py-4 text-center text-xs text-gray-400">Nenhum produto encontrado.</p>
-              )}
-              {filteredProducts.map((product) => (
-                <label
-                  key={product.id}
-                  className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-gray-50"
-                >
+            <div className="flex flex-col gap-1">
+              {([
+                { value: 'all', label: 'Todos os produtos' },
+                { value: 'categories', label: 'Categorias específicas' },
+                { value: 'products', label: 'Produtos específicos' },
+              ] as const).map(({ value, label }) => (
+                <label key={value} className="flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 hover:bg-gray-50">
                   <input
-                    type="checkbox"
-                    checked={form.productIds.includes(product.id)}
-                    onChange={() => toggleProduct(product.id)}
-                    className="h-3.5 w-3.5 rounded accent-gray-900"
+                    type="radio"
+                    name="promoRestrictionMode"
+                    checked={restrictionMode === value}
+                    onChange={() => { setRestrictionMode(value); setSelectedCategoryIds([]); setForm(f => ({ ...f, productIds: [] })) }}
+                    className="accent-gray-900"
                   />
-                  <div className="min-w-0">
-                    {product.brand && (
-                      <p className="text-[10px] font-medium uppercase tracking-widest text-gray-400">
-                        {product.brand}
-                      </p>
-                    )}
-                    <p className="truncate text-sm text-gray-700">{product.name}</p>
-                  </div>
-                  <span className="ml-auto shrink-0 text-xs text-gray-400">
-                    {product.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </span>
+                  <span className="text-sm text-gray-700">{label}</span>
                 </label>
               ))}
             </div>
+
+            {restrictionMode === 'categories' && (
+              <div className="mt-1">
+                {categoryTree.length === 0 ? (
+                  <p className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-400">
+                    Nenhuma categoria cadastrada.
+                  </p>
+                ) : (
+                  <CategoryCheckboxTree
+                    categories={categoryTree}
+                    selectedIds={selectedCategoryIds}
+                    onChange={setSelectedCategoryIds}
+                  />
+                )}
+                {selectedCategoryIds.length > 0 && (() => {
+                  const flatCats = flattenCategories(categoryTree)
+                  const expanded = expandSelectedCategories(selectedCategoryIds, flatCats)
+                  const count = products.filter(p => p.categoryIds?.some(cid => expanded.has(cid))).length
+                  return (
+                    <p className="mt-1.5 text-xs text-gray-500">
+                      {count} produto{count !== 1 ? 's' : ''} incluído{count !== 1 ? 's' : ''}
+                    </p>
+                  )
+                })()}
+              </div>
+            )}
+
+            {restrictionMode === 'products' && (
+              <ProductSelector
+                products={products}
+                selectedIds={form.productIds ?? []}
+                onChange={(ids) => setForm((f) => ({ ...f, productIds: ids }))}
+              />
+            )}
           </div>
         </Section>
 
@@ -819,6 +946,161 @@ function PromotionModal({
 }
 
 // ── Componentes auxiliares ──────────────────────────────────────────────────
+
+// Árvore de categorias com checkboxes para o seletor de restrição
+function CategoryCheckboxTree({
+  categories,
+  selectedIds,
+  onChange,
+  level = 0,
+}: {
+  categories: Category[]
+  selectedIds: string[]
+  onChange: (ids: string[]) => void
+  level?: number
+}) {
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(
+    () => new Set(categories.map((c) => c.id)),
+  )
+
+  function toggleExpand(id: string) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelect(id: string) {
+    const updated = selectedIds.includes(id)
+      ? selectedIds.filter((s) => s !== id)
+      : [...selectedIds, id]
+    onChange(updated)
+  }
+
+  return (
+    <div className={`rounded-xl border border-gray-200 ${level === 0 ? 'p-2' : ''}`}>
+      {categories.map((cat) => {
+        const hasChildren = !!cat.children?.length
+        const isExpanded = expandedIds.has(cat.id)
+        return (
+          <div key={cat.id} className={level > 0 ? 'ml-4 border-l border-gray-100 pl-2' : ''}>
+            <div className="flex items-center gap-1 rounded-lg px-1 py-1 hover:bg-gray-50">
+              <button
+                type="button"
+                onClick={() => toggleExpand(cat.id)}
+                className={`flex h-4 w-4 shrink-0 items-center justify-center text-gray-400 ${!hasChildren ? 'invisible' : ''}`}
+              >
+                {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              </button>
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(cat.id)}
+                  onChange={() => toggleSelect(cat.id)}
+                  className="h-3.5 w-3.5 rounded accent-gray-900"
+                />
+                {cat.name}
+              </label>
+            </div>
+            {hasChildren && isExpanded && (
+              <CategoryCheckboxTree
+                categories={cat.children!}
+                selectedIds={selectedIds}
+                onChange={onChange}
+                level={level + 1}
+              />
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// Lista de produtos com busca e checkboxes para o seletor de restrição
+function ProductSelector({
+  products,
+  selectedIds,
+  onChange,
+}: {
+  products: ProductOption[]
+  selectedIds: string[]
+  onChange: (ids: string[]) => void
+}) {
+  const [search, setSearch] = useState('')
+
+  const filtered = products.filter((p) => {
+    const q = search.toLowerCase()
+    return (
+      p.name.toLowerCase().includes(q) ||
+      (p.brand ?? '').toLowerCase().includes(q)
+    )
+  })
+
+  function toggleProduct(id: string) {
+    const updated = selectedIds.includes(id)
+      ? selectedIds.filter((s) => s !== id)
+      : [...selectedIds, id]
+    onChange(updated)
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="relative">
+        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar produto..."
+          className="w-full rounded-xl border border-gray-200 py-2 pl-8 pr-3 text-sm outline-none focus:border-gray-400"
+        />
+      </div>
+
+      {products.length === 0 ? (
+        <p className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-400">
+          Nenhum produto cadastrado.
+        </p>
+      ) : (
+        <div className="max-h-52 overflow-y-auto rounded-xl border border-gray-200">
+          {filtered.length === 0 ? (
+            <p className="px-4 py-3 text-sm text-gray-400">Nenhum produto encontrado.</p>
+          ) : (
+            filtered.map((product) => (
+              <label
+                key={product.id}
+                className="flex cursor-pointer items-center gap-3 border-b border-gray-50 px-3 py-2.5 last:border-0 hover:bg-gray-50"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(product.id)}
+                  onChange={() => toggleProduct(product.id)}
+                  className="h-3.5 w-3.5 accent-gray-900"
+                />
+                <div className="min-w-0">
+                  {product.brand && (
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{product.brand}</p>
+                  )}
+                  <p className="truncate text-sm text-gray-800">{product.name}</p>
+                </div>
+                <span className="ml-auto shrink-0 text-xs text-gray-500">
+                  {product.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
+              </label>
+            ))
+          )}
+        </div>
+      )}
+
+      {selectedIds.length > 0 && (
+        <p className="text-xs text-gray-500">
+          {selectedIds.length} produto{selectedIds.length !== 1 ? 's' : ''} selecionado{selectedIds.length !== 1 ? 's' : ''}
+        </p>
+      )}
+    </div>
+  )
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (

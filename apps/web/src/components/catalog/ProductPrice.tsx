@@ -1,4 +1,4 @@
-// Exibição do preço do produto — mostra desconto e preço original quando houver promoção
+// Exibição do preço do produto — mostra preço original riscado e badge de desconto quando há promoção
 import { calcDiscount } from '@esqueleton/shared'
 
 interface ProductPriceProps {
@@ -30,7 +30,7 @@ export function ProductPrice({ price, originalPrice, size = 'sm' }: ProductPrice
   return (
     <div className="flex flex-col gap-0.5">
 
-      {/* Preço original riscado e porcentagem de desconto — só aparece em promoção */}
+      {/* Preço original riscado e porcentagem de desconto — só aparece quando uma promoção altera o preço */}
       {hasDiscount && (
         <div className="flex items-center gap-2">
           <span className={originalClass}>{formattedOriginal}</span>
