@@ -57,10 +57,32 @@ export function calcDiscount(price: number, originalPrice: number): number {
   return Math.round(((originalPrice - price) / originalPrice) * 100)
 }
 
+// Loja (tenant) — cada cliente do SaaS tem a sua, identificada pelo slug na URL pública
+export interface Store {
+  id: string
+  // Identificador usado na URL pública (ex: "perfumaria-ana")
+  slug: string
+  name: string
+  // ACTIVE = funcionando | SUSPENDED = suspensa
+  status: 'ACTIVE' | 'SUSPENDED'
+  createdAt: string
+}
+
 export interface User {
   id: string
   email: string
+  // Loja à qual o usuário pertence
+  storeId: string
   createdAt: string
+}
+
+// Resposta do login — o token carrega a loja, e o slug é usado para montar links públicos
+export interface LoginResponse {
+  token: string
+  store: {
+    slug: string
+    name: string
+  }
 }
 
 // Seção "Em destaque" exibida no topo do catálogo — apenas uma pode estar ativa por vez

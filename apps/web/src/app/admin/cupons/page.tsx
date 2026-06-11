@@ -61,8 +61,8 @@ export default function AdminCuponsPage() {
     }
     const [couponsData, prodsOptions, catsData] = await Promise.all([
       couponsService.listCoupons(localStorage.getItem('admin_token') ?? ''),
-      catalogService.listProductOptions(),
-      categoriesService.listCategories(),
+      catalogService.listProductOptions(localStorage.getItem('admin_token') ?? ''),
+      categoriesService.listCategories(localStorage.getItem('admin_token') ?? ''),
     ])
     setCoupons(couponsData)
     setProducts(prodsOptions)

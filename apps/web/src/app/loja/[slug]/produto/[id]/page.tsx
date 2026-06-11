@@ -12,6 +12,7 @@ import { ProductPrice } from '@/components/catalog/ProductPrice'
 import { useBag } from '@/contexts/bag-context'
 import { useFavorites } from '@/contexts/favorites-context'
 import { analyticsService } from '@/services/analytics.service'
+import { useStoreSlug } from '@/hooks/useStoreSlug'
 import type { Product } from '@esqueleton/shared'
 
 // Troque para false quando a API estiver pronta
@@ -44,7 +45,8 @@ function marcarComoVisto(productId: string): void {
 }
 
 export default function ProductDetailPage() {
-  const { id } = useParams<{ id: string }>()
+  // slug identifica a loja visitada; id identifica o produto
+  const { slug, id } = useParams<{ slug: string; id: string }>()
   const router = useRouter()
   const { addItem } = useBag()
   const { isFavorited, toggleFavorite } = useFavorites()
@@ -72,14 +74,14 @@ export default function ProductDetailPage() {
     let cancelled = false
 
     catalogService
-      .getProduct(id)
+      .getPublicProduct(slug, id)
       .then((p) => {
         setProduct(p)
         // Registra a visualização apenas se este efeito ainda for o atual
         // e se o produto ainda não foi visto hoje (evita contar múltiplas vezes no mesmo dia)
         if (!cancelled && !jaViuHoje(p.id)) {
           marcarComoVisto(p.id)
-          analyticsService.recordEvent({
+          analyticsService.recordEvent(slug, {
             productId: p.id,
             productName: p.brand ? `${p.brand} ${p.name}` : p.name,
             eventType: 'PRODUCT_VIEW',
@@ -90,14 +92,14 @@ export default function ProductDetailPage() {
       .finally(() => setIsLoading(false))
 
     return () => { cancelled = true }
-  }, [id])
+  }, [slug, id])
 
   async function handleCopyLink() {
     await navigator.clipboard.writeText(window.location.href)
 
     // Registra o evento de cópia de link para analytics (fire-and-forget)
     if (product) {
-      analyticsService.recordEvent({ productId: product.id, productName: product.name, eventType: 'LINK_COPY' })
+      analyticsService.recordEvent(slug, { productId: product.id, productName: product.name, eventType: 'LINK_COPY' })
     }
 
     setCopied(true)
@@ -287,13 +289,14 @@ function ProductDetailSkeleton() {
 // Produto não encontrado
 function ProductNotFound() {
   const router = useRouter()
+  const slug = useStoreSlug()
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-20 text-center text-gray-400">
       <PackageSearch size={48} strokeWidth={1.5} />
       <p className="text-lg font-medium text-gray-600">Produto não encontrado</p>
       <p className="text-sm">Este produto não existe ou foi removido.</p>
       <button
-        onClick={() => router.push('/')}
+        onClick={() => router.push(`/loja/${slug}`)}
         className="mt-2 rounded-xl bg-black px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-800"
       >
         Voltar ao catálogo

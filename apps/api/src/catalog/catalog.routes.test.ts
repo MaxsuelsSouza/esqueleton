@@ -1,6 +1,6 @@
-// Testes das rotas de produtos — listagem pública resiliente e escrita protegida
+// Testes das rotas de produtos — listagem pública por loja e escrita protegida
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { createPrismaFake, buildTestApp, createTestToken } from '../test/test-helpers'
+import { createPrismaFake, buildTestApp, createTestToken, LOJA_TESTE } from '../test/test-helpers'
 
 type TestApp = Awaited<ReturnType<typeof buildTestApp>>
 
@@ -13,35 +13,47 @@ const produto = {
   originalPrice: null,
   imageUrl: null,
   stock: 10,
+  storeId: LOJA_TESTE.id,
   categories: [{ categoryId: 'cat1' }],
   createdAt: new Date(),
   updatedAt: new Date(),
 }
 
-describe('GET /api/products', () => {
+describe('GET /api/lojas/:slug/products (catálogo público)', () => {
   let app: TestApp
 
   afterEach(async () => {
     await app?.close()
   })
 
-  it('lista produtos com paginação', async () => {
+  it('lista produtos da loja com paginação', async () => {
+    const findMany = vi.fn(async () => [produto])
     app = await buildTestApp(
       createPrismaFake({
-        product: {
-          findMany: vi.fn(async () => [produto]),
-          count: vi.fn(async () => 1),
-        },
+        product: { findMany, count: vi.fn(async () => 1) },
       })
     )
 
-    const response = await app.inject({ method: 'GET', url: '/api/products' })
+    const response = await app.inject({ method: 'GET', url: '/api/lojas/loja-teste/products' })
 
     expect(response.statusCode).toBe(200)
     const body = response.json()
     expect(body.data).toHaveLength(1)
     // A relação interna "categories" é convertida para a lista simples categoryIds
     expect(body.data[0].categoryIds).toEqual(['cat1'])
+    // A consulta sempre filtra pela loja do slug
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ storeId: LOJA_TESTE.id }) })
+    )
+  })
+
+  it('retorna 404 para slug de loja inexistente', async () => {
+    app = await buildTestApp(createPrismaFake({}))
+
+    const response = await app.inject({ method: 'GET', url: '/api/lojas/loja-fantasma/products' })
+
+    expect(response.statusCode).toBe(404)
+    expect(response.json().message).toBe('Loja não encontrada')
   })
 
   it('não quebra com page e pageSize inválidos (ex: ?page=abc)', async () => {
@@ -54,7 +66,7 @@ describe('GET /api/products', () => {
 
     const response = await app.inject({
       method: 'GET',
-      url: '/api/products?page=abc&pageSize=xyz&priceMin=abc&priceMax=xyz',
+      url: '/api/lojas/loja-teste/products?page=abc&pageSize=xyz&priceMin=abc&priceMax=xyz',
     })
 
     expect(response.statusCode).toBe(200)
@@ -70,7 +82,7 @@ describe('GET /api/products', () => {
       })
     )
 
-    await app.inject({ method: 'GET', url: '/api/products?pageSize=99999' })
+    await app.inject({ method: 'GET', url: '/api/lojas/loja-teste/products?pageSize=99999' })
 
     expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 500 }))
   })
@@ -85,39 +97,43 @@ describe('GET /api/products', () => {
 
     await app.inject({
       method: 'GET',
-      url: `/api/products?ids=${encodeURIComponent("p1,' OR 1=1,p2")}`,
+      url: `/api/lojas/loja-teste/products?ids=${encodeURIComponent("p1,' OR 1=1,p2")}`,
     })
 
-    // Apenas os IDs válidos chegam à consulta
+    // Apenas os IDs válidos chegam à consulta — sempre limitada à loja
     expect(findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: { in: ['p1', 'p2'] } } })
+      expect.objectContaining({ where: { id: { in: ['p1', 'p2'] }, storeId: LOJA_TESTE.id } })
     )
   })
 })
 
-describe('escrita de produtos (POST/PUT/DELETE)', () => {
+describe('rotas admin de produtos', () => {
   let app: TestApp
 
   afterEach(async () => {
     await app?.close()
   })
 
-  it('exige autenticação', async () => {
+  it('listagem, escrita e exclusão exigem autenticação', async () => {
     app = await buildTestApp(createPrismaFake({}))
 
+    const lista = await app.inject({ method: 'GET', url: '/api/products' })
     const post = await app.inject({ method: 'POST', url: '/api/products', payload: {} })
     const put = await app.inject({ method: 'PUT', url: '/api/products/p1', payload: {} })
     const del = await app.inject({ method: 'DELETE', url: '/api/products/p1' })
 
+    expect(lista.statusCode).toBe(401)
     expect(post.statusCode).toBe(401)
     expect(put.statusCode).toBe(401)
     expect(del.statusCode).toBe(401)
   })
 
-  it('cria produto com dados válidos', async () => {
+  it('cria produto com dados válidos na loja do token', async () => {
+    const create = vi.fn(async () => produto)
     app = await buildTestApp(
       createPrismaFake({
-        product: { create: vi.fn(async () => produto) },
+        product: { create },
+        category: { count: vi.fn(async () => 1) },
       })
     )
     const token = await createTestToken(app)
@@ -130,6 +146,29 @@ describe('escrita de produtos (POST/PUT/DELETE)', () => {
     })
 
     expect(response.statusCode).toBe(201)
+    // O produto nasce na loja do token
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ storeId: LOJA_TESTE.id }) })
+    )
+  })
+
+  it('rejeita categoria que não pertence à loja', async () => {
+    app = await buildTestApp(
+      createPrismaFake({
+        // Nenhuma das categorias informadas existe nesta loja
+        category: { count: vi.fn(async () => 0) },
+      })
+    )
+    const token = await createTestToken(app)
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/products',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: 'Perfume', price: 100, categoryIds: ['cat-de-outra-loja'] },
+    })
+
+    expect(response.statusCode).toBe(400)
   })
 
   it('rejeita imageUrl com esquema perigoso (ex: javascript:)', async () => {
@@ -194,5 +233,23 @@ describe('escrita de produtos (POST/PUT/DELETE)', () => {
     })
 
     expect(response.statusCode).toBe(400)
+  })
+
+  it('não exclui produto de outra loja (responde 404)', async () => {
+    app = await buildTestApp(
+      createPrismaFake({
+        // deleteMany com id + storeId não encontra nada — o produto é de outra loja
+        product: { deleteMany: vi.fn(async () => ({ count: 0 })) },
+      })
+    )
+    const token = await createTestToken(app)
+
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/api/products/produto-de-outra-loja',
+      headers: { authorization: `Bearer ${token}` },
+    })
+
+    expect(response.statusCode).toBe(404)
   })
 })

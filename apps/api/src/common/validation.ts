@@ -59,6 +59,30 @@ export const imageUrlSchema = z
     'Imagem inválida — use uma URL http(s) ou envie uma imagem pelo painel',
   )
 
+// Endereços que não podem ser usados como slug de loja — são (ou podem virar)
+// caminhos do próprio sistema, e uma loja com esse nome causaria conflito de URL
+const RESERVED_SLUGS = [
+  'admin', 'api', 'www', 'app', 'login', 'cadastro', 'loja', 'lojas',
+  'sacola', 'favoritos', 'produto', 'produtos', 'ajuda', 'suporte',
+]
+
+// Slug da loja — identificador usado na URL pública (ex: "perfumaria-ana").
+// Apenas letras minúsculas, números e hífen; não começa nem termina com hífen.
+export const slugSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(3, 'O endereço da loja deve ter no mínimo 3 caracteres')
+  .max(40, 'O endereço da loja deve ter no máximo 40 caracteres')
+  .regex(
+    /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
+    'Endereço inválido — use apenas letras minúsculas, números e hífen (ex: perfumaria-ana)',
+  )
+  .refine((value) => !RESERVED_SLUGS.includes(value), 'Este endereço é reservado — escolha outro')
+
+// Valida o parâmetro :slug presente na URL das rotas públicas
+export const slugParamSchema = z.object({ slug: slugSchema })
+
 // Telefone — apenas dígitos, espaços, parênteses, "+" e "-"
 export const phoneSchema = z
   .string()

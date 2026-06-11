@@ -5,6 +5,7 @@ import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import type { Product, Coupon } from '@esqueleton/shared'
 import { couponsService } from '@/services/coupons.service'
 import { analyticsService } from '@/services/analytics.service'
+import { useStoreSlug } from '@/hooks/useStoreSlug'
 
 export type BagItem = {
   product: Product
@@ -45,9 +46,12 @@ interface BagContextValue {
 
 const BagContext = createContext<BagContextValue | null>(null)
 
-const STORAGE_KEY = 'bag_items'
-
 export function BagProvider({ children }: { children: React.ReactNode }) {
+  // Slug da loja visitada — a chave do localStorage inclui o slug para que
+  // um visitante de duas lojas diferentes não misture as sacolas
+  const slug = useStoreSlug()
+  const storageKey = `sacola:${slug}`
+
   const [items, setItems] = useState<BagItem[]>([])
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null)
   const [couponInput, setCouponInput] = useState('')
@@ -57,13 +61,15 @@ export function BagProvider({ children }: { children: React.ReactNode }) {
   // Sem esse controle, o efeito de salvar roda antes do de carregar e apaga os dados do localStorage
   const primeiroSave = useRef(true)
 
-  // Recupera a sacola salva no navegador ao iniciar
+  // Recupera a sacola salva no navegador ao iniciar (e ao trocar de loja)
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY)
-      if (saved) setItems(JSON.parse(saved))
+      const saved = localStorage.getItem(storageKey)
+      setItems(saved ? JSON.parse(saved) : [])
     } catch {}
-  }, [])
+    // Cupom pertence à loja anterior — descarta ao trocar de loja
+    setAppliedCoupon(null)
+  }, [storageKey])
 
   // Salva a sacola no navegador sempre que mudar —
   // pula a primeira execução (items=[]) para não sobrescrever os dados já salvos
@@ -72,8 +78,8 @@ export function BagProvider({ children }: { children: React.ReactNode }) {
       primeiroSave.current = false
       return
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
-  }, [items])
+    localStorage.setItem(storageKey, JSON.stringify(items))
+  }, [items, storageKey])
 
   function addItem(product: Product, meta?: AddItemMeta) {
     setItems((prev) => {
@@ -87,7 +93,7 @@ export function BagProvider({ children }: { children: React.ReactNode }) {
     })
 
     // Registra o evento de analytics — fire and forget, nunca bloqueia o usuário
-    analyticsService.recordEvent({
+    analyticsService.recordEvent(slug, {
       productId: product.id,
       productName: product.brand ? `${product.brand} ${product.name}` : product.name,
       eventType: 'CART_ADD',
@@ -126,7 +132,7 @@ export function BagProvider({ children }: { children: React.ReactNode }) {
       return
     }
     try {
-      const coupon = await couponsService.getCouponByCode(code)
+      const coupon = await couponsService.getPublicCouponByCode(slug, code)
       setAppliedCoupon(coupon)
       setCouponInput('')
       setCouponError(null)

@@ -35,20 +35,29 @@ function buildQueryString(params: ProductsQuery): string {
 }
 
 export const catalogService = {
-  // Busca produtos paginados com filtros opcionais
-  listProducts: (query: ProductsQuery = {}) =>
-    apiClient.get<ProductsPage>(`/products${buildQueryString(query)}`),
+  // ── Site público — o slug identifica qual loja está sendo visitada ─────────
 
-  // Busca produtos por IDs específicos (usado para seção em destaque)
-  getProductsByIds: (ids: string[]) =>
-    apiClient.get<ProductsPage>(`/products?ids=${ids.join(',')}`),
+  // Busca produtos paginados da loja com filtros opcionais
+  listPublicProducts: (slug: string, query: ProductsQuery = {}) =>
+    apiClient.get<ProductsPage>(`/lojas/${encodeURIComponent(slug)}/products${buildQueryString(query)}`),
+
+  // Busca produtos da loja por IDs específicos (seção em destaque e favoritos)
+  getPublicProductsByIds: (slug: string, ids: string[]) =>
+    apiClient.get<ProductsPage>(`/lojas/${encodeURIComponent(slug)}/products?ids=${ids.join(',')}`),
+
+  // Busca um produto da loja pelo ID (página de detalhe)
+  getPublicProduct: (slug: string, id: string) =>
+    apiClient.get<Product>(`/lojas/${encodeURIComponent(slug)}/products/${id}`),
+
+  // ── Painel admin — o token identifica a loja do administrador ──────────────
+
+  // Busca produtos paginados com filtros opcionais (requer login)
+  listProducts: (query: ProductsQuery, token: string) =>
+    apiClient.get<ProductsPage>(`/products${buildQueryString(query)}`, token),
 
   // Lista enxuta (sem imagem) para os seletores de produto do admin — leve na memória
-  listProductOptions: () =>
-    apiClient.get<ProductOption[]>('/products/options'),
-
-  // Busca um produto pelo ID (público)
-  getProduct: (id: string) => apiClient.get<Product>(`/products/${id}`),
+  listProductOptions: (token: string) =>
+    apiClient.get<ProductOption[]>('/products/options', token),
 
   // Cria um novo produto (requer login)
   createProduct: (data: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>, token: string) =>

@@ -16,10 +16,10 @@ interface CreateOrderInput {
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
 export const ordersService = {
-  // Cria um pedido — fire and forget, nunca bloqueia o envio pelo WhatsApp
-  async create(input: CreateOrderInput): Promise<void> {
+  // Cria um pedido na loja visitada (slug) — fire and forget, nunca bloqueia o envio pelo WhatsApp
+  async create(slug: string, input: CreateOrderInput): Promise<void> {
     try {
-      await apiClient.post('/orders', input)
+      await apiClient.post(`/lojas/${encodeURIComponent(slug)}/orders`, input)
     } catch {
       // Falha silenciosa — o pedido nunca deve bloquear o fluxo do cliente
     }

@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pnpm --filter @esqueleton/api build)"
+      "Bash(pnpm --filter @esqueleton/api build)",
+      "Bash(python -c ' *)"
     ]
   }
 }

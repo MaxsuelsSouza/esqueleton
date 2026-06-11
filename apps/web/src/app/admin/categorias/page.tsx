@@ -44,7 +44,7 @@ export default function AdminCategoriasPage() {
 
     setIsLoading(true)
     try {
-      const data = await categoriesService.listCategories()
+      const data = await categoriesService.listCategories(localStorage.getItem('admin_token') ?? '')
       // A API retorna lista plana
       setFlatCategories(data)
     } finally {

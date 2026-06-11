@@ -7,10 +7,12 @@ import { Heart, ArrowLeft } from 'lucide-react'
 import { useFavorites } from '@/contexts/favorites-context'
 import { catalogService } from '@/services/catalog.service'
 import { ProductCard } from '@/components/catalog/ProductCard'
+import { useStoreSlug } from '@/hooks/useStoreSlug'
 import type { Product } from '@esqueleton/shared'
 
 export default function FavoritosPage() {
   const router = useRouter()
+  const slug = useStoreSlug()
   const { favoriteIds } = useFavorites()
   const [products, setProducts] = useState<Product[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -21,11 +23,11 @@ export default function FavoritosPage() {
       return
     }
 
-    catalogService.getProductsByIds(favoriteIds)
+    catalogService.getPublicProductsByIds(slug, favoriteIds)
       .then((page) => setProducts(page.data ?? []))
       .catch(() => setProducts([]))
       .finally(() => setIsLoading(false))
-  }, [favoriteIds.length])
+  }, [slug, favoriteIds.length])
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -81,7 +83,7 @@ export default function FavoritosPage() {
               </p>
             </div>
             <button
-              onClick={() => router.push('/')}
+              onClick={() => router.push(`/loja/${slug}`)}
               className="mt-2 rounded-xl bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-gray-700"
             >
               Ver catálogo

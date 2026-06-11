@@ -11,9 +11,12 @@ import { useStoreProfile } from '@/contexts/store-profile-context'
 import { analyticsService } from '@/services/analytics.service'
 import { customersService } from '@/services/customers.service'
 import { ordersService } from '@/services/orders.service'
+import { useStoreSlug } from '@/hooks/useStoreSlug'
 
 export default function SacolaPage() {
   const router = useRouter()
+  // Slug da loja visitada — usado nos links e nas chamadas públicas da API
+  const slug = useStoreSlug()
   const {
     items, totalItems, removeItem, updateQuantity, clear,
     appliedCoupon, couponInput, setCouponInput, couponError, applyCoupon, removeCoupon,
@@ -187,8 +190,8 @@ export default function SacolaPage() {
       : `https://wa.me/?text=${message}`
     window.open(url, '_blank')
 
-    // 3. Salva o pedido no banco com apenas os itens selecionados — fire and forget
-    ordersService.create({
+    // 3. Salva o pedido no banco da loja com apenas os itens selecionados — fire and forget
+    ordersService.create(slug, {
       orderNumber,
       customerName: customerInfo.name,
       customerPhone: customerInfo.phone,
@@ -209,7 +212,7 @@ export default function SacolaPage() {
 
     // 4. Registra analytics — fire and forget
     for (const { product, promotionId, promotionName } of selectedItems) {
-      analyticsService.recordEvent({
+      analyticsService.recordEvent(slug, {
         productId: product.id,
         productName: product.brand ? `${product.brand} ${product.name}` : product.name,
         eventType: 'WHATSAPP_SEND',
@@ -251,8 +254,8 @@ export default function SacolaPage() {
     setIdentModalOpen(false)
     goToWhatsApp(info)
 
-    // 3. Salva no banco em paralelo — fire and forget
-    customersService.upsert(name, phone)
+    // 3. Salva no banco da loja em paralelo — fire and forget
+    customersService.upsert(slug, name, phone)
   }
 
   // Sacola vazia
@@ -265,7 +268,7 @@ export default function SacolaPage() {
             <p className="text-lg font-semibold text-gray-700">Sua sacola está vazia</p>
             <p className="text-sm">Adicione produtos do catálogo para continuar.</p>
             <button
-              onClick={() => router.push('/')}
+              onClick={() => router.push(`/loja/${slug}`)}
               className="mt-2 rounded-xl bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white hover:bg-gray-700"
             >
               Ver catálogo

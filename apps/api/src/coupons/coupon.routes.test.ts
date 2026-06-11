@@ -1,6 +1,6 @@
 // Testes das rotas de cupons — proteção da lista e validação pública por código
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { createPrismaFake, buildTestApp, createTestToken } from '../test/test-helpers'
+import { createPrismaFake, buildTestApp, createTestToken, LOJA_TESTE } from '../test/test-helpers'
 
 type TestApp = Awaited<ReturnType<typeof buildTestApp>>
 
@@ -19,6 +19,7 @@ const cupomValido = {
   startDate: null,
   endDate: null,
   active: true,
+  storeId: LOJA_TESTE.id,
   createdAt: new Date(),
 }
 
@@ -37,12 +38,9 @@ describe('GET /api/coupons (lista de cupons)', () => {
     expect(response.statusCode).toBe(401)
   })
 
-  it('retorna a lista para um admin autenticado', async () => {
-    app = await buildTestApp(
-      createPrismaFake({
-        coupon: { findMany: vi.fn(async () => [cupomValido]) },
-      })
-    )
+  it('retorna apenas os cupons da loja do admin autenticado', async () => {
+    const findMany = vi.fn(async () => [cupomValido])
+    app = await buildTestApp(createPrismaFake({ coupon: { findMany } }))
     const token = await createTestToken(app)
 
     const response = await app.inject({
@@ -53,24 +51,27 @@ describe('GET /api/coupons (lista de cupons)', () => {
 
     expect(response.statusCode).toBe(200)
     expect(response.json()).toHaveLength(1)
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { storeId: LOJA_TESTE.id } })
+    )
   })
 })
 
-describe('GET /api/coupons/codigo/:code (validação pública)', () => {
+describe('GET /api/lojas/:slug/coupons/codigo/:code (validação pública)', () => {
   let app: TestApp
 
   afterEach(async () => {
     await app?.close()
   })
 
-  it('retorna apenas os campos necessários para aplicar o desconto', async () => {
-    app = await buildTestApp(
-      createPrismaFake({
-        coupon: { findUnique: vi.fn(async () => cupomValido) },
-      })
-    )
+  it('busca pelo código dentro da loja do slug e retorna apenas os campos do desconto', async () => {
+    const findUnique = vi.fn(async () => cupomValido)
+    app = await buildTestApp(createPrismaFake({ coupon: { findUnique } }))
 
-    const response = await app.inject({ method: 'GET', url: '/api/coupons/codigo/DESCONTO10' })
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/lojas/loja-teste/coupons/codigo/DESCONTO10',
+    })
 
     expect(response.statusCode).toBe(200)
     const body = response.json()
@@ -79,6 +80,12 @@ describe('GET /api/coupons/codigo/:code (validação pública)', () => {
     // Dados internos do cupom não devem vazar para o público
     expect(body.maxUses).toBeUndefined()
     expect(body.usedCount).toBeUndefined()
+    // A busca usa a chave composta loja + código — cupom de outra loja nunca aparece
+    expect(findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { storeId_code: { storeId: LOJA_TESTE.id, code: 'DESCONTO10' } },
+      })
+    )
   })
 
   it('retorna 404 para cupom inexistente', async () => {
@@ -88,7 +95,10 @@ describe('GET /api/coupons/codigo/:code (validação pública)', () => {
       })
     )
 
-    const response = await app.inject({ method: 'GET', url: '/api/coupons/codigo/NAOEXISTE' })
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/lojas/loja-teste/coupons/codigo/NAOEXISTE',
+    })
 
     expect(response.statusCode).toBe(404)
   })
@@ -99,7 +109,7 @@ describe('GET /api/coupons/codigo/:code (validação pública)', () => {
 
     const response = await app.inject({
       method: 'GET',
-      url: `/api/coupons/codigo/${encodeURIComponent("' OR 1=1 --")}`,
+      url: `/api/lojas/loja-teste/coupons/codigo/${encodeURIComponent("' OR 1=1 --")}`,
     })
 
     expect(response.statusCode).toBe(404)
@@ -113,7 +123,10 @@ describe('GET /api/coupons/codigo/:code (validação pública)', () => {
       })
     )
 
-    const response = await app.inject({ method: 'GET', url: '/api/coupons/codigo/DESCONTO10' })
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/lojas/loja-teste/coupons/codigo/DESCONTO10',
+    })
 
     expect(response.statusCode).toBe(404)
     expect(response.json().message).toBe('Este cupom não está disponível.')
@@ -126,7 +139,10 @@ describe('GET /api/coupons/codigo/:code (validação pública)', () => {
       })
     )
 
-    const response = await app.inject({ method: 'GET', url: '/api/coupons/codigo/DESCONTO10' })
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/lojas/loja-teste/coupons/codigo/DESCONTO10',
+    })
 
     expect(response.statusCode).toBe(404)
     expect(response.json().message).toBe('Este cupom está expirado.')
@@ -139,7 +155,10 @@ describe('GET /api/coupons/codigo/:code (validação pública)', () => {
       })
     )
 
-    const response = await app.inject({ method: 'GET', url: '/api/coupons/codigo/DESCONTO10' })
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/lojas/loja-teste/coupons/codigo/DESCONTO10',
+    })
 
     expect(response.statusCode).toBe(404)
     expect(response.json().message).toBe('Este cupom atingiu o limite de usos.')
@@ -181,5 +200,27 @@ describe('rotas de gestão de cupons', () => {
     })
 
     expect(response.statusCode).toBe(400)
+  })
+
+  it('não altera cupom de outra loja (responde 404)', async () => {
+    app = await buildTestApp(
+      createPrismaFake({
+        coupon: {
+          findUnique: vi.fn(async () => null),
+          // updateMany com id + storeId não encontra nada — o cupom é de outra loja
+          updateMany: vi.fn(async () => ({ count: 0 })),
+        },
+      })
+    )
+    const token = await createTestToken(app)
+
+    const response = await app.inject({
+      method: 'PUT',
+      url: '/api/coupons/cupom-de-outra-loja',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { description: 'tentativa' },
+    })
+
+    expect(response.statusCode).toBe(404)
   })
 })

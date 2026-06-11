@@ -25,6 +25,9 @@ export function useAdminAuth() {
 
   function logout() {
     localStorage.removeItem('admin_token')
+    // Remove também os dados da loja salvos no login
+    localStorage.removeItem('admin_store_slug')
+    localStorage.removeItem('admin_store_name')
     router.replace('/admin/login')
   }
 

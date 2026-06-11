@@ -1,6 +1,6 @@
 // Testes das rotas de pedidos — criação pública validada e gestão protegida
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { createPrismaFake, buildTestApp, createTestToken } from '../test/test-helpers'
+import { createPrismaFake, buildTestApp, createTestToken, LOJA_TESTE } from '../test/test-helpers'
 
 type TestApp = Awaited<ReturnType<typeof buildTestApp>>
 
@@ -21,28 +21,38 @@ const pedidoSalvo = {
   ...pedidoValido,
   couponCode: null,
   status: 'PENDING',
+  storeId: LOJA_TESTE.id,
   createdAt: new Date(),
   updatedAt: new Date(),
 }
 
-describe('POST /api/orders (criação pública)', () => {
+describe('POST /api/lojas/:slug/orders (criação pública)', () => {
   let app: TestApp
 
   afterEach(async () => {
     await app?.close()
   })
 
-  it('cria um pedido com dados válidos', async () => {
+  it('cria um pedido com dados válidos na loja do slug', async () => {
+    const create = vi.fn(async () => pedidoSalvo)
     app = await buildTestApp(
       createPrismaFake({
-        order: { create: vi.fn(async () => pedidoSalvo) },
+        order: { create },
         notification: { create: vi.fn(async () => ({})) },
       })
     )
 
-    const response = await app.inject({ method: 'POST', url: '/api/orders', payload: pedidoValido })
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/lojas/loja-teste/orders',
+      payload: pedidoValido,
+    })
 
     expect(response.statusCode).toBe(201)
+    // O pedido nasce na loja do slug
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ storeId: LOJA_TESTE.id }) })
+    )
   })
 
   it('rejeita número de pedido com caracteres inválidos', async () => {
@@ -50,7 +60,7 @@ describe('POST /api/orders (criação pública)', () => {
 
     const response = await app.inject({
       method: 'POST',
-      url: '/api/orders',
+      url: '/api/lojas/loja-teste/orders',
       payload: { ...pedidoValido, orderNumber: '123456; DROP TABLE' },
     })
 
@@ -62,7 +72,7 @@ describe('POST /api/orders (criação pública)', () => {
 
     const response = await app.inject({
       method: 'POST',
-      url: '/api/orders',
+      url: '/api/lojas/loja-teste/orders',
       payload: { ...pedidoValido, customerPhone: '<script>alert(1)</script>' },
     })
 
@@ -74,7 +84,7 @@ describe('POST /api/orders (criação pública)', () => {
 
     const response = await app.inject({
       method: 'POST',
-      url: '/api/orders',
+      url: '/api/lojas/loja-teste/orders',
       payload: { ...pedidoValido, subtotal: 1, total: 1 },
     })
 
@@ -87,7 +97,7 @@ describe('POST /api/orders (criação pública)', () => {
 
     const response = await app.inject({
       method: 'POST',
-      url: '/api/orders',
+      url: '/api/lojas/loja-teste/orders',
       payload: { ...pedidoValido, discount: 999, total: 0 },
     })
 
@@ -95,26 +105,27 @@ describe('POST /api/orders (criação pública)', () => {
   })
 
   it('registra o uso do cupom no servidor ao criar o pedido', async () => {
-    const updateCoupon = vi.fn(async () => ({}))
+    const updateCoupon = vi.fn(async () => ({ count: 1 }))
     app = await buildTestApp(
       createPrismaFake({
         order: { create: vi.fn(async () => ({ ...pedidoSalvo, couponCode: 'DESCONTO10' })) },
         notification: { create: vi.fn(async () => ({})) },
-        coupon: { update: updateCoupon },
+        coupon: { updateMany: updateCoupon },
       })
     )
 
     const response = await app.inject({
       method: 'POST',
-      url: '/api/orders',
+      url: '/api/lojas/loja-teste/orders',
       payload: { ...pedidoValido, couponCode: 'DESCONTO10', discount: 10, total: 90 },
     })
 
     expect(response.statusCode).toBe(201)
-    // O contador de usos sobe no servidor — é assim que o maxUses é respeitado
+    // O contador de usos sobe no servidor — é assim que o maxUses é respeitado.
+    // O filtro inclui a loja: cupom de mesmo código em outra loja não é afetado.
     expect(updateCoupon).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { code: 'DESCONTO10' },
+        where: { storeId: LOJA_TESTE.id, code: 'DESCONTO10' },
         data: { usedCount: { increment: 1 } },
       })
     )
@@ -125,7 +136,7 @@ describe('POST /api/orders (criação pública)', () => {
 
     const response = await app.inject({
       method: 'POST',
-      url: '/api/orders',
+      url: '/api/lojas/loja-teste/orders',
       payload: { ...pedidoValido, items: [] },
     })
 
@@ -168,21 +179,43 @@ describe('rotas de gestão de pedidos', () => {
     })
 
     expect(response.statusCode).toBe(200)
-    // O valor inválido não chega à consulta — busca sem filtro
-    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: undefined }))
+    // O valor inválido não chega à consulta — busca apenas pela loja, sem filtro de status
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { storeId: LOJA_TESTE.id } })
+    )
+  })
+
+  it('busca de pedido usa a chave composta loja + número', async () => {
+    const findUnique = vi.fn(async () => pedidoSalvo)
+    app = await buildTestApp(createPrismaFake({ order: { findUnique } }))
+    const token = await createTestToken(app)
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/orders/search?orderNumber=123456',
+      headers: { authorization: `Bearer ${token}` },
+    })
+
+    expect(response.statusCode).toBe(200)
+    // Pedido de outra loja com o mesmo número nunca é retornado
+    expect(findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { storeId_orderNumber: { storeId: LOJA_TESTE.id, orderNumber: '123456' } },
+      })
+    )
   })
 
   it('confirma venda e desconta o estoque dos produtos', async () => {
-    const updateProduct = vi.fn(async () => ({}))
+    const updateProduct = vi.fn(async () => ({ count: 1 }))
     app = await buildTestApp(
       createPrismaFake({
         order: {
           findUnique: vi.fn(async () => pedidoSalvo),
-          update: vi.fn(async () => ({ ...pedidoSalvo, status: 'SOLD' })),
+          updateMany: vi.fn(async () => ({ count: 1 })),
         },
         product: {
-          findUnique: vi.fn(async () => ({ id: 'p1', name: 'Perfume Teste', brand: null, stock: 10 })),
-          update: updateProduct,
+          findFirst: vi.fn(async () => ({ id: 'p1', name: 'Perfume Teste', brand: null, stock: 10 })),
+          updateMany: updateProduct,
         },
         notification: { upsert: vi.fn(async () => ({})) },
       })
@@ -197,9 +230,12 @@ describe('rotas de gestão de pedidos', () => {
     })
 
     expect(response.statusCode).toBe(200)
-    // Estoque desce de 10 para 9 (1 unidade vendida)
+    // Estoque desce de 10 para 9 (1 unidade vendida) — sempre dentro da loja
     expect(updateProduct).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { stock: 9 } })
+      expect.objectContaining({
+        where: expect.objectContaining({ storeId: LOJA_TESTE.id }),
+        data: { stock: 9 },
+      })
     )
   })
 

@@ -5,16 +5,17 @@ import rateLimit from '@fastify/rate-limit'
 import { ZodError } from 'zod'
 import { prismaPlugin } from './database/prisma.plugin'
 import { jwtAuthPlugin } from './auth/jwt.plugin'
+import { storeContextPlugin } from './store/store-context.plugin'
 import { authRoutes } from './auth/auth.routes'
-import { catalogRoutes } from './catalog/catalog.routes'
-import { couponRoutes } from './coupons/coupon.routes'
-import { promotionRoutes } from './promotions/promotion.routes'
-import { featuredRoutes } from './featured/featured.routes'
-import { categoryRoutes } from './categories/category.routes'
-import { storeProfileRoutes } from './store-profile/store-profile.routes'
-import { analyticsRoutes } from './analytics/analytics.routes'
-import { customerRoutes } from './customers/customer.routes'
-import { orderRoutes } from './orders/order.routes'
+import { catalogPublicRoutes, catalogAdminRoutes } from './catalog/catalog.routes'
+import { couponPublicRoutes, couponAdminRoutes } from './coupons/coupon.routes'
+import { promotionPublicRoutes, promotionAdminRoutes } from './promotions/promotion.routes'
+import { featuredPublicRoutes, featuredAdminRoutes } from './featured/featured.routes'
+import { categoryPublicRoutes, categoryAdminRoutes } from './categories/category.routes'
+import { storeProfilePublicRoutes, storeProfileAdminRoutes } from './store-profile/store-profile.routes'
+import { analyticsPublicRoutes, analyticsAdminRoutes } from './analytics/analytics.routes'
+import { customerPublicRoutes, customerAdminRoutes } from './customers/customer.routes'
+import { orderPublicRoutes, orderAdminRoutes } from './orders/order.routes'
 import { notificationRoutes } from './notifications/notification.routes'
 
 // Nos testes é possível injetar um banco de dados falso — veja prisma.plugin.ts
@@ -59,17 +60,41 @@ export function buildApp(options: BuildAppOptions = {}) {
 
   app.register(prismaPlugin, { client: options.prisma })
   app.register(jwtAuthPlugin)
+  app.register(storeContextPlugin)
 
   app.register(authRoutes, { prefix: '/api/auth' })
-  app.register(catalogRoutes, { prefix: '/api/products' })
-  app.register(couponRoutes, { prefix: '/api/coupons' })
-  app.register(promotionRoutes, { prefix: '/api/promotions' })
-  app.register(featuredRoutes, { prefix: '/api/featured' })
-  app.register(categoryRoutes, { prefix: '/api/categories' })
-  app.register(storeProfileRoutes, { prefix: '/api/store-profile' })
-  app.register(analyticsRoutes, { prefix: '/api/analytics' })
-  app.register(customerRoutes, { prefix: '/api/customers' })
-  app.register(orderRoutes, { prefix: '/api/orders' })
+
+  // ── Rotas públicas do catálogo — a loja é identificada pelo slug na URL ──
+  // Ex: GET /api/lojas/perfumaria-ana/products
+  // O preHandler resolveStore busca a loja pelo slug e anexa em request.store;
+  // slug inexistente (ou loja suspensa) responde 404 antes de chegar à rota.
+  app.register(
+    async (publicApp) => {
+      publicApp.addHook('preHandler', publicApp.resolveStore)
+
+      publicApp.register(catalogPublicRoutes, { prefix: '/products' })
+      publicApp.register(couponPublicRoutes, { prefix: '/coupons' })
+      publicApp.register(promotionPublicRoutes, { prefix: '/promotions' })
+      publicApp.register(featuredPublicRoutes, { prefix: '/featured' })
+      publicApp.register(categoryPublicRoutes, { prefix: '/categories' })
+      publicApp.register(storeProfilePublicRoutes, { prefix: '/store-profile' })
+      publicApp.register(analyticsPublicRoutes, { prefix: '/analytics' })
+      publicApp.register(customerPublicRoutes, { prefix: '/customers' })
+      publicApp.register(orderPublicRoutes, { prefix: '/orders' })
+    },
+    { prefix: '/api/lojas/:slug' },
+  )
+
+  // ── Rotas do painel admin — a loja é identificada pelo token JWT ──
+  app.register(catalogAdminRoutes, { prefix: '/api/products' })
+  app.register(couponAdminRoutes, { prefix: '/api/coupons' })
+  app.register(promotionAdminRoutes, { prefix: '/api/promotions' })
+  app.register(featuredAdminRoutes, { prefix: '/api/featured' })
+  app.register(categoryAdminRoutes, { prefix: '/api/categories' })
+  app.register(storeProfileAdminRoutes, { prefix: '/api/store-profile' })
+  app.register(analyticsAdminRoutes, { prefix: '/api/analytics' })
+  app.register(customerAdminRoutes, { prefix: '/api/customers' })
+  app.register(orderAdminRoutes, { prefix: '/api/orders' })
   app.register(notificationRoutes, { prefix: '/api/notifications' })
 
   app.get('/api/health', async () => ({ status: 'ok' }))

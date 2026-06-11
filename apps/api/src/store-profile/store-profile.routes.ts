@@ -1,30 +1,50 @@
+// Rotas do perfil da loja — cada loja tem um perfil (logo, cores, contato).
+//   - storeProfilePublicRoutes: leitura pelo catálogo público, a loja vem do slug na URL
+//   - storeProfileAdminRoutes: leitura e edição pelo painel, a loja vem do token JWT
 import type { FastifyPluginAsync } from 'fastify'
 import { storeProfileSchema } from './store-profile.schema'
 
-// ID fixo — a loja sempre tem um único perfil
-const SINGLETON_ID = 'singleton'
+// Valores padrão exibidos enquanto a loja ainda não configurou o perfil
+const PERFIL_PADRAO = {
+  storeName: 'Minha Loja',
+  themeColor: '#000000',
+  announcements: [] as string[],
+}
 
-export const storeProfileRoutes: FastifyPluginAsync = async (app) => {
+// ── Rota pública — a loja vem do slug na URL ───────────────────────
+export const storeProfilePublicRoutes: FastifyPluginAsync = async (app) => {
+  app.get('/', async (request) => {
+    const profile = await app.prisma.storeProfile.findUnique({
+      where: { storeId: request.store!.id },
+    })
+    // Loja sem perfil configurado mostra os valores padrão — a leitura pública não cria registros
+    return profile ?? { ...PERFIL_PADRAO, storeName: request.store!.name }
+  })
+}
+
+// ── Rotas do admin — a loja vem do token JWT ───────────────────────
+export const storeProfileAdminRoutes: FastifyPluginAsync = async (app) => {
+  // Todas as rotas deste grupo exigem login
+  app.addHook('preHandler', app.authenticate)
+
   // Retorna o perfil da loja — cria com valores padrão se ainda não existir
-  app.get('/', async () => {
+  app.get('/', async (request) => {
+    const storeId = request.user.storeId
     return app.prisma.storeProfile.upsert({
-      where: { id: SINGLETON_ID },
-      create: { id: SINGLETON_ID, storeName: 'Minha Loja', themeColor: '#000000' },
+      where: { storeId },
+      create: { storeId, ...PERFIL_PADRAO },
       update: {},
     })
   })
 
-  // Atualiza o perfil da loja (requer JWT)
-  app.put(
-    '/',
-    { preHandler: [app.authenticate] },
-    async (request) => {
-      const data = storeProfileSchema.parse(request.body)
-      return app.prisma.storeProfile.upsert({
-        where: { id: SINGLETON_ID },
-        create: { id: SINGLETON_ID, ...data },
-        update: data,
-      })
-    },
-  )
+  // Atualiza o perfil da loja
+  app.put('/', async (request) => {
+    const storeId = request.user.storeId
+    const data = storeProfileSchema.parse(request.body)
+    return app.prisma.storeProfile.upsert({
+      where: { storeId },
+      create: { storeId, ...data },
+      update: data,
+    })
+  })
 }

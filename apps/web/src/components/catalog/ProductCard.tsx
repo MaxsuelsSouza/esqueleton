@@ -9,6 +9,7 @@ import { ProductPrice } from './ProductPrice'
 import { useBag } from '@/contexts/bag-context'
 import { useFavorites } from '@/contexts/favorites-context'
 import { analyticsService } from '@/services/analytics.service'
+import { useStoreSlug } from '@/hooks/useStoreSlug'
 
 interface ProductCardProps {
   product: Product
@@ -29,12 +30,13 @@ export function ProductCard({ product, displayMode = 'grid', badge, badgeColor, 
   const { addItem } = useBag()
   const { isFavorited, toggleFavorite } = useFavorites()
   const router = useRouter()
+  const slug = useStoreSlug()
   const favorited = isFavorited(product.id)
 
   function goToDetail() {
     // Registra o clique vindo de destaque antes de navegar
     if (featuredId && featuredName) {
-      analyticsService.recordEvent({
+      analyticsService.recordEvent(slug, {
         productId: product.id,
         productName: product.brand ? `${product.brand} ${product.name}` : product.name,
         eventType: 'FEATURED_CLICK',
@@ -42,7 +44,7 @@ export function ProductCard({ product, displayMode = 'grid', badge, badgeColor, 
         featuredName,
       })
     }
-    router.push(`/produto/${product.id}`)
+    router.push(`/loja/${slug}/produto/${product.id}`)
   }
 
   function handleAddToBag() {
@@ -284,13 +286,14 @@ function AddToCartButton({ onClick, disabled, large }: { onClick: () => void; di
 
 function CopyLinkButton({ productId, productName }: { productId: string; productName: string }) {
   const [copied, setCopied] = useState(false)
+  const slug = useStoreSlug()
 
   async function handleCopy() {
-    const url = `${window.location.origin}/produto/${productId}`
+    const url = `${window.location.origin}/loja/${slug}/produto/${productId}`
     await navigator.clipboard.writeText(url)
 
     // Registra o evento de cópia de link para analytics (fire-and-forget)
-    analyticsService.recordEvent({ productId, productName, eventType: 'LINK_COPY' })
+    analyticsService.recordEvent(slug, { productId, productName, eventType: 'LINK_COPY' })
 
     // Mostra o ícone de confirmação por 2 segundos e volta ao normal
     setCopied(true)

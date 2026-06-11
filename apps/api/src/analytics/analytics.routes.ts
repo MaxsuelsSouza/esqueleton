@@ -1,33 +1,41 @@
-// Rotas de analytics — registra eventos de produto e retorna métricas para o dashboard
+// Rotas de analytics — divididas em dois grupos:
+//   - analyticsPublicRoutes: registro de eventos pelo catálogo, a loja vem do slug na URL
+//   - analyticsAdminRoutes: métricas do dashboard, a loja vem do token JWT
 import type { FastifyInstance } from 'fastify'
 import { createEventSchema } from './analytics.schema'
 
-export async function analyticsRoutes(app: FastifyInstance) {
+// ── Rota pública — a loja vem do slug na URL ───────────────────────
+export async function analyticsPublicRoutes(app: FastifyInstance) {
 
-  // POST /api/analytics/events — público, sem autenticação
+  // POST /api/lojas/:slug/analytics/events — público, sem autenticação
   // Chamado pelo frontend sempre que um produto é visualizado, favoritado, adicionado à sacola ou enviado pelo WhatsApp
   // Limite por IP — impede que alguém infle as métricas com eventos falsos em massa
   app.post('/events', { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } }, async (request, reply) => {
     const data = createEventSchema.parse(request.body)
-    await app.prisma.productEvent.create({ data })
+    await app.prisma.productEvent.create({ data: { ...data, storeId: request.store!.id } })
     return reply.status(201).send({ message: 'Evento registrado.' })
   })
+}
 
-  // DELETE /api/analytics/events — protegido, apenas admins
-  // Remove todos os eventos de produto, zerando o funil
-  app.delete('/events', { preHandler: [app.authenticate] }, async (_request, reply) => {
-    await app.prisma.productEvent.deleteMany()
+// ── Rotas do admin — a loja vem do token JWT ───────────────────────
+export async function analyticsAdminRoutes(app: FastifyInstance) {
+  // Todas as rotas deste grupo exigem login
+  app.addHook('preHandler', app.authenticate)
+
+  // DELETE /api/analytics/events — remove todos os eventos da loja, zerando o funil
+  app.delete('/events', async (request, reply) => {
+    await app.prisma.productEvent.deleteMany({ where: { storeId: request.user.storeId } })
     return reply.send({ message: 'Registros do funil apagados.' })
   })
 
-  // GET /api/analytics/summary — protegido, apenas admins
-  // Agrega todos os eventos e calcula as métricas completas do dashboard
-  app.get('/summary', { preHandler: [app.authenticate] }, async (_request, reply) => {
+  // GET /api/analytics/summary — agrega os eventos da loja e calcula as métricas completas do dashboard
+  app.get('/summary', async (request, reply) => {
+    const storeId = request.user.storeId
     const [events, soldOrders, pendingOrders, allOrders] = await Promise.all([
-      app.prisma.productEvent.findMany({ orderBy: { createdAt: 'asc' } }),
-      app.prisma.order.findMany({ where: { status: 'SOLD' } }),
-      app.prisma.order.findMany({ where: { status: 'PENDING' } }),
-      app.prisma.order.findMany(),
+      app.prisma.productEvent.findMany({ where: { storeId }, orderBy: { createdAt: 'asc' } }),
+      app.prisma.order.findMany({ where: { storeId, status: 'SOLD' } }),
+      app.prisma.order.findMany({ where: { storeId, status: 'PENDING' } }),
+      app.prisma.order.findMany({ where: { storeId } }),
     ])
 
     // ── Mapas de pedidos por produto ──────────────────────────────────────────

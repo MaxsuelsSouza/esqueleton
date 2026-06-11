@@ -97,8 +97,8 @@ export default function AdminPromocoesPage() {
     }
     const [promos, prodsOptions, catsData] = await Promise.all([
       promotionsService.listPromotions(localStorage.getItem('admin_token') ?? ''),
-      catalogService.listProductOptions(),
-      categoriesService.listCategories(),
+      catalogService.listProductOptions(localStorage.getItem('admin_token') ?? ''),
+      categoriesService.listCategories(localStorage.getItem('admin_token') ?? ''),
     ])
     setPromotions(promos)
     setProducts(prodsOptions)

@@ -4,7 +4,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { Package, Tag, BadgePercent, Ticket, Sparkles, LogOut, Store, LayoutDashboard, Bell } from 'lucide-react'
+import { Package, Tag, BadgePercent, Ticket, Sparkles, LogOut, Store, LayoutDashboard, Bell, ExternalLink } from 'lucide-react'
 import { useAdminAuth } from '@/hooks/useAdminAuth'
 import { NotificationBell } from '@/components/admin/NotificationBell'
 import { PendingOrdersPopup } from '@/components/admin/PendingOrdersPopup'
@@ -26,6 +26,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isLoginPage = pathname === '/admin/login'
   const { isChecking } = useAdminAuth()
   const [scrolled, setScrolled] = useState(false)
+  // Endereço (slug) da loja do admin, salvo no login — usado no link "Ver minha loja"
+  const [storeSlug, setStoreSlug] = useState<string | null>(null)
 
   useEffect(() => {
     function handleScroll() {
@@ -34,6 +36,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
+
+  // Lê o slug salvo no navegador (não existe durante a renderização no servidor)
+  useEffect(() => {
+    setStoreSlug(localStorage.getItem('admin_store_slug'))
+  }, [pathname])
 
   // Na tela de login não exibe a barra lateral nem verifica autenticação
   if (isLoginPage) {
@@ -77,6 +84,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           ))}
         </nav>
 
+        {/* Link discreto para abrir o site público da loja em outra aba */}
+        {storeSlug && (
+          <div className="px-3 pb-1">
+            <a
+              href={`/loja/${storeSlug}`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
+            >
+              <ExternalLink size={16} />
+              Ver minha loja
+            </a>
+          </div>
+        )}
+
         {/* Botão de sair — fixo no rodapé da barra */}
         <LogoutButton />
       </aside>
@@ -89,6 +111,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className={`flex items-center justify-between px-4 transition-all duration-300 ${scrolled ? 'py-1.5' : 'py-3'}`}>
             <p className={`font-semibold text-gray-700 transition-all duration-300 ${scrolled ? 'text-xs' : 'text-sm'}`}>Administração</p>
             <div className="flex items-center gap-2">
+              {/* Link discreto para abrir o site público da loja */}
+              {storeSlug && (
+                <a
+                  href={`/loja/${storeSlug}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Ver minha loja"
+                  title="Ver minha loja"
+                  className="text-gray-400 hover:text-gray-700"
+                >
+                  <ExternalLink size={18} />
+                </a>
+              )}
               <NotificationBell />
               <LogoutButton mobile />
             </div>
@@ -123,10 +158,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   )
 }
 
-// Botão de sair — lê o token e limpa ao clicar
+// Botão de sair — limpa o token e os dados da loja ao clicar
 function LogoutButton({ mobile = false }: { mobile?: boolean }) {
   function handleLogout() {
     localStorage.removeItem('admin_token')
+    localStorage.removeItem('admin_store_slug')
+    localStorage.removeItem('admin_store_name')
     window.location.href = '/admin/login'
   }
 

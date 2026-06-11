@@ -3,13 +3,18 @@ import { apiClient } from './api-client'
 import type { Coupon } from '@esqueleton/shared'
 
 export const couponsService = {
-  // Lista completa de cupons — apenas para o painel admin (requer token)
-  listCoupons: (token: string) => apiClient.get<Coupon[]>('/coupons', token),
+  // ── Site público — busca um cupom da loja visitada pelo código digitado ────
+  // A API valida (ativo, prazo, limite de usos) e retorna apenas os campos
+  // necessários para aplicar o desconto
+  getPublicCouponByCode: (slug: string, code: string) =>
+    apiClient.get<Coupon>(
+      `/lojas/${encodeURIComponent(slug)}/coupons/codigo/${encodeURIComponent(code)}`,
+    ),
 
-  // Busca um cupom pelo código digitado no checkout — a API valida e
-  // retorna apenas os campos necessários para aplicar o desconto
-  getCouponByCode: (code: string) =>
-    apiClient.get<Coupon>(`/coupons/codigo/${encodeURIComponent(code)}`),
+  // ── Painel admin (requer login) ─────────────────────────────────────────────
+
+  // Lista completa de cupons da loja do administrador
+  listCoupons: (token: string) => apiClient.get<Coupon[]>('/coupons', token),
 
   createCoupon: (data: Omit<Coupon, 'id' | 'createdAt' | 'usedCount'>, token: string) =>
     apiClient.post<Coupon>('/coupons', data, token),

@@ -4,7 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A monorepo skeleton for building simple catalog/showcase projects. Not for e-commerce with payments or high-traffic systems — meant for product listings, storefronts, and similar use cases.
+A monorepo skeleton for building simple catalog/showcase projects, now **multi-tenant (SaaS)**: several stores share the same database and API, each identified by a `slug`. Not for e-commerce with payments or high-traffic systems — meant for product listings, storefronts, and similar use cases.
+
+## Multi-tenancy (how stores are isolated)
+
+- Every data model has a required `storeId` column pointing to `Store` (the tenant). Deleting a store cascades to all its data.
+- **Admin requests** (panel): the JWT payload carries `storeId` — every query filters by `request.user.storeId`.
+- **Public requests** (catalog): routes live under `/api/lojas/:slug/...`. The `resolveStore` preHandler (`store/store-context.plugin.ts`) resolves the slug (60s in-memory cache) and attaches `request.store`; unknown or `SUSPENDED` stores answer 404 "Loja não encontrada".
+- **Tenant guard** (`database/tenant-guard.ts`): wraps the Prisma client (real and test fakes) and THROWS when a query on a tenant model lacks `storeId` (in `where` for reads/updates/deletes, in `data` for creates). It never injects the filter automatically — routes must be explicit. `User` (login by global email) and `Store` are exempt.
+- Uniques are per-store composites: `Coupon @@unique([storeId, code])`, `Customer @@unique([storeId, phone])`, `Order @@unique([storeId, orderNumber])`, `Notification @@unique([storeId, type, entityId])`. In Prisma lookups use e.g. `where: { storeId_code: { storeId, code } }`.
+- `update`/`delete` by id use the ownership pattern: `updateMany/deleteMany({ where: { id, storeId } })` + 404 when `count === 0`.
+- Each route file exports two plugins: `<feature>PublicRoutes` (registered under `/api/lojas/:slug`) and `<feature>AdminRoutes` (registered at `/api/<feature>`, all behind `app.authenticate`). See `app.ts`.
+- Tenant isolation tests live in `apps/api/src/test/tenant-isolation.test.ts`; the guard has its own unit tests in `database/tenant-guard.test.ts`.
 
 ## Code readability
 
@@ -33,8 +44,14 @@ pnpm install
 # Start local Postgres
 docker-compose up -d
 
-# Run everything in dev mode
+# Run everything in dev mode (default database)
 pnpm dev
+
+# Run against an alternative database profile (own Postgres container + data)
+# Requires apps/api/.env.<profile> (copy the .env.<profile>.example) and a
+# postgres-<profile> service in docker-compose.yml
+pnpm dev --loja1
+pnpm --filter @esqueleton/api db:migrate --loja1   # migrate that profile's database
 
 # Run only one app
 pnpm --filter @esqueleton/api dev
@@ -56,15 +73,16 @@ pnpm --filter @esqueleton/web test
 
 ## Security rules
 
-- `POST /api/auth/register` is open only while no user exists (initial setup). After that it requires a valid JWT.
+- `POST /api/auth/register` has two modes: without a token it is the public SaaS signup — creates `Store` + `StoreProfile` + first `User` in one transaction (body: `email`, `password`, `storeName`, `storeSlug`); with a valid JWT it creates another user **in the caller's store**. Slugs are validated by `slugSchema` (lowercase/numbers/hyphen, 3–40 chars) and a reserved list (`admin`, `api`, `loja`, …).
+- `POST /api/auth/login` returns `{ token, store: { slug, name } }`. The JWT payload is `{ sub, email, storeId }`; tokens without `storeId` (pre-multi-tenancy) are rejected by `app.authenticate`.
 - `JWT_SECRET` is **required** in production — the API refuses to start without it. Tokens expire in 1 day.
-- `GET /api/coupons` and `GET /api/coupons/:id` require JWT (the list would expose all discount codes). The public checkout uses `GET /api/coupons/codigo/:code`, which validates server-side and returns only the fields needed to apply the discount.
+- `GET /api/coupons` and `GET /api/coupons/:id` require JWT (the list would expose all discount codes). The public checkout uses `GET /api/lojas/:slug/coupons/codigo/:code`, which validates server-side and returns only the fields needed to apply the discount.
 - Rate limiting via `@fastify/rate-limit`: 300 req/min global, stricter per-route limits on login (10/min), register (5/min), public POSTs (orders/customers 10/min, analytics 120/min) and coupon code lookup (20/min).
 - Reusable input validators live in `apps/api/src/common/validation.ts` (`idSchema`, `dateSchema`, `timeSchema`, `hexColorSchema`, `httpUrlSchema`, `imageUrlSchema`, `phoneSchema`, `shortText`). Use them in every new schema — IDs, dates, colors and URLs must match the expected format before reaching Prisma.
 - Image fields (`Product.imageUrl`, `StoreProfile.logoUrl`) use `imageUrlSchema`: accepts an `http(s)://` URL **or** a `data:image/...;base64,...` upload (the admin uploader produces base64), capped at ~3 MB. It blocks `javascript:` and non-image data URIs. Fastify `bodyLimit` is raised to 5 MB so base64 images aren't rejected as 1 MB-over. Images are stored inline (no external file storage yet) — migrating to S3/Cloudinary/Vercel Blob is a known follow-up.
 - Error handler hides internals: 5xx responses always return `"Erro interno do servidor"`.
-- Public `GET /api/promotions` and `GET /api/featured` return only `active: true` records; an authenticated admin (Bearer token) gets the full list. The web services accept an optional token for this.
-- `POST /api/orders` verifies the order arithmetic server-side (lineTotal = unitPrice × quantity, subtotal = sum, total = subtotal − discount) and increments the coupon's `usedCount` — this is what enforces `maxUses`.
+- Public `GET /api/lojas/:slug/promotions` and `.../featured` return only `active: true` records of that store; the admin lists (`GET /api/promotions`, `GET /api/featured`) require JWT and return everything from the token's store.
+- `POST /api/lojas/:slug/orders` verifies the order arithmetic server-side (lineTotal = unitPrice × quantity, subtotal = sum, total = subtotal − discount) and increments the coupon's `usedCount` scoped to the store — this is what enforces `maxUses`.
 - `trustProxy: true` is set so rate limiting sees the real client IP behind Vercel/nginx.
 - Failed logins are logged with `app.log.warn` (email + IP).
 - API tests inject a fake Prisma client via `buildApp({ prisma })` — see `apps/api/src/test/test-helpers.ts`. No real database needed.
@@ -73,7 +91,7 @@ pnpm --filter @esqueleton/web test
 
 - JWT stored in `localStorage` (XSS could steal it; httpOnly cookie would be the alternative).
 - No server-side token revocation — logout only clears the browser; tokens stay valid until expiry (1 day).
-- No roles: every authenticated user has full admin power, including creating more users.
+- No roles: every authenticated user has full admin power **within their store**, including creating more users in it.
 - `orderNumber` is generated client-side (unique-constrained; collision makes the fire-and-forget create fail silently).
 - Item `unitPrice` comes from the client — only the arithmetic is verified, prices are not recomputed from the database (admin confirms each order manually via WhatsApp).
 - Rate limiting is in-memory: per serverless instance on Vercel, and per-IP (distributed brute force is not blocked).
@@ -87,23 +105,31 @@ apps/api/
     app.ts                       # monta o servidor: registra plugins e rotas
     vercel.ts                    # entrada serverless para deploy na Vercel
     database/
-      prisma.plugin.ts           # conexão com o banco de dados
+      prisma.plugin.ts           # conexão com o banco de dados (envolve o cliente com o tenant guard)
+      tenant-guard.ts            # bloqueia consultas a dados de loja sem storeId (multi-tenancy)
+    store/
+      store-context.plugin.ts    # resolve o :slug das rotas públicas → request.store
     auth/
-      jwt.plugin.ts              # verifica token JWT e expõe app.authenticate
-      auth.routes.ts             # POST /api/auth/register e /api/auth/login
+      jwt.plugin.ts              # verifica token JWT (payload com storeId) e expõe app.authenticate
+      auth.routes.ts             # POST /api/auth/register (cria a loja) e /api/auth/login
     catalog/
-      catalog.routes.ts          # GET/POST/PUT/DELETE /api/products
+      catalog.routes.ts          # catalogPublicRoutes (/api/lojas/:slug/products) + catalogAdminRoutes (/api/products)
       catalog.schema.ts          # validações Zod dos dados de produto
   prisma/
-    schema.prisma                # modelos: User, Product, Category, ProductCategory
+    schema.prisma                # modelos: Store (tenant), User, Product, Category, ProductCategory, …
 
 apps/web/
   src/
     app/
-      layout.tsx                      # estrutura base — inclui Header público
-      page.tsx                        # catálogo público com filtros e busca
+      layout.tsx                      # estrutura base (html/body/globals)
+      page.tsx                        # página de apresentação do SaaS — link para /admin/login
       globals.css                     # estilos globais (overflow-x: hidden no body)
-      produto/[id]/page.tsx           # detalhe do produto
+      loja/[slug]/
+        layout.tsx                    # layout público da loja — contexts + Header (slug na URL)
+        page.tsx                      # catálogo público com filtros e busca
+        produto/[id]/page.tsx         # detalhe do produto
+        sacola/page.tsx               # sacola e envio pelo WhatsApp
+        favoritos/page.tsx            # produtos favoritados
       admin/
         layout.tsx                    # layout da área admin (sidebar + nav mobile em carrossel)
         page.tsx                      # redireciona /admin → /admin/produtos
@@ -122,7 +148,7 @@ apps/web/
         DisplayToggle.tsx             # alternador grade/lista (dropdown)
         FeaturedSection.tsx           # seção "Em destaque" no topo do catálogo
       header/
-        Header.tsx                    # cabeçalho público — oculto em rotas /admin
+        Header.tsx                    # cabeçalho público — vive apenas dentro de /loja/[slug]
     hooks/
       useAdminAuth.ts                 # verifica token do admin no localStorage
     mocks/
@@ -149,15 +175,15 @@ packages/shared/
   src/index.ts                   # tipos compartilhados: Product, Category, Promotion, Coupon, User, ApiResponse
 ```
 
-**Data flow:** Web calls `catalogService.listProducts()` → `services/catalog.service.ts` → `services/api-client.ts` prefixes with `NEXT_PUBLIC_API_URL/api` → Fastify route under `/api/products`.
+**Data flow (public):** a page under `/loja/[slug]` calls `catalogService.listPublicProducts(slug)` → `services/api-client.ts` prefixes with `NEXT_PUBLIC_API_URL/api` → Fastify route `/api/lojas/:slug/products`. Public service functions are prefixed `Public` and take the slug (from `useStoreSlug()`).
 
-**Auth flow:** `POST /api/auth/login` returns `{ token }` → send as `Authorization: Bearer <token>` header on protected routes.
+**Auth flow:** `POST /api/auth/login` returns `{ token, store: { slug, name } }` → token goes in the `Authorization: Bearer <token>` header; the web saves `admin_token`, `admin_store_slug` and `admin_store_name` in `localStorage`.
 
-**Protected routes:** POST, PUT, DELETE on `/api/products` require JWT. GET is public. Protection is applied via `preHandler: [app.authenticate]` in `catalog.routes.ts`.
+**Protected routes:** every admin route group (`/api/products`, `/api/coupons`, `/api/orders`, …) requires JWT — including GETs. Protection is applied via `app.addHook('preHandler', app.authenticate)` in each `<feature>AdminRoutes`. Public reads happen only under `/api/lojas/:slug/...`.
 
 ## Mock data flag
 
-All pages that load data have a `USE_MOCK_DATA = true` flag at the top. Set to `false` when the API is ready. Mocks live in `apps/web/src/mocks/`.
+All pages that load data have a `USE_MOCK_DATA = true` flag at the top. Set to `false` when the API is ready. Mocks live in `apps/web/src/mocks/`. With mocks on, the store slug is ignored — any `/loja/<slug>` shows the same sample data.
 
 ## Shared types summary
 
@@ -167,6 +193,8 @@ All pages that load data have a `USE_MOCK_DATA = true` flag at the top. Set to `
 | `Category` | Categoria com `parentId` — suporta árvore de qualquer profundidade |
 | `Promotion` | Promoção com tipo, desconto, horário e período opcionais |
 | `Coupon` | Cupom com código, desconto, limite de usos e validade |
+| `Store` | Loja (tenant) com `slug`, `name` e `status` |
+| `LoginResponse` | `{ token, store: { slug, name } }` retornado pelo login |
 | `DisplayMode` | `'grid'` ou `'list'` |
 | `CatalogFilters` | Filtros do catálogo: busca, categorias, preço, ordenação |
 
@@ -184,13 +212,13 @@ Categories are self-referential (`parentId`). Utilities in `utils/categories.ts`
 2. **Cupom** (`applyCouponToProduct`) — sobrescreve preço dos produtos elegíveis
 3. **Filtros/ordenação** — aplicados sobre o resultado final
 
-O cliente digita um código de cupom no campo acima do catálogo. O cupom é validado **no servidor** via `GET /api/coupons/codigo/:code` (active, dates, maxUses) — a API retorna apenas os campos necessários para aplicar o desconto, sem expor os demais cupons. Cupons com `productIds` não vazios afetam apenas esses produtos.
+O cliente digita um código de cupom no campo acima do catálogo. O cupom é validado **no servidor** via `GET /api/lojas/:slug/coupons/codigo/:code` (active, dates, maxUses) — a API retorna apenas os campos necessários para aplicar o desconto, sem expor os demais cupons. Cupons com `productIds` não vazios afetam apenas esses produtos.
 
 **Featured sections**: `getActiveFeatured` picks the first `Featured` where `active === true` and date/time is within range. The banner is hidden when none is active.
 
 ## Admin area
 
-`/admin` is a protected area with its own layout (no public Header). Currently runs without auth enforcement (`USE_MOCK_DATA = true`). The login page at `/admin/login` exists and saves the JWT token to `localStorage` for when auth is enabled.
+`/admin` is a protected area with its own layout (no public Header). Currently runs without auth enforcement (`USE_MOCK_DATA = true`). The login page at `/admin/login` has two modes: sign in, and "Criar minha loja" (public SaaS signup — store name + slug with auto-suggestion + email + password). On login it saves `admin_token`, `admin_store_slug` and `admin_store_name` to `localStorage`; the admin layout shows a "Ver minha loja" link to `/loja/<slug>`.
 
 - `/admin/produtos` — CRUD de produtos com upload de foto (galeria ou câmera)
 - `/admin/categorias` — árvore interativa de categorias com criar/editar/excluir
@@ -199,10 +227,13 @@ O cliente digita um código de cupom no campo acima do catálogo. O cupom é val
 
 ## Prisma schema (models)
 
-- `User` — email + senha
+- `Store` — loja (tenant): slug único, name, status (`ACTIVE`/`SUSPENDED`)
+- `User` — email + senha, pertence a uma `Store`
 - `Product` — brand, name, description, price, originalPrice, imageUrl
 - `Category` — self-referential via `parent`/`children` (`CategoryTree` relation)
 - `ProductCategory` — junção many-to-many entre Product e Category
+
+Todos os modelos de dados (exceto `Store` e a junção `ProductCategory`) têm `storeId` obrigatório com índice. A migração `20260611200000_multi_tenancy` fez o backfill: dados pré-existentes viraram a "loja inicial" (slug derivado do `storeName` do perfil).
 
 ## Environment variables
 
@@ -211,16 +242,20 @@ Copy `.env.example` to `.env` in each app before running.
 - `apps/api/.env` — `DATABASE_URL`, `PORT`, `CORS_ORIGIN`, `JWT_SECRET`
 - `apps/web/.env.local` — `NEXT_PUBLIC_API_URL`
 
+### Database profiles (multiple local databases)
+
+`pnpm dev --<profile>` runs the stack against an isolated Postgres (own container, port and volume). How it works: `scripts/dev.mjs` starts `docker compose --profile <profile> up -d` (trying `docker compose`, `docker-compose` and `wsl docker compose`, in that order — on this machine Docker only runs inside WSL) and sets `PERFIL=<profile>`; `apps/api/scripts/com-perfil.mjs` then loads `apps/api/.env.<profile>` instead of `.env` (it also accepts the profile as a trailing `--<profile>` argument, which is how `db:migrate --loja1` works). Profiles `loja1` (port 5433) and `loja2` (port 5434) ship as examples. To add one: duplicate a `postgres-lojaX` block in `docker-compose.yml` (new name/port/volume) and create `apps/api/.env.<profile>` pointing at it. Real `.env.*` files are gitignored; only `.example` files are versioned.
+
 ## Adding a new feature
 
 1. Add model to `apps/api/prisma/schema.prisma`
 2. Run `pnpm --filter @esqueleton/api db:migrate`
 3. Add shared types to `packages/shared/src/index.ts`
-4. Create a new folder under `apps/api/src/` with `<feature>.routes.ts` and `<feature>.schema.ts`
-5. Register the new routes in `apps/api/src/app.ts`
-6. Create `apps/web/src/services/<feature>.service.ts` with the API calls for the feature
+4. Create a new folder under `apps/api/src/` with `<feature>.routes.ts` and `<feature>.schema.ts`. If the model belongs to a store, add the required `storeId` column + relation + index, export `<feature>PublicRoutes` (uses `request.store!.id`) and `<feature>AdminRoutes` (uses `request.user.storeId`), and filter **every** query by `storeId` — the tenant guard throws if you forget
+5. Register the new routes in `apps/api/src/app.ts` (public group under `/api/lojas/:slug`, admin group under `/api/<feature>`)
+6. Create `apps/web/src/services/<feature>.service.ts` with the API calls for the feature (`Public`-prefixed functions take the slug; admin functions take the token)
 7. Add mock data to `apps/web/src/mocks/<feature>.ts`
-8. Create components under `apps/web/src/components/<feature>/` and pages under `apps/web/src/app/`
+8. Create components under `apps/web/src/components/<feature>/` and public pages under `apps/web/src/app/loja/[slug]/`
 9. If the feature has admin management, add a page under `apps/web/src/app/admin/<feature>/page.tsx` and register the nav link in `apps/web/src/app/admin/layout.tsx`
 
 ## Deployment

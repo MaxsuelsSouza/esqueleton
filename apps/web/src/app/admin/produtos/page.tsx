@@ -87,7 +87,7 @@ export default function AdminProdutosPage() {
       return
     }
     try {
-      const cats = await categoriesService.listCategories()
+      const cats = await categoriesService.listCategories(localStorage.getItem('admin_token') ?? '')
       // A API retorna lista plana — monta a árvore para exibir os checkboxes corretamente
       setCategories(buildCategoryTree(cats))
     } catch {
@@ -115,7 +115,7 @@ export default function AdminProdutosPage() {
         search: search.trim() || undefined,
         categoryIds: filterCategory || undefined,
         sortBy,
-      })
+      }, localStorage.getItem('admin_token') ?? '')
       setProducts(result.data)
       setTotal(result.total)
       setTotalPages(result.totalPages)

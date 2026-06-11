@@ -1,22 +1,42 @@
 // Operações de autenticação: login e cadastro
 import { apiClient } from './api-client'
-import type { User } from '@esqueleton/shared'
+import type { User, LoginResponse } from '@esqueleton/shared'
 
 interface Credentials {
   email: string
   password: string
 }
 
-interface LoginResponse {
-  token: string
+// Dados para criar uma loja nova junto com o primeiro usuário (cadastro público)
+interface RegisterStoreInput {
+  email: string
+  password: string
+  storeName: string
+  storeSlug: string
+}
+
+// Resposta do cadastro de loja nova — inclui o slug e o nome da loja criada
+interface RegisterStoreResponse {
+  id: string
+  email: string
+  storeId: string
+  createdAt: string
+  store: {
+    slug: string
+    name: string
+  }
 }
 
 export const authService = {
-  // Cria uma nova conta de usuário
-  register: (credentials: Credentials) =>
-    apiClient.post<User>('/auth/register', credentials),
+  // Cria uma loja nova com o primeiro usuário (não exige login)
+  registerStore: (data: RegisterStoreInput) =>
+    apiClient.post<RegisterStoreResponse>('/auth/register', data),
 
-  // Faz login e retorna o token de acesso
+  // Cria mais um usuário na mesma loja do administrador logado (exige token)
+  register: (credentials: Credentials, token: string) =>
+    apiClient.post<User>('/auth/register', credentials, token),
+
+  // Faz login e retorna o token de acesso e os dados da loja
   login: (credentials: Credentials) =>
     apiClient.post<LoginResponse>('/auth/login', credentials),
 }

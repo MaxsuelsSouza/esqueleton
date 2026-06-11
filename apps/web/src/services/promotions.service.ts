@@ -3,9 +3,14 @@ import { apiClient } from './api-client'
 import type { Promotion } from '@esqueleton/shared'
 
 export const promotionsService = {
-  // Sem token retorna apenas promoções ativas (catálogo público);
-  // com token de admin retorna todas, inclusive desativadas e agendadas
-  listPromotions: (token?: string) => apiClient.get<Promotion[]>('/promotions', token),
+  // ── Site público — retorna apenas promoções ativas da loja visitada ────────
+  listPublicPromotions: (slug: string) =>
+    apiClient.get<Promotion[]>(`/lojas/${encodeURIComponent(slug)}/promotions`),
+
+  // ── Painel admin (requer login) ─────────────────────────────────────────────
+
+  // Retorna todas as promoções da loja do administrador, inclusive desativadas e agendadas
+  listPromotions: (token: string) => apiClient.get<Promotion[]>('/promotions', token),
 
   createPromotion: (data: Omit<Promotion, 'id' | 'createdAt'>, token: string) =>
     apiClient.post<Promotion>('/promotions', data, token),

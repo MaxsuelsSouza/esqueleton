@@ -1,30 +1,31 @@
 // Testes das rotas de analytics — registro público validado e métricas protegidas
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { createPrismaFake, buildTestApp, createTestToken } from '../test/test-helpers'
+import { createPrismaFake, buildTestApp, createTestToken, LOJA_TESTE } from '../test/test-helpers'
 
 type TestApp = Awaited<ReturnType<typeof buildTestApp>>
 
-describe('POST /api/analytics/events', () => {
+describe('POST /api/lojas/:slug/analytics/events', () => {
   let app: TestApp
 
   afterEach(async () => {
     await app?.close()
   })
 
-  it('registra um evento válido', async () => {
-    app = await buildTestApp(
-      createPrismaFake({
-        productEvent: { create: vi.fn(async () => ({})) },
-      })
-    )
+  it('registra um evento válido na loja do slug', async () => {
+    const create = vi.fn(async () => ({}))
+    app = await buildTestApp(createPrismaFake({ productEvent: { create } }))
 
     const response = await app.inject({
       method: 'POST',
-      url: '/api/analytics/events',
+      url: '/api/lojas/loja-teste/analytics/events',
       payload: { productId: 'p1', productName: 'Perfume Teste', eventType: 'PRODUCT_VIEW' },
     })
 
     expect(response.statusCode).toBe(201)
+    // O evento é gravado com a loja — as métricas de cada loja não se misturam
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ storeId: LOJA_TESTE.id }) })
+    )
   })
 
   it('rejeita tipo de evento desconhecido', async () => {
@@ -32,7 +33,7 @@ describe('POST /api/analytics/events', () => {
 
     const response = await app.inject({
       method: 'POST',
-      url: '/api/analytics/events',
+      url: '/api/lojas/loja-teste/analytics/events',
       payload: { productId: 'p1', productName: 'Perfume', eventType: 'EVENTO_FALSO' },
     })
 
@@ -44,7 +45,7 @@ describe('POST /api/analytics/events', () => {
 
     const response = await app.inject({
       method: 'POST',
-      url: '/api/analytics/events',
+      url: '/api/lojas/loja-teste/analytics/events',
       payload: { productId: "p1' OR 1=1", productName: 'Perfume', eventType: 'PRODUCT_VIEW' },
     })
 
@@ -69,11 +70,13 @@ describe('rotas protegidas de analytics', () => {
     expect(limpeza.statusCode).toBe(401)
   })
 
-  it('retorna o resumo para um admin autenticado', async () => {
+  it('retorna o resumo da loja para um admin autenticado', async () => {
+    const findManyEvents = vi.fn(async () => [])
+    const findManyOrders = vi.fn(async () => [])
     app = await buildTestApp(
       createPrismaFake({
-        productEvent: { findMany: vi.fn(async () => []) },
-        order: { findMany: vi.fn(async () => []) },
+        productEvent: { findMany: findManyEvents },
+        order: { findMany: findManyOrders },
       })
     )
     const token = await createTestToken(app)
@@ -86,5 +89,29 @@ describe('rotas protegidas de analytics', () => {
 
     expect(response.statusCode).toBe(200)
     expect(response.json().totalOrders).toBe(0)
+    // Eventos e pedidos consultados apenas da loja do token
+    expect(findManyEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ storeId: LOJA_TESTE.id }) })
+    )
+    expect(findManyOrders).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ storeId: LOJA_TESTE.id }) })
+    )
+  })
+
+  it('limpeza do funil apaga apenas os eventos da loja do token', async () => {
+    const deleteMany = vi.fn(async () => ({ count: 0 }))
+    app = await buildTestApp(createPrismaFake({ productEvent: { deleteMany } }))
+    const token = await createTestToken(app)
+
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/api/analytics/events',
+      headers: { authorization: `Bearer ${token}` },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(deleteMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { storeId: LOJA_TESTE.id } })
+    )
   })
 })

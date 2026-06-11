@@ -1,17 +1,19 @@
 'use client'
 
-// Botão da sacola de compras — exibe a quantidade de itens e navega para /sacola
+// Botão da sacola de compras — exibe a quantidade de itens e navega para a sacola da loja
 import { useRouter } from 'next/navigation'
 import { ShoppingBag } from 'lucide-react'
 import { useBag } from '@/contexts/bag-context'
+import { useStoreSlug } from '@/hooks/useStoreSlug'
 
 export function BagButton() {
   const { totalItems } = useBag()
   const router = useRouter()
+  const slug = useStoreSlug()
 
   return (
     <button
-      onClick={() => router.push('/sacola')}
+      onClick={() => router.push(`/loja/${slug}/sacola`)}
       aria-label={`Sacola${totalItems > 0 ? ` (${totalItems} itens)` : ''}`}
       className="relative flex flex-col items-center gap-0.5 text-gray-600 transition-colors hover:text-black"
     >

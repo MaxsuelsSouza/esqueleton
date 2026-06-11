@@ -16,10 +16,11 @@ interface RecordEventInput {
 }
 
 export const analyticsService = {
-  // Registra um evento de produto — fire and forget, nunca bloqueia o fluxo do usuário
-  async recordEvent(event: RecordEventInput): Promise<void> {
+  // Registra um evento de produto na loja visitada (slug) —
+  // fire and forget, nunca bloqueia o fluxo do usuário
+  async recordEvent(slug: string, event: RecordEventInput): Promise<void> {
     try {
-      await apiClient.post('/analytics/events', event)
+      await apiClient.post(`/lojas/${encodeURIComponent(slug)}/analytics/events`, event)
     } catch {
       // Falha silenciosa — analytics nunca deve interromper uma ação do usuário
     }

@@ -1,6 +1,6 @@
 // Testes das rotas de clientes — cadastro público minimalista e lista protegida
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { createPrismaFake, buildTestApp, createTestToken } from '../test/test-helpers'
+import { createPrismaFake, buildTestApp, createTestToken, LOJA_TESTE } from '../test/test-helpers'
 
 type TestApp = Awaited<ReturnType<typeof buildTestApp>>
 
@@ -8,27 +8,25 @@ const cliente = {
   id: 'cli1',
   name: 'Maria Silva',
   phone: '81999999999',
+  storeId: LOJA_TESTE.id,
   createdAt: new Date(),
   updatedAt: new Date(),
 }
 
-describe('POST /api/customers', () => {
+describe('POST /api/lojas/:slug/customers', () => {
   let app: TestApp
 
   afterEach(async () => {
     await app?.close()
   })
 
-  it('registra o cliente e responde apenas a confirmação (sem expor os dados)', async () => {
-    app = await buildTestApp(
-      createPrismaFake({
-        customer: { upsert: vi.fn(async () => cliente) },
-      })
-    )
+  it('registra o cliente na loja do slug e responde apenas a confirmação', async () => {
+    const upsert = vi.fn(async () => cliente)
+    app = await buildTestApp(createPrismaFake({ customer: { upsert } }))
 
     const response = await app.inject({
       method: 'POST',
-      url: '/api/customers',
+      url: '/api/lojas/loja-teste/customers',
       payload: { name: 'Maria Silva', phone: '81999999999' },
     })
 
@@ -37,6 +35,12 @@ describe('POST /api/customers', () => {
     // Nome e telefone não voltam na resposta pública
     expect(body.name).toBeUndefined()
     expect(body.phone).toBeUndefined()
+    // O telefone identifica o cliente DENTRO da loja — chave composta loja + telefone
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { storeId_phone: { storeId: LOJA_TESTE.id, phone: '81999999999' } },
+      })
+    )
   })
 
   it('rejeita telefone com caracteres inválidos', async () => {
@@ -44,7 +48,7 @@ describe('POST /api/customers', () => {
 
     const response = await app.inject({
       method: 'POST',
-      url: '/api/customers',
+      url: '/api/lojas/loja-teste/customers',
       payload: { name: 'Maria', phone: 'abc<script>' },
     })
 
@@ -56,7 +60,7 @@ describe('POST /api/customers', () => {
 
     const response = await app.inject({
       method: 'POST',
-      url: '/api/customers',
+      url: '/api/lojas/loja-teste/customers',
       payload: { name: 'M', phone: '81999999999' },
     })
 
@@ -79,12 +83,9 @@ describe('GET /api/customers', () => {
     expect(response.statusCode).toBe(401)
   })
 
-  it('retorna a lista para um admin autenticado', async () => {
-    app = await buildTestApp(
-      createPrismaFake({
-        customer: { findMany: vi.fn(async () => [cliente]) },
-      })
-    )
+  it('retorna apenas os clientes da loja do admin autenticado', async () => {
+    const findMany = vi.fn(async () => [cliente])
+    app = await buildTestApp(createPrismaFake({ customer: { findMany } }))
     const token = await createTestToken(app)
 
     const response = await app.inject({
@@ -95,5 +96,8 @@ describe('GET /api/customers', () => {
 
     expect(response.statusCode).toBe(200)
     expect(response.json()).toHaveLength(1)
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { storeId: LOJA_TESTE.id } })
+    )
   })
 })

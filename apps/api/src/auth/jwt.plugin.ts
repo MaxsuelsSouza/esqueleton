@@ -4,8 +4,9 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 
 declare module '@fastify/jwt' {
   interface FastifyJWT {
-    payload: { sub: string; email: string }
-    user: { sub: string; email: string }
+    // storeId identifica a loja do usuário — toda consulta do admin filtra por ele
+    payload: { sub: string; email: string; storeId: string }
+    user: { sub: string; email: string; storeId: string }
   }
 }
 
@@ -35,6 +36,11 @@ const plugin: FastifyPluginAsync = async (app) => {
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         await request.jwtVerify()
+        // Tokens antigos (emitidos antes do multi-tenancy) não carregam a loja —
+        // sem o storeId nenhuma consulta pode ser feita, então o login é refeito
+        if (!request.user.storeId) {
+          reply.status(401).send({ message: 'Não autorizado. Faça login novamente.' })
+        }
       } catch {
         // Token ausente, inválido ou expirado — nega o acesso sem expor detalhes
         reply.status(401).send({ message: 'Não autorizado. Faça login novamente.' })

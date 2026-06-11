@@ -3,10 +3,9 @@
 // Cabeçalho principal da loja — fundo sempre branco
 // Desktop: logo | pesquisa | ofertas | favoritos | sacola
 // Mobile:  logo | ícone de busca | favoritos | sacola  (busca expande abaixo)
-// Não é exibido nas rotas de administração (/admin)
+// Existe apenas dentro do site público da loja (/loja/[slug]/...)
 // Ao rolar para baixo o header fica mais compacto (padding reduzido)
 import { useState, useEffect } from 'react'
-import { usePathname } from 'next/navigation'
 import { Search, X } from 'lucide-react'
 import { LogoArea } from './LogoArea'
 import { SearchBar } from './SearchBar'
@@ -21,7 +20,6 @@ interface HeaderProps {
 }
 
 export function Header({ logoUrl, storeName }: HeaderProps) {
-  const pathname = usePathname()
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   // true quando o usuário rolou mais de 40px — ativa o modo compacto
   const [scrolled, setScrolled] = useState(false)
@@ -33,8 +31,6 @@ export function Header({ logoUrl, storeName }: HeaderProps) {
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
-
-  if (pathname.startsWith('/admin')) return null
 
   return (
     <header className={`sticky top-0 z-50 border-b bg-white shadow-sm transition-all duration-300 ${scrolled ? 'shadow-md' : ''}`}>

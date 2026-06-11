@@ -4,10 +4,12 @@
 // Só aparece quando há pelo menos uma mensagem cadastrada
 import { useState, useEffect } from 'react'
 import { useStoreProfile } from '@/contexts/store-profile-context'
+import { useStoreSlug } from '@/hooks/useStoreSlug'
 import { usePathname } from 'next/navigation'
 
 export function AnnouncementBar() {
   const { profile } = useStoreProfile()
+  const slug = useStoreSlug()
   const pathname = usePathname()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [fading, setFading] = useState(false)
@@ -36,8 +38,8 @@ export function AnnouncementBar() {
     return () => clearInterval(interval)
   }, [messages.length])
 
-  // Exibe apenas na página inicial
-  if (pathname !== '/' || messages.length === 0) return null
+  // Exibe apenas na página inicial do catálogo da loja (/loja/<slug>)
+  if (pathname !== `/loja/${slug}` || messages.length === 0) return null
 
   return (
     <div

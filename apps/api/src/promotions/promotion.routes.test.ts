@@ -1,6 +1,6 @@
-// Testes das rotas de promoções — visão pública restrita às ativas
+// Testes das rotas de promoções — visão pública restrita às ativas da loja
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { createPrismaFake, buildTestApp, createTestToken } from '../test/test-helpers'
+import { createPrismaFake, buildTestApp, createTestToken, LOJA_TESTE } from '../test/test-helpers'
 
 type TestApp = Awaited<ReturnType<typeof buildTestApp>>
 
@@ -11,52 +11,76 @@ const promocaoInativa = {
   discountPercent: 50,
   productIds: [],
   active: false,
+  storeId: LOJA_TESTE.id,
   createdAt: new Date(),
 }
 
-describe('GET /api/promotions', () => {
+describe('GET /api/lojas/:slug/promotions (visão pública)', () => {
   let app: TestApp
 
   afterEach(async () => {
     await app?.close()
   })
 
-  it('público recebe apenas promoções ativas', async () => {
+  it('público recebe apenas promoções ativas da loja', async () => {
     const findMany = vi.fn(async () => [])
     app = await buildTestApp(createPrismaFake({ promotion: { findMany } }))
 
-    await app.inject({ method: 'GET', url: '/api/promotions' })
+    await app.inject({ method: 'GET', url: '/api/lojas/loja-teste/promotions' })
 
     // Promoções desativadas/agendadas são informação interna da loja
     expect(findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { active: true } })
+      expect.objectContaining({ where: { storeId: LOJA_TESTE.id, active: true } })
     )
-  })
-
-  it('admin autenticado recebe a lista completa', async () => {
-    const findMany = vi.fn(async () => [])
-    app = await buildTestApp(createPrismaFake({ promotion: { findMany } }))
-    const token = await createTestToken(app)
-
-    await app.inject({
-      method: 'GET',
-      url: '/api/promotions',
-      headers: { authorization: `Bearer ${token}` },
-    })
-
-    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: undefined }))
   })
 
   it('promoção inativa não é visível para o público nem por ID', async () => {
     app = await buildTestApp(
       createPrismaFake({
-        promotion: { findUnique: vi.fn(async () => promocaoInativa) },
+        // findFirst com active: true não encontra a promoção inativa
+        promotion: { findFirst: vi.fn(async () => null) },
       })
     )
 
-    const response = await app.inject({ method: 'GET', url: '/api/promotions/promo1' })
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/lojas/loja-teste/promotions/promo1',
+    })
 
     expect(response.statusCode).toBe(404)
+  })
+})
+
+describe('rotas admin de promoções', () => {
+  let app: TestApp
+
+  afterEach(async () => {
+    await app?.close()
+  })
+
+  it('lista completa exige autenticação', async () => {
+    app = await buildTestApp(createPrismaFake({}))
+
+    const response = await app.inject({ method: 'GET', url: '/api/promotions' })
+
+    expect(response.statusCode).toBe(401)
+  })
+
+  it('admin autenticado recebe a lista completa da própria loja', async () => {
+    const findMany = vi.fn(async () => [promocaoInativa])
+    app = await buildTestApp(createPrismaFake({ promotion: { findMany } }))
+    const token = await createTestToken(app)
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/promotions',
+      headers: { authorization: `Bearer ${token}` },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { storeId: LOJA_TESTE.id } })
+    )
   })
 
   it('escrita exige autenticação', async () => {
@@ -69,5 +93,24 @@ describe('GET /api/promotions', () => {
     expect(post.statusCode).toBe(401)
     expect(put.statusCode).toBe(401)
     expect(del.statusCode).toBe(401)
+  })
+
+  it('não altera promoção de outra loja (responde 404)', async () => {
+    app = await buildTestApp(
+      createPrismaFake({
+        // updateMany com id + storeId não encontra nada — a promoção é de outra loja
+        promotion: { updateMany: vi.fn(async () => ({ count: 0 })) },
+      })
+    )
+    const token = await createTestToken(app)
+
+    const response = await app.inject({
+      method: 'PUT',
+      url: '/api/promotions/promo-de-outra-loja',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: 'tentativa' },
+    })
+
+    expect(response.statusCode).toBe(404)
   })
 })

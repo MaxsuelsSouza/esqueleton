@@ -7,11 +7,40 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Loja (tenant) — cada cliente do SaaS tem a sua.
+// Todo dado do sistema pertence a uma loja através da coluna storeId.
+model Store {
+  id        String   @id @default(cuid())
+  // Identificador usado na URL pública (ex: "perfumaria-ana") — letras minúsculas, números e hífen
+  slug      String   @unique
+  name      String
+  // ACTIVE = funcionando | SUSPENDED = suspensa (preparação para a etapa de cobrança)
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users         User[]
+  products      Product[]
+  categories    Category[]
+  featured      Featured[]
+  promotions    Promotion[]
+  coupons       Coupon[]
+  profile       StoreProfile?
+  orders        Order[]
+  customers     Customer[]
+  productEvents ProductEvent[]
+  notifications Notification[]
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
   password  String
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+
+  @@index([storeId])
 }
 
 model Product {
@@ -24,9 +53,13 @@ model Product {
   imageUrl      String?
   // Quantidade em estoque — null significa estoque não controlado
   stock         Int?
+  storeId       String
+  store         Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
   categories    ProductCategory[]
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
+
+  @@index([storeId])
 }
 
 // Categoria do catálogo com suporte a hierarquia (pai → filhos) de qualquer profundidade
@@ -36,11 +69,15 @@ model Category {
   parentId  String?
   parent    Category?         @relation("CategoryTree", fields: [parentId], references: [id])
   children  Category[]        @relation("CategoryTree")
+  storeId   String
+  store     Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
   products  ProductCategory[]
   createdAt DateTime          @default(now())
+
+  @@index([storeId])
 }
 
-// Seção "Em destaque" exibida no topo do catálogo — apenas uma pode estar ativa por vez
+// Seção "Em destaque" exibida no topo do catálogo — apenas uma pode estar ativa por loja
 model Featured {
   id         String   @id @default(cuid())
   title      String
@@ -53,7 +90,11 @@ model Featured {
   startTime  String?
   endTime    String?
   active     Boolean  @default(false)
+  storeId    String
+  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
+
+  @@index([storeId])
 }
 
 // Promoção aplicada automaticamente a produtos do catálogo
@@ -79,13 +120,17 @@ model Promotion {
   active         Boolean  @default(true)
   // Ordem de prioridade — promoção com menor valor tem preferência sobre as demais
   priority       Int      @default(0)
+  storeId        String
+  store          Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   createdAt      DateTime @default(now())
+
+  @@index([storeId])
 }
 
 // Cupom de desconto que o cliente digita no checkout
 model Coupon {
   id                String   @id @default(cuid())
-  code              String   @unique
+  code              String
   description       String?
   // Tipo de desconto: percentage = percentual, fixed = valor fixo em reais
   discountType      String
@@ -101,12 +146,20 @@ model Coupon {
   startDate         String?
   endDate           String?
   active            Boolean  @default(true)
+  storeId           String
+  store             Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   createdAt         DateTime @default(now())
+
+  // O código é único dentro de cada loja — lojas diferentes podem ter o mesmo código
+  @@unique([storeId, code])
+  @@index([storeId])
 }
 
-// Perfil único da loja — sempre existe um único registro (id fixo = "singleton")
+// Perfil da loja — um por loja, com identidade visual e dados de contato
 model StoreProfile {
-  id         String   @id @default("singleton")
+  id         String   @id @default(cuid())
+  storeId    String   @unique
+  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   storeName  String   @default("Minha Loja")
   address    String?
   whatsapp   String?
@@ -123,7 +176,7 @@ model StoreProfile {
 model Order {
   id            String   @id @default(cuid())
   // Número de 6 dígitos exibido na mensagem do WhatsApp — usado para busca no dashboard
-  orderNumber   String   @unique
+  orderNumber   String
   customerName  String?
   customerPhone String?
   // Itens do pedido serializados em JSON — Array de { productId, productName, quantity, unitPrice, lineTotal, promotionName? }
@@ -134,10 +187,14 @@ model Order {
   couponCode    String?
   // PENDING = aguardando confirmação | SOLD = venda confirmada | NOT_SOLD = não vendido
   status        String   @default("PENDING")
+  storeId       String
+  store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  @@index([orderNumber])
+  // O número do pedido é único dentro de cada loja
+  @@unique([storeId, orderNumber])
+  @@index([storeId])
   @@index([status])
   @@index([createdAt])
 }
@@ -146,10 +203,16 @@ model Order {
 model Customer {
   id        String   @id @default(cuid())
   name      String
-  // Telefone usado como identificador único — upsert ao cadastrar o mesmo número novamente
-  phone     String   @unique
+  // Telefone usado como identificador — upsert ao cadastrar o mesmo número novamente
+  phone     String
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // O telefone é único dentro de cada loja — a mesma pessoa pode ser cliente de várias lojas
+  @@unique([storeId, phone])
+  @@index([storeId])
 }
 
 // Registro de eventos de produto para analytics — sacola e envio pelo WhatsApp
@@ -168,8 +231,11 @@ model ProductEvent {
   // Seção em destaque que originou o evento — preenchido em FEATURED_CLICK e CART_ADD vindos de destaque
   featuredId    String?
   featuredName  String?
+  storeId       String
+  store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   createdAt     DateTime @default(now())
 
+  @@index([storeId])
   @@index([productId])
   @@index([eventType])
   @@index([createdAt])
@@ -190,12 +256,15 @@ model Notification {
   status    String   @default("PENDING")
   // Dados extras em JSON — ex: { customerPhone, customerName, total } para NEW_ORDER
   metadata  String?
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
+  @@index([storeId])
   @@index([status])
   @@index([createdAt])
-  // Impede notificações duplicadas para o mesmo tipo + entidade (ex: dois NEW_ORDER para o mesmo pedido)
-  @@unique([type, entityId])
+  // Impede notificações duplicadas para o mesmo tipo + entidade dentro da mesma loja
+  @@unique([storeId, type, entityId])
 }
 
 // Tabela de junção — permite que um produto pertença a várias categorias

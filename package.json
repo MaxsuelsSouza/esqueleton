@@ -2,7 +2,7 @@
   "name": "esqueleton-project",
   "private": true,
   "scripts": {
-    "dev": "docker-compose up -d && pnpm --parallel -r dev",
+    "dev": "node scripts/dev.mjs",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "test": "pnpm -r --no-bail test"

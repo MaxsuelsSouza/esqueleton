@@ -1,3 +1,12 @@
+# Bancos de dados locais para desenvolvimento.
+#
+# O serviço "postgres" é o banco padrão (pnpm dev).
+# Os serviços com "profiles" são bancos alternativos, um por perfil — cada um com
+# porta e volume próprios, então os dados de um nunca se misturam com os do outro.
+#
+# Como usar um perfil:   pnpm dev --loja1
+# Como criar um novo:    copie um bloco "postgres-lojaX", troque nome/porta/volume,
+#                        e crie o arquivo apps/api/.env.<perfil> apontando para a porta.
 services:
   postgres:
     image: postgres:16
@@ -10,5 +19,33 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  # Banco do perfil "loja1" — só sobe com: pnpm dev --loja1
+  postgres-loja1:
+    image: postgres:16
+    profiles: ["loja1"]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: esqueleton_loja1
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data_loja1:/var/lib/postgresql/data
+
+  # Banco do perfil "loja2" — só sobe com: pnpm dev --loja2
+  postgres-loja2:
+    image: postgres:16
+    profiles: ["loja2"]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: esqueleton_loja2
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data_loja2:/var/lib/postgresql/data
+
 volumes:
   postgres_data:
+  postgres_data_loja1:
+  postgres_data_loja2:

@@ -4,7 +4,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { ImagePlus, Camera, X, Save, Store, Plus, Megaphone } from 'lucide-react'
 import { storeProfileService } from '@/services/store-profile.service'
-import { useStoreProfile } from '@/contexts/store-profile-context'
 import { compressImage } from '@/utils/image'
 import type { StoreProfile } from '@esqueleton/shared'
 
@@ -30,8 +29,19 @@ type FormData = {
   announcements: string[]
 }
 
+// Valores exibidos enquanto o perfil ainda não carregou da API
+const DEFAULT_PROFILE: StoreProfile = {
+  id: '',
+  storeName: 'Minha Loja',
+  themeColor: '#000000',
+  announcements: [],
+  updatedAt: '',
+}
+
 export default function AdminPerfilPage() {
-  const { profile, setProfile } = useStoreProfile()
+  // O perfil é buscado direto da API com o token do admin —
+  // a área admin não usa mais o contexto público da loja
+  const [profile, setProfile] = useState<StoreProfile>(DEFAULT_PROFILE)
   const [form, setForm] = useState<FormData>({
     storeName: '',
     address: '',
@@ -46,7 +56,17 @@ export default function AdminPerfilPage() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
 
-  // Preenche o formulário quando o perfil carregar do contexto
+  // Carrega o perfil da loja do administrador (rota protegida — exige token)
+  useEffect(() => {
+    storeProfileService
+      .getProfile(localStorage.getItem('admin_token') ?? '')
+      .then(setProfile)
+      .catch(() => {
+        // Se a API não estiver disponível, mantém os valores padrão silenciosamente
+      })
+  }, [])
+
+  // Preenche o formulário quando o perfil carregar
   useEffect(() => {
     setForm({
       storeName: profile.storeName,
@@ -102,7 +122,7 @@ export default function AdminPerfilPage() {
         },
         token,
       )
-      // Atualiza o contexto global para que o Header e outros componentes reflitam imediatamente
+      // Atualiza o estado local para refletir os dados salvos imediatamente
       setProfile(updated)
       setSaveSuccess(true)
       setTimeout(() => setSaveSuccess(false), 3000)

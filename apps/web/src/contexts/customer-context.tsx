@@ -3,6 +3,7 @@
 // Contexto do cliente identificado — persiste nome e telefone no localStorage
 // Limpo apenas quando o usuário clica em "Sair" no cabeçalho
 import { createContext, useContext, useState, useEffect } from 'react'
+import { useStoreSlug } from '@/hooks/useStoreSlug'
 
 export type CustomerInfo = {
   name: string
@@ -17,8 +18,6 @@ interface CustomerContextValue {
   clearCustomer: () => void
 }
 
-const STORAGE_KEY = 'customer_info'
-
 const CustomerContext = createContext<CustomerContextValue>({
   customer: null,
   setCustomer: () => {},
@@ -26,23 +25,27 @@ const CustomerContext = createContext<CustomerContextValue>({
 })
 
 export function CustomerProvider({ children }: { children: React.ReactNode }) {
+  // A chave do localStorage inclui o slug da loja — identificação separada por loja
+  const slug = useStoreSlug()
+  const storageKey = `cliente:${slug}`
+
   const [customer, setCustomerState] = useState<CustomerInfo | null>(null)
 
-  // Recupera os dados salvos no navegador ao iniciar
+  // Recupera os dados salvos no navegador ao iniciar (e ao trocar de loja)
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY)
-      if (saved) setCustomerState(JSON.parse(saved))
+      const saved = localStorage.getItem(storageKey)
+      setCustomerState(saved ? JSON.parse(saved) : null)
     } catch {}
-  }, [])
+  }, [storageKey])
 
   function setCustomer(info: CustomerInfo) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(info))
+    localStorage.setItem(storageKey, JSON.stringify(info))
     setCustomerState(info)
   }
 
   function clearCustomer() {
-    localStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem(storageKey)
     setCustomerState(null)
   }
 

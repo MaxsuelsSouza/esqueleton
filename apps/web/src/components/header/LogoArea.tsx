@@ -1,7 +1,8 @@
 'use client'
 
 // Área da logo no canto esquerdo do cabeçalho
-// Substitua a imagem ou o texto pelo logo da sua loja
+// Clique leva de volta ao catálogo da loja que está sendo visitada
+import { useStoreSlug } from '@/hooks/useStoreSlug'
 
 interface LogoAreaProps {
   imageUrl?: string
@@ -11,8 +12,10 @@ interface LogoAreaProps {
 }
 
 export function LogoArea({ imageUrl, storeName = 'Minha Loja', compact }: LogoAreaProps) {
+  const slug = useStoreSlug()
+
   return (
-    <a href="/" className="flex shrink-0 items-center gap-2">
+    <a href={`/loja/${slug}`} className="flex shrink-0 items-center gap-2">
       {imageUrl ? (
         <img
           src={imageUrl}

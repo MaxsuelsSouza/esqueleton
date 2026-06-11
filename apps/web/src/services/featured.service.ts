@@ -3,9 +3,14 @@ import { apiClient } from './api-client'
 import type { Featured } from '@esqueleton/shared'
 
 export const featuredService = {
-  // Sem token retorna apenas destaques ativos (catálogo público);
-  // com token de admin retorna todos, inclusive desativados e agendados
-  listFeatured: (token?: string) => apiClient.get<Featured[]>('/featured', token),
+  // ── Site público — retorna apenas destaques ativos da loja visitada ────────
+  listPublicFeatured: (slug: string) =>
+    apiClient.get<Featured[]>(`/lojas/${encodeURIComponent(slug)}/featured`),
+
+  // ── Painel admin (requer login) ─────────────────────────────────────────────
+
+  // Retorna todos os destaques da loja do administrador, inclusive desativados e agendados
+  listFeatured: (token: string) => apiClient.get<Featured[]>('/featured', token),
 
   createFeatured: (data: Omit<Featured, 'id' | 'createdAt'>, token: string) =>
     apiClient.post<Featured>('/featured', data, token),

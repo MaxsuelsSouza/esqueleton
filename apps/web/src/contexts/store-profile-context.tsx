@@ -3,6 +3,7 @@
 // Contexto do perfil da loja — carrega nome, logo e cor do tema uma vez e distribui para toda a aplicação
 import { createContext, useContext, useEffect, useState } from 'react'
 import { storeProfileService } from '@/services/store-profile.service'
+import { useStoreSlug } from '@/hooks/useStoreSlug'
 import type { StoreProfile } from '@esqueleton/shared'
 
 
@@ -26,16 +27,19 @@ const StoreProfileContext = createContext<StoreProfileContextValue>({
 })
 
 export function StoreProfileProvider({ children }: { children: React.ReactNode }) {
+  // Slug da loja visitada — o perfil público é buscado pela rota /lojas/:slug
+  const slug = useStoreSlug()
   const [profile, setProfile] = useState<StoreProfile>(DEFAULT_PROFILE)
 
   useEffect(() => {
+    if (!slug) return
     storeProfileService
-      .getProfile()
+      .getPublicProfile(slug)
       .then(setProfile)
       .catch(() => {
         // Se a API não estiver disponível, mantém os valores padrão silenciosamente
       })
-  }, [])
+  }, [slug])
 
   // Aplica a cor do tema como variável CSS no elemento raiz
   useEffect(() => {
