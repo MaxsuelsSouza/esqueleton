@@ -54,7 +54,7 @@ export default function AdminDestaquesPage() {
       return
     }
     const [featured, prodsPage] = await Promise.all([
-      featuredService.listFeatured(),
+      featuredService.listFeatured(localStorage.getItem('admin_token') ?? ''),
       catalogService.listProducts({ pageSize: 500 }),
     ])
     setSections(featured)

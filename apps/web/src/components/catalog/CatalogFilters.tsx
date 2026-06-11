@@ -9,6 +9,9 @@ interface CatalogFiltersProps {
   filters: CatalogFilters
   categories: Category[]
   onFiltersChange: (filters: CatalogFilters) => void
+  // 'inline' (padrão): flex horizontal no desktop — usado na barra superior do mobile
+  // 'vertical': sempre em coluna — usado na sidebar do desktop
+  direction?: 'inline' | 'vertical'
 }
 
 const SORT_OPTIONS = [
@@ -17,7 +20,7 @@ const SORT_OPTIONS = [
   { value: 'price-desc', label: 'Maior preço' },
 ] as const
 
-export function CatalogFilters({ filters, categories, onFiltersChange }: CatalogFiltersProps) {
+export function CatalogFilters({ filters, categories, onFiltersChange, direction = 'inline' }: CatalogFiltersProps) {
   function toggleCategory(id: string) {
     const alreadySelected = filters.categories.includes(id)
     const updated = alreadySelected
@@ -35,7 +38,7 @@ export function CatalogFilters({ filters, categories, onFiltersChange }: Catalog
   }
 
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start">
+    <div className={direction === 'vertical' ? 'flex flex-col gap-5' : 'flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start'}>
 
       {/* Árvore de categorias */}
       {categories.length > 0 && (

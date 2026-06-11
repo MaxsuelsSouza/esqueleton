@@ -62,7 +62,20 @@ pnpm --filter @esqueleton/web test
 - Rate limiting via `@fastify/rate-limit`: 300 req/min global, stricter per-route limits on login (10/min), register (5/min), public POSTs (orders/customers 10/min, analytics 120/min) and coupon code lookup (20/min).
 - Reusable input validators live in `apps/api/src/common/validation.ts` (`idSchema`, `dateSchema`, `timeSchema`, `hexColorSchema`, `httpUrlSchema`, `phoneSchema`, `shortText`). Use them in every new schema — IDs, dates, colors and URLs must match the expected format before reaching Prisma.
 - Error handler hides internals: 5xx responses always return `"Erro interno do servidor"`.
+- Public `GET /api/promotions` and `GET /api/featured` return only `active: true` records; an authenticated admin (Bearer token) gets the full list. The web services accept an optional token for this.
+- `POST /api/orders` verifies the order arithmetic server-side (lineTotal = unitPrice × quantity, subtotal = sum, total = subtotal − discount) and increments the coupon's `usedCount` — this is what enforces `maxUses`.
+- `trustProxy: true` is set so rate limiting sees the real client IP behind Vercel/nginx.
+- Failed logins are logged with `app.log.warn` (email + IP).
 - API tests inject a fake Prisma client via `buildApp({ prisma })` — see `apps/api/src/test/test-helpers.ts`. No real database needed.
+
+### Known accepted risks (document before changing)
+
+- JWT stored in `localStorage` (XSS could steal it; httpOnly cookie would be the alternative).
+- No server-side token revocation — logout only clears the browser; tokens stay valid until expiry (1 day).
+- No roles: every authenticated user has full admin power, including creating more users.
+- `orderNumber` is generated client-side (unique-constrained; collision makes the fire-and-forget create fail silently).
+- Item `unitPrice` comes from the client — only the arithmetic is verified, prices are not recomputed from the database (admin confirms each order manually via WhatsApp).
+- Rate limiting is in-memory: per serverless instance on Vercel, and per-IP (distributed brute force is not blocked).
 
 ## Architecture
 

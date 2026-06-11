@@ -83,7 +83,7 @@ export default function AdminPromocoesPage() {
       return
     }
     const [promos, prodsPage] = await Promise.all([
-      promotionsService.listPromotions(),
+      promotionsService.listPromotions(localStorage.getItem('admin_token') ?? ''),
       catalogService.listProducts({ pageSize: 500 }),
     ])
     setPromotions(promos)

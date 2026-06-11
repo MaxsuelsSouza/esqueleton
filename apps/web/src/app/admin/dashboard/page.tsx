@@ -110,9 +110,9 @@ export default function AdminDashboardPage() {
       const [prodsPage, cats, promotions, coupons, featured] = await Promise.all([
         catalogService.listProducts({ pageSize: 500 }),
         categoriesService.listCategories(),
-        promotionsService.listPromotions(),
+        promotionsService.listPromotions(localStorage.getItem('admin_token') ?? ''),
         couponsService.listCoupons(localStorage.getItem('admin_token') ?? ''),
-        featuredService.listFeatured(),
+        featuredService.listFeatured(localStorage.getItem('admin_token') ?? ''),
       ])
 
       setStats({

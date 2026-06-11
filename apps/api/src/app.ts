@@ -23,7 +23,13 @@ type BuildAppOptions = {
 }
 
 export function buildApp(options: BuildAppOptions = {}) {
-  const app = Fastify({ logger: process.env.NODE_ENV !== 'test' })
+  const app = Fastify({
+    logger: process.env.NODE_ENV !== 'test',
+    // Atrás de um proxy (Vercel, nginx) o IP real do cliente vem no cabeçalho
+    // x-forwarded-for — sem isso o limite de requisições trataria todos os
+    // visitantes como um único IP (o do proxy)
+    trustProxy: true,
+  })
 
   // Cabeçalhos de segurança HTTP (X-Content-Type-Options, X-Frame-Options etc.)
   app.register(helmet)

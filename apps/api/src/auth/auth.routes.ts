@@ -67,11 +67,14 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       if (!user) {
         // Compara contra um hash falso para o tempo de resposta não revelar se o email existe
         await bcrypt.compare(password, FAKE_PASSWORD_HASH)
+        // Registra a tentativa no log — ajuda a perceber ataques de adivinhação de senha
+        app.log.warn({ email, ip: request.ip }, 'Tentativa de login com email não cadastrado')
         return reply.status(401).send({ message: 'Credenciais inválidas' })
       }
 
       const valid = await bcrypt.compare(password, user.password)
       if (!valid) {
+        app.log.warn({ email, ip: request.ip }, 'Tentativa de login com senha incorreta')
         return reply.status(401).send({ message: 'Credenciais inválidas' })
       }
 

@@ -5,14 +5,22 @@ import { idParamSchema } from '../common/validation'
 export const featuredRoutes: FastifyPluginAsync = async (app) => {
   // ── Rotas públicas ──────────────────────────────────────────────
 
-  app.get('/', async () => {
-    return app.prisma.featured.findMany({ orderBy: { createdAt: 'desc' } })
+  // Público vê apenas destaques ativos — os desativados e agendados são
+  // informação interna da loja. Admin autenticado recebe a lista completa.
+  app.get('/', async (request) => {
+    const isAdmin = await request.jwtVerify().then(() => true).catch(() => false)
+    return app.prisma.featured.findMany({
+      where: isAdmin ? undefined : { active: true },
+      orderBy: { createdAt: 'desc' },
+    })
   })
 
   app.get('/:id', async (request, reply) => {
     const { id } = idParamSchema.parse(request.params)
+    const isAdmin = await request.jwtVerify().then(() => true).catch(() => false)
     const featured = await app.prisma.featured.findUnique({ where: { id } })
-    if (!featured) {
+    // Destaque inativo só é visível para o admin
+    if (!featured || (!isAdmin && !featured.active)) {
       return reply.status(404).send({ message: 'Destaque não encontrado' })
     }
     return featured

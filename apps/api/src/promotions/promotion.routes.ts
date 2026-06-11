@@ -5,14 +5,22 @@ import { idParamSchema } from '../common/validation'
 export const promotionRoutes: FastifyPluginAsync = async (app) => {
   // ── Rotas públicas ──────────────────────────────────────────────
 
-  app.get('/', async () => {
-    return app.prisma.promotion.findMany({ orderBy: { createdAt: 'desc' } })
+  // Público vê apenas promoções ativas — as desativadas e agendadas são
+  // informação interna da loja. Admin autenticado recebe a lista completa.
+  app.get('/', async (request) => {
+    const isAdmin = await request.jwtVerify().then(() => true).catch(() => false)
+    return app.prisma.promotion.findMany({
+      where: isAdmin ? undefined : { active: true },
+      orderBy: { createdAt: 'desc' },
+    })
   })
 
   app.get('/:id', async (request, reply) => {
     const { id } = idParamSchema.parse(request.params)
+    const isAdmin = await request.jwtVerify().then(() => true).catch(() => false)
     const promotion = await app.prisma.promotion.findUnique({ where: { id } })
-    if (!promotion) {
+    // Promoção inativa só é visível para o admin
+    if (!promotion || (!isAdmin && !promotion.active)) {
       return reply.status(404).send({ message: 'Promoção não encontrada' })
     }
     return promotion

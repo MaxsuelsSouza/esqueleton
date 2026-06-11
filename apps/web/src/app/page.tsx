@@ -2,7 +2,9 @@
 
 // Página principal — exibe o catálogo completo de produtos da loja
 import { useState, useEffect, useMemo } from 'react'
-import { CatalogToolbar } from '@/components/catalog/CatalogToolbar'
+import { CatalogSearch } from '@/components/catalog/CatalogSearch'
+import { CatalogFilters } from '@/components/catalog/CatalogFilters'
+import { DisplayToggle } from '@/components/catalog/DisplayToggle'
 import { FeaturedSection } from '@/components/catalog/FeaturedSection'
 import { ProductCard } from '@/components/catalog/ProductCard'
 import { catalogService } from '@/services/catalog.service'
@@ -12,11 +14,11 @@ import { featuredService } from '@/services/featured.service'
 import { expandSelectedCategories, buildCategoryTree } from '@/utils/categories'
 import { applyPromotionsToProducts } from '@/utils/promotions'
 import { getActiveFeatured } from '@/utils/featured'
-import type { Product, Category, Promotion, Featured, CatalogFilters, DisplayMode } from '@esqueleton/shared'
-import { PackageSearch, ChevronLeft, ChevronRight } from 'lucide-react'
+import type { Product, Category, Promotion, Featured, CatalogFilters as CatalogFiltersType, DisplayMode } from '@esqueleton/shared'
+import { PackageSearch, ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react'
 
 // Estado inicial dos filtros — nenhum filtro aplicado
-const DEFAULT_FILTERS: CatalogFilters = {
+const DEFAULT_FILTERS: CatalogFiltersType = {
   searchTerm: '',
   categories: [],
   priceMin: null,
@@ -37,8 +39,10 @@ export default function CatalogPage() {
 
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [filters, setFilters] = useState<CatalogFilters>(DEFAULT_FILTERS)
+  const [filters, setFilters] = useState<CatalogFiltersType>(DEFAULT_FILTERS)
   const [displayMode, setDisplayMode] = useState<DisplayMode>('grid')
+  // Controla se o painel de filtros está aberto no mobile
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   // Carrega categorias, promoções e destaques uma única vez
   useEffect(() => {
@@ -107,11 +111,22 @@ export default function CatalogPage() {
     [featuredProducts, promotions],
   )
 
-  function handleToolbarChange(newFilters: CatalogFilters, newDisplayMode: DisplayMode) {
+  function handleFiltersChange(newFilters: CatalogFiltersType) {
     setFilters(newFilters)
-    setDisplayMode(newDisplayMode)
-    // Volta para a primeira página ao mudar qualquer filtro
     setPage(1)
+  }
+
+  function handleSearchChange(searchTerm: string) {
+    handleFiltersChange({ ...filters, searchTerm })
+  }
+
+  function handleDisplayChange(mode: DisplayMode) {
+    setDisplayMode(mode)
+  }
+
+  // Remove todos os filtros exceto o texto de busca
+  function clearFilters() {
+    handleFiltersChange({ ...DEFAULT_FILTERS, searchTerm: filters.searchTerm })
   }
 
   function handlePageChange(newPage: number) {
@@ -127,65 +142,151 @@ export default function CatalogPage() {
     filters.priceMax !== null ||
     filters.sortBy !== 'newest'
 
+  // Conta apenas filtros "manuais" — não inclui a busca, pois já tem o botão X no campo
+  const activeFilterCount =
+    filters.categories.length +
+    (filters.priceMin !== null ? 1 : 0) +
+    (filters.priceMax !== null ? 1 : 0) +
+    (filters.sortBy !== 'newest' ? 1 : 0)
+
   return (
     <main className="min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-screen-xl px-4 py-6 sm:px-6 sm:py-8">
 
-        {/* Barra de busca, filtros e alternador de exibição */}
-        <div className="mb-4">
-          <CatalogToolbar categories={categories} onChange={handleToolbarChange} />
+      {/* ── Barra superior mobile ─────────────────────────────────────────────
+          Visível apenas abaixo de lg. Contém busca + botão de filtros + alternador. */}
+      <div className="border-b border-gray-100 bg-white px-4 py-3 lg:hidden">
+        <div className="flex items-center gap-2">
+          <CatalogSearch value={filters.searchTerm} onChange={handleSearchChange} />
+
+          {/* Botão que abre/fecha o painel de filtros no mobile */}
+          <button
+            onClick={() => setFiltersOpen((prev) => !prev)}
+            aria-label="Abrir filtros"
+            className={`relative flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-sm font-medium transition-colors ${
+              filtersOpen || activeFilterCount > 0
+                ? 'border-black bg-black text-white'
+                : 'border-gray-200 text-gray-600 hover:border-gray-400'
+            }`}
+          >
+            <SlidersHorizontal size={15} />
+            Filtros
+            {activeFilterCount > 0 && (
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] font-bold text-black">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+
+          <DisplayToggle current={displayMode} onChange={handleDisplayChange} />
         </div>
 
-        {/* Seção em destaque — oculta quando qualquer filtro estiver ativo */}
-        {!isLoading && activeFeatured && !hasActiveFilters && (
-          <FeaturedSection
-            products={promotedFeatured}
-            title={activeFeatured.title}
-            tag={activeFeatured.tag}
-            featuredId={activeFeatured.id}
-            featuredName={activeFeatured.title}
-          />
-        )}
-
-        {/* Título e contagem */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Catálogo</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            {isLoading
-              ? 'Carregando produtos...'
-              : `${total} produto${total !== 1 ? 's' : ''} encontrado${total !== 1 ? 's' : ''}`}
-          </p>
-        </div>
-
-        {/* Mensagem de erro */}
-        {error && (
-          <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
-            {error}
+        {/* Painel de filtros colapsável no mobile */}
+        {filtersOpen && (
+          <div className="mt-3 border-t border-gray-100 pt-3">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Filtros</span>
+              {activeFilterCount > 0 && (
+                <button
+                  onClick={clearFilters}
+                  className="text-xs font-medium text-gray-400 transition-colors hover:text-gray-700"
+                >
+                  Limpar
+                </button>
+              )}
+            </div>
+            <CatalogFilters filters={filters} categories={categories} onFiltersChange={handleFiltersChange} />
           </div>
         )}
+      </div>
 
-        {/* Esqueleto de carregamento */}
-        {isLoading && <ProductSkeleton displayMode={displayMode} />}
+      {/* ── Área principal ────────────────────────────────────────────────── */}
+      <div className="mx-auto max-w-screen-xl px-4 py-6 sm:px-6 sm:py-8">
+        <div className="lg:flex lg:items-start lg:gap-8">
 
-        {/* Lista de produtos */}
-        {!isLoading && !error && promotedProducts.length > 0 && (
-          <ProductGrid items={promotedProducts} displayMode={displayMode} />
-        )}
+          {/* ── Sidebar de filtros — somente desktop ──────────────────────── */}
+          <aside className="hidden w-52 shrink-0 lg:block xl:w-60">
+            <div className="sticky top-6">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-gray-900">Filtros</h2>
+                {activeFilterCount > 0 && (
+                  <button
+                    onClick={clearFilters}
+                    className="text-xs font-medium text-gray-400 transition-colors hover:text-gray-700"
+                  >
+                    Limpar
+                  </button>
+                )}
+              </div>
+              <CatalogFilters
+                filters={filters}
+                categories={categories}
+                onFiltersChange={handleFiltersChange}
+                direction="vertical"
+              />
+            </div>
+          </aside>
 
-        {/* Nenhum produto encontrado */}
-        {!isLoading && !error && promotedProducts.length === 0 && (
-          <EmptyState hasFilters={hasActiveFilters} />
-        )}
+          {/* ── Conteúdo do catálogo ──────────────────────────────────────── */}
+          <div className="min-w-0 flex-1">
 
-        {/* Paginação — exibe sempre que houver produtos, mesmo em página única */}
-        {!isLoading && totalPages >= 1 && promotedProducts.length > 0 && (
-          <Pagination
-            page={page}
-            totalPages={totalPages}
-            onChange={handlePageChange}
-          />
-        )}
+            {/* Busca + alternador de exibição — somente desktop */}
+            <div className="mb-6 hidden items-center gap-3 lg:flex">
+              <CatalogSearch value={filters.searchTerm} onChange={handleSearchChange} />
+              <DisplayToggle current={displayMode} onChange={handleDisplayChange} />
+            </div>
 
+            {/* Seção em destaque — oculta quando qualquer filtro estiver ativo */}
+            {!isLoading && activeFeatured && !hasActiveFilters && (
+              <FeaturedSection
+                products={promotedFeatured}
+                title={activeFeatured.title}
+                tag={activeFeatured.tag}
+                featuredId={activeFeatured.id}
+                featuredName={activeFeatured.title}
+              />
+            )}
+
+            {/* Título e contagem */}
+            <div className="mb-4">
+              <h1 className="text-xl font-bold text-gray-900">Catálogo</h1>
+              <p className="mt-0.5 text-sm text-gray-500">
+                {isLoading
+                  ? 'Carregando produtos...'
+                  : `${total} produto${total !== 1 ? 's' : ''} encontrado${total !== 1 ? 's' : ''}`}
+              </p>
+            </div>
+
+            {/* Mensagem de erro */}
+            {error && (
+              <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+                {error}
+              </div>
+            )}
+
+            {/* Esqueleto de carregamento */}
+            {isLoading && <ProductSkeleton displayMode={displayMode} />}
+
+            {/* Lista de produtos */}
+            {!isLoading && !error && promotedProducts.length > 0 && (
+              <ProductGrid items={promotedProducts} displayMode={displayMode} />
+            )}
+
+            {/* Nenhum produto encontrado */}
+            {!isLoading && !error && promotedProducts.length === 0 && (
+              <EmptyState hasFilters={hasActiveFilters} />
+            )}
+
+            {/* Paginação — exibe sempre que houver produtos, mesmo em página única */}
+            {!isLoading && totalPages >= 1 && promotedProducts.length > 0 && (
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                onChange={handlePageChange}
+              />
+            )}
+
+          </div>
+        </div>
       </div>
     </main>
   )
@@ -223,7 +324,7 @@ function Pagination({ page, totalPages, onChange }: {
       <button
         onClick={() => onChange(page - 1)}
         disabled={page === 1}
-        className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-gray-500 transition-colors hover:border-gray-400 hover:text-gray-900 disabled:opacity-30 disabled:cursor-not-allowed"
+        className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-gray-500 transition-colors hover:border-gray-400 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-30"
       >
         <ChevronLeft size={16} />
       </button>
@@ -241,7 +342,7 @@ function Pagination({ page, totalPages, onChange }: {
             className={
               p === page
                 ? 'flex h-9 w-9 items-center justify-center rounded-xl text-sm font-medium transition-colors'
-                : 'flex h-9 w-9 items-center justify-center rounded-xl text-sm font-medium transition-colors border border-gray-200 text-gray-600 hover:border-gray-400 hover:text-gray-900'
+                : 'flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-sm font-medium text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-900'
             }
             style={p === page ? { backgroundColor: 'var(--color-primary, #111827)', color: '#ffffff' } : undefined}
           >
@@ -254,7 +355,7 @@ function Pagination({ page, totalPages, onChange }: {
       <button
         onClick={() => onChange(page + 1)}
         disabled={page === totalPages}
-        className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-gray-500 transition-colors hover:border-gray-400 hover:text-gray-900 disabled:opacity-30 disabled:cursor-not-allowed"
+        className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-gray-500 transition-colors hover:border-gray-400 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-30"
       >
         <ChevronRight size={16} />
       </button>
@@ -282,7 +383,7 @@ function ProductGrid({
   }
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
       {items.map(({ product, badge, badgeColor, promotionId, promotionName }) => (
         <ProductCard key={product.id} product={product} badge={badge} badgeColor={badgeColor} promotionId={promotionId} promotionName={promotionName} displayMode="grid" />
       ))}
@@ -313,7 +414,7 @@ function ProductSkeleton({ displayMode }: { displayMode: DisplayMode }) {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
       {items.map((_, i) => (
         <div key={i} className="rounded-2xl border border-gray-100 bg-white">
           <div className="aspect-square animate-pulse rounded-t-2xl bg-gray-200" />

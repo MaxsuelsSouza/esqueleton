@@ -69,6 +69,57 @@ describe('POST /api/orders (criação pública)', () => {
     expect(response.statusCode).toBe(400)
   })
 
+  it('rejeita pedido com totais manipulados (item de R$100 com total de R$1)', async () => {
+    app = await buildTestApp(createPrismaFake({}))
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      payload: { ...pedidoValido, subtotal: 1, total: 1 },
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(response.json().message).toBe('Os valores do pedido não conferem.')
+  })
+
+  it('rejeita desconto maior que o subtotal', async () => {
+    app = await buildTestApp(createPrismaFake({}))
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      payload: { ...pedidoValido, discount: 999, total: 0 },
+    })
+
+    expect(response.statusCode).toBe(400)
+  })
+
+  it('registra o uso do cupom no servidor ao criar o pedido', async () => {
+    const updateCoupon = vi.fn(async () => ({}))
+    app = await buildTestApp(
+      createPrismaFake({
+        order: { create: vi.fn(async () => ({ ...pedidoSalvo, couponCode: 'DESCONTO10' })) },
+        notification: { create: vi.fn(async () => ({})) },
+        coupon: { update: updateCoupon },
+      })
+    )
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      payload: { ...pedidoValido, couponCode: 'DESCONTO10', discount: 10, total: 90 },
+    })
+
+    expect(response.statusCode).toBe(201)
+    // O contador de usos sobe no servidor — é assim que o maxUses é respeitado
+    expect(updateCoupon).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { code: 'DESCONTO10' },
+        data: { usedCount: { increment: 1 } },
+      })
+    )
+  })
+
   it('rejeita pedido sem itens', async () => {
     app = await buildTestApp(createPrismaFake({}))
 

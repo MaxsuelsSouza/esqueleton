@@ -9,6 +9,20 @@ export async function orderRoutes(app: FastifyInstance) {
   app.post('/', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request, reply) => {
     const data = createOrderSchema.parse(request.body)
 
+    // Confere a aritmética do pedido — impede totais manipulados por requisições
+    // montadas fora do site (tolerância de 1 centavo para arredondamentos)
+    const somaDosItens = data.items.reduce((soma, item) => soma + item.lineTotal, 0)
+    const itemComContaErrada = data.items.some(
+      (item) => Math.abs(item.lineTotal - item.unitPrice * item.quantity) > 0.01
+    )
+    const subtotalNaoConfere = Math.abs(data.subtotal - somaDosItens) > 0.01
+    const totalNaoConfere =
+      data.discount > data.subtotal || Math.abs(data.total - (data.subtotal - data.discount)) > 0.01
+
+    if (itemComContaErrada || subtotalNaoConfere || totalNaoConfere) {
+      return reply.status(400).send({ message: 'Os valores do pedido não conferem.' })
+    }
+
     const order = await app.prisma.order.create({
       data: {
         orderNumber: data.orderNumber,
@@ -38,6 +52,15 @@ export async function orderRoutes(app: FastifyInstance) {
         }),
       },
     }).catch(() => {}) // silencioso — o pedido não pode ser bloqueado por falha de notificação
+
+    // Registra o uso do cupom no servidor — sem isso o limite de usos (maxUses)
+    // nunca seria atingido, já que o navegador do cliente não tem permissão para isso
+    if (data.couponCode) {
+      app.prisma.coupon.update({
+        where: { code: data.couponCode.toUpperCase() },
+        data: { usedCount: { increment: 1 } },
+      }).catch(() => {}) // cupom inexistente não bloqueia o pedido
+    }
 
     return reply.status(201).send(order)
   })
