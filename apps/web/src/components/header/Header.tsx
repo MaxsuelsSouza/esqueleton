@@ -4,7 +4,8 @@
 // Desktop: logo | pesquisa | ofertas | favoritos | sacola
 // Mobile:  logo | ícone de busca | favoritos | sacola  (busca expande abaixo)
 // Não é exibido nas rotas de administração (/admin)
-import { useState } from 'react'
+// Ao rolar para baixo o header fica mais compacto (padding reduzido)
+import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { Search, X } from 'lucide-react'
 import { LogoArea } from './LogoArea'
@@ -22,14 +23,27 @@ interface HeaderProps {
 export function Header({ logoUrl, storeName }: HeaderProps) {
   const pathname = usePathname()
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
+  // true quando o usuário rolou mais de 40px — ativa o modo compacto
+  const [scrolled, setScrolled] = useState(false)
+
+  useEffect(() => {
+    function handleScroll() {
+      setScrolled(window.scrollY > 40)
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   if (pathname.startsWith('/admin')) return null
 
   return (
-    <header className="sticky top-0 z-50 border-b bg-white shadow-sm">
-      <div className="mx-auto flex max-w-screen-xl items-center justify-between px-4 py-3 sm:px-6">
-
-        <LogoArea imageUrl={logoUrl} storeName={storeName} />
+    <header className={`sticky top-0 z-50 border-b bg-white shadow-sm transition-all duration-300 ${scrolled ? 'shadow-md' : ''}`}>
+      <div
+        className={`mx-auto flex max-w-screen-xl items-center justify-between px-4 sm:px-6 transition-all duration-300 ${
+          scrolled ? 'py-1.5' : 'py-3'
+        }`}
+      >
+        <LogoArea imageUrl={logoUrl} storeName={storeName} compact={scrolled} />
 
         <div className="flex items-center gap-3 sm:gap-6">
 
@@ -49,9 +63,7 @@ export function Header({ logoUrl, storeName }: HeaderProps) {
             <OffersLink />
           </div>
 
-          <div className="hidden sm:block">
-            <CustomerButton />
-          </div>
+          <CustomerButton />
 
           <FavoritesButton />
           <BagButton />

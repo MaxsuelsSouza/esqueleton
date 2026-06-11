@@ -9,7 +9,7 @@ import { catalogService } from '@/services/catalog.service'
 import { categoriesService } from '@/services/categories.service'
 import { promotionsService } from '@/services/promotions.service'
 import { featuredService } from '@/services/featured.service'
-import { expandSelectedCategories } from '@/utils/categories'
+import { expandSelectedCategories, buildCategoryTree } from '@/utils/categories'
 import { applyPromotionsToProducts } from '@/utils/promotions'
 import { getActiveFeatured } from '@/utils/featured'
 import type { Product, Category, Promotion, Featured, CatalogFilters, DisplayMode } from '@esqueleton/shared'
@@ -47,7 +47,7 @@ export default function CatalogPage() {
       promotionsService.listPromotions(),
       featuredService.listFeatured(),
     ]).then(([cats, promos, featured]) => {
-      setCategories(cats)
+      setCategories(buildCategoryTree(cats))
       setPromotions(promos)
       setFeaturedSections(featured)
     }).catch(() => {})
@@ -142,6 +142,8 @@ export default function CatalogPage() {
             products={promotedFeatured}
             title={activeFeatured.title}
             tag={activeFeatured.tag}
+            featuredId={activeFeatured.id}
+            featuredName={activeFeatured.title}
           />
         )}
 
@@ -175,8 +177,8 @@ export default function CatalogPage() {
           <EmptyState hasFilters={hasActiveFilters} />
         )}
 
-        {/* Paginação */}
-        {!isLoading && totalPages > 1 && (
+        {/* Paginação — exibe sempre que houver produtos, mesmo em página única */}
+        {!isLoading && totalPages >= 1 && promotedProducts.length > 0 && (
           <Pagination
             page={page}
             totalPages={totalPages}
@@ -280,7 +282,7 @@ function ProductGrid({
   }
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
       {items.map(({ product, badge, badgeColor, promotionId, promotionName }) => (
         <ProductCard key={product.id} product={product} badge={badge} badgeColor={badgeColor} promotionId={promotionId} promotionName={promotionName} displayMode="grid" />
       ))}
@@ -311,7 +313,7 @@ function ProductSkeleton({ displayMode }: { displayMode: DisplayMode }) {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
       {items.map((_, i) => (
         <div key={i} className="rounded-2xl border border-gray-100 bg-white">
           <div className="aspect-square animate-pulse rounded-t-2xl bg-gray-200" />

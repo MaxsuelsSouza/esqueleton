@@ -156,18 +156,44 @@ model ProductEvent {
   productId     String
   // Nome denormalizado para preservar histórico mesmo se o produto for excluído
   productName   String
-  // 'CART_ADD' = adicionado à sacola, 'WHATSAPP_SEND' = pedido enviado pelo WhatsApp
+  // 'CART_ADD' | 'WHATSAPP_SEND' | 'LINK_COPY' | 'PRODUCT_VIEW' | 'FAVORITE_ADD' | 'FEATURED_CLICK'
   eventType     String
   // Promoção ativa no momento do evento — null se o produto estava sem promoção
   promotionId   String?
   promotionName String?
   // Cupom aplicado — preenchido apenas em WHATSAPP_SEND
   couponCode    String?
+  // Seção em destaque que originou o evento — preenchido em FEATURED_CLICK e CART_ADD vindos de destaque
+  featuredId    String?
+  featuredName  String?
   createdAt     DateTime @default(now())
 
   @@index([productId])
   @@index([eventType])
   @@index([createdAt])
+}
+
+// Notificação do painel administrativo — estoque, pedidos, expiração de promoções, cupons e destaques
+model Notification {
+  id        String   @id @default(cuid())
+  // Tipo: NEW_ORDER | LOW_STOCK | OUT_OF_STOCK | PROMOTION_ENDED | COUPON_ENDED | FEATURED_ENDED
+  type      String
+  // Texto principal exibido na notificação
+  title     String
+  // Detalhe adicional opcional (ex: nome do cliente, código do cupom)
+  body      String?
+  // ID do recurso relacionado — usado para evitar notificações duplicadas do mesmo evento
+  entityId  String?
+  // PENDING = não lida | READ = lida
+  status    String   @default("PENDING")
+  // Dados extras em JSON — ex: { customerPhone, customerName, total } para NEW_ORDER
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  @@index([status])
+  @@index([createdAt])
+  // Impede notificações duplicadas para o mesmo tipo + entidade (ex: dois NEW_ORDER para o mesmo pedido)
+  @@unique([type, entityId])
 }
 
 // Tabela de junção — permite que um produto pertença a várias categorias

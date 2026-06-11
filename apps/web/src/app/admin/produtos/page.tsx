@@ -682,20 +682,22 @@ function CategoryCheckboxTree({
   )
 }
 
-// Área de upload de imagem — clique abre uma pergunta: galeria ou câmera
+// Área de upload de imagem — suporta clique (galeria/câmera) e arrastar arquivo
 function ImageUploader({ value, onChange }: { value: string; onChange: (url: string) => void }) {
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const [chooserOpen, setChooserOpen] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    // Lê o arquivo e converte para uma URL que pode ser usada como src da imagem
+  function readFile(file: File) {
     const reader = new FileReader()
     reader.onload = () => onChange(reader.result as string)
     reader.readAsDataURL(file)
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) readFile(file)
   }
 
   function handleRemove(e: React.MouseEvent) {
@@ -703,6 +705,35 @@ function ImageUploader({ value, onChange }: { value: string; onChange: (url: str
     onChange('')
     if (galleryInputRef.current) galleryInputRef.current.value = ''
     if (cameraInputRef.current) cameraInputRef.current.value = ''
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    // Só desativa quando o cursor sai da área por completo (não ao passar sobre filhos)
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragging(false)
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setIsDragging(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file && file.type.startsWith('image/')) readFile(file)
+  }
+
+  function handleClick() {
+    // No desktop abre diretamente a galeria; no mobile mostra a pergunta galeria/câmera
+    const isMobile = /Mobi|Android/i.test(navigator.userAgent)
+    if (isMobile) {
+      setChooserOpen(true)
+    } else {
+      galleryInputRef.current?.click()
+    }
   }
 
   function pickGallery() {
@@ -717,22 +748,24 @@ function ImageUploader({ value, onChange }: { value: string; onChange: (url: str
 
   return (
     <>
-      {/* Input para galeria */}
       <input ref={galleryInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-      {/* Input para câmera — capture="environment" abre a câmera traseira no mobile */}
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileChange} />
 
-      {/* Área clicável */}
+      {/* Área de drop e clique */}
       <div
-        onClick={() => setChooserOpen(true)}
-        className="relative flex h-32 w-full cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 transition-colors hover:border-gray-400 hover:bg-gray-100"
+        onClick={handleClick}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={`relative flex h-32 w-full cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-dashed transition-colors ${
+          isDragging
+            ? 'border-gray-900 bg-gray-100'
+            : 'border-gray-200 bg-gray-50 hover:border-gray-400 hover:bg-gray-100'
+        }`}
       >
         {value ? (
           <>
-            {/* Preview da imagem selecionada */}
             <img src={value} alt="Preview" className="h-full w-full object-cover" />
-
-            {/* Botão para remover */}
             <button
               onClick={handleRemove}
               aria-label="Remover imagem"
@@ -740,20 +773,21 @@ function ImageUploader({ value, onChange }: { value: string; onChange: (url: str
             >
               <X size={14} />
             </button>
-
             <div className="absolute bottom-0 left-0 right-0 bg-black/40 py-1.5 text-center text-xs text-white">
-              Clique para trocar
+              {isDragging ? 'Solte para trocar' : 'Clique ou arraste para trocar'}
             </div>
           </>
         ) : (
           <div className="flex flex-col items-center gap-1.5 text-gray-400">
             <ImagePlus size={24} strokeWidth={1.5} />
-            <span className="text-xs font-medium">Adicionar foto</span>
+            <span className="text-xs font-medium">
+              {isDragging ? 'Solte a imagem aqui' : 'Clique ou arraste uma foto'}
+            </span>
           </div>
         )}
       </div>
 
-      {/* Pergunta: galeria ou câmera */}
+      {/* Pergunta: galeria ou câmera (apenas mobile) */}
       {chooserOpen && (
         <div
           className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center"

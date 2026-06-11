@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { BagProvider } from '@/contexts/bag-context'
+import { FavoritesProvider } from '@/contexts/favorites-context'
 import { StoreProfileProvider } from '@/contexts/store-profile-context'
 import { CustomerProvider } from '@/contexts/customer-context'
 import { HeaderWithProfile } from '@/components/header/HeaderWithProfile'
@@ -21,11 +22,13 @@ export default function RootLayout({
       <body>
         <StoreProfileProvider>
           <CustomerProvider>
-            <BagProvider>
-              <AnnouncementBar />
-              <HeaderWithProfile />
-              {children}
-            </BagProvider>
+            <FavoritesProvider>
+              <BagProvider>
+                <AnnouncementBar />
+                <HeaderWithProfile />
+                {children}
+              </BagProvider>
+            </FavoritesProvider>
           </CustomerProvider>
         </StoreProfileProvider>
       </body>

@@ -25,6 +25,15 @@ export const ordersService = {
     }
   },
 
+  // Lista todos os pedidos — requer token de admin
+  async listAll(token: string): Promise<Order[]> {
+    const res = await fetch(`${API_URL}/api/orders`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) throw new Error('Erro ao carregar pedidos.')
+    return res.json()
+  },
+
   // Busca um pedido pelo número — requer token de admin
   async searchByNumber(orderNumber: string, token: string): Promise<Order> {
     const res = await fetch(

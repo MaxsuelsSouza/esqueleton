@@ -4,7 +4,7 @@
 
 html,
 body {
-  /* Impede que qualquer elemento cause scroll horizontal na página */
-  overflow-x: hidden;
+  /* Impede scroll horizontal sem criar um novo scroll container (overflow: hidden quebraria o sticky do header) */
+  overflow-x: clip;
   max-width: 100%;
 }

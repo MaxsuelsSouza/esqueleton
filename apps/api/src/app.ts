@@ -13,6 +13,7 @@ import { storeProfileRoutes } from './store-profile/store-profile.routes'
 import { analyticsRoutes } from './analytics/analytics.routes'
 import { customerRoutes } from './customers/customer.routes'
 import { orderRoutes } from './orders/order.routes'
+import { notificationRoutes } from './notifications/notification.routes'
 
 export function buildApp() {
   const app = Fastify({ logger: true })
@@ -31,6 +32,7 @@ export function buildApp() {
   app.register(analyticsRoutes, { prefix: '/api/analytics' })
   app.register(customerRoutes, { prefix: '/api/customers' })
   app.register(orderRoutes, { prefix: '/api/orders' })
+  app.register(notificationRoutes, { prefix: '/api/notifications' })
 
   app.get('/api/health', async () => ({ status: 'ok' }))
 

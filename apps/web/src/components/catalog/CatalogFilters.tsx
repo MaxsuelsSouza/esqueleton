@@ -45,7 +45,6 @@ export function CatalogFilters({ filters, categories, onFiltersChange }: Catalog
             categories={categories}
             selectedIds={filters.categories}
             onToggle={toggleCategory}
-            defaultExpanded
           />
         </div>
       )}

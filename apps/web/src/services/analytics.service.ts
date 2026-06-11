@@ -10,6 +10,9 @@ interface RecordEventInput {
   promotionName?: string
   // Código do cupom — relevante apenas em WHATSAPP_SEND
   couponCode?: string
+  // Seção em destaque de origem — relevante em FEATURED_CLICK e CART_ADD
+  featuredId?: string
+  featuredName?: string
 }
 
 export const analyticsService = {
@@ -20,6 +23,16 @@ export const analyticsService = {
     } catch {
       // Falha silenciosa — analytics nunca deve interromper uma ação do usuário
     }
+  },
+
+  // Remove todos os eventos do funil — requer token de admin
+  async clearEvents(token: string): Promise<void> {
+    const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+    const res = await fetch(`${API_URL}/api/analytics/events`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) throw new Error('Não foi possível limpar os registros.')
   },
 
   // Retorna o resumo de métricas para o dashboard — requer token de admin no header

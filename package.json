@@ -2,7 +2,7 @@
   "name": "esqueleton-project",
   "private": true,
   "scripts": {
-    "dev": "pnpm --parallel -r dev",
+    "dev": "docker-compose up -d && pnpm --parallel -r dev",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint"
   },

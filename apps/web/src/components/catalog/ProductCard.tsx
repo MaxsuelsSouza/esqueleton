@@ -7,6 +7,7 @@ import { ShoppingBag, Heart, Link, Check } from 'lucide-react'
 import type { Product, DisplayMode } from '@esqueleton/shared'
 import { ProductPrice } from './ProductPrice'
 import { useBag } from '@/contexts/bag-context'
+import { useFavorites } from '@/contexts/favorites-context'
 import { analyticsService } from '@/services/analytics.service'
 
 interface ProductCardProps {
@@ -19,26 +20,40 @@ interface ProductCardProps {
   // Promoção ativa — passada para o evento de analytics ao adicionar à sacola
   promotionId?: string
   promotionName?: string
+  // Seção em destaque de origem — quando o card é exibido dentro de um destaque
+  featuredId?: string
+  featuredName?: string
 }
 
-export function ProductCard({ product, displayMode = 'grid', badge, badgeColor, promotionId, promotionName }: ProductCardProps) {
-  const [favorited, setFavorited] = useState(false)
+export function ProductCard({ product, displayMode = 'grid', badge, badgeColor, promotionId, promotionName, featuredId, featuredName }: ProductCardProps) {
   const { addItem } = useBag()
+  const { isFavorited, toggleFavorite } = useFavorites()
   const router = useRouter()
+  const favorited = isFavorited(product.id)
 
   function goToDetail() {
+    // Registra o clique vindo de destaque antes de navegar
+    if (featuredId && featuredName) {
+      analyticsService.recordEvent({
+        productId: product.id,
+        productName: product.brand ? `${product.brand} ${product.name}` : product.name,
+        eventType: 'FEATURED_CLICK',
+        featuredId,
+        featuredName,
+      })
+    }
     router.push(`/produto/${product.id}`)
   }
 
   function handleAddToBag() {
-    addItem(product, { promotionId, promotionName })
+    addItem(product, { promotionId, promotionName, featuredId, featuredName })
   }
 
   if (displayMode === 'list') {
-    return <ProductCardList product={product} badge={badge} badgeColor={badgeColor} favorited={favorited} onFavorite={() => setFavorited((f) => !f)} onCardClick={goToDetail} onAddToBag={handleAddToBag} />
+    return <ProductCardList product={product} badge={badge} badgeColor={badgeColor} favorited={favorited} onFavorite={() => toggleFavorite(product)} onCardClick={goToDetail} onAddToBag={handleAddToBag} />
   }
 
-  return <ProductCardGrid product={product} badge={badge} badgeColor={badgeColor} favorited={favorited} onFavorite={() => setFavorited((f) => !f)} onCardClick={goToDetail} onAddToBag={handleAddToBag} />
+  return <ProductCardGrid product={product} badge={badge} badgeColor={badgeColor} favorited={favorited} onFavorite={() => toggleFavorite(product)} onCardClick={goToDetail} onAddToBag={handleAddToBag} />
 }
 
 // ── Formato grade ───────────────────────────────────────────────────────────
@@ -205,7 +220,7 @@ function ProductCardList({ product, badge, badgeColor, favorited, onFavorite, on
             <div className="flex items-center justify-between gap-3">
               <ProductPrice price={product.price} originalPrice={product.originalPrice} size="sm" />
               <div className="flex gap-2">
-                <AddToCartButton onClick={onAddToBag} disabled={product.stock === 0} />
+                <AddToCartButton onClick={onAddToBag} disabled={product.stock === 0} large />
                 <CopyLinkButton productId={product.id} productName={product.name} />
               </div>
             </div>
@@ -233,7 +248,7 @@ function StockBadge({ stock }: { stock?: number | null }) {
 
 // ── Botão adicionar à sacola ────────────────────────────────────────────────
 
-function AddToCartButton({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
+function AddToCartButton({ onClick, disabled, large }: { onClick: () => void; disabled?: boolean; large?: boolean }) {
   const [added, setAdded] = useState(false)
 
   function handleClick() {
@@ -244,7 +259,7 @@ function AddToCartButton({ onClick, disabled }: { onClick: () => void; disabled?
 
   if (disabled) {
     return (
-      <span className="flex flex-1 items-center justify-center rounded-xl bg-gray-100 py-2 text-xs font-semibold text-gray-400">
+      <span className={`flex flex-1 items-center justify-center rounded-xl bg-gray-100 font-semibold text-gray-400 ${large ? 'py-2.5 px-4 text-sm' : 'py-2 text-xs'}`}>
         Esgotado
       </span>
     )
@@ -255,11 +270,11 @@ function AddToCartButton({ onClick, disabled }: { onClick: () => void; disabled?
       onClick={(e) => { e.stopPropagation(); handleClick() }}
       aria-label="Adicionar à sacola"
       style={added ? {} : { backgroundColor: 'var(--color-primary, #000000)' }}
-      className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-semibold transition-all active:scale-95 ${
+      className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl font-semibold transition-all active:scale-95 ${large ? 'py-2.5 px-4 text-sm' : 'py-2 text-xs'} ${
         added ? 'bg-green-600 text-white' : 'text-white'
       }`}
     >
-      {added ? <Check size={13} /> : <ShoppingBag size={13} />}
+      {added ? <Check size={large ? 15 : 13} /> : <ShoppingBag size={large ? 15 : 13} />}
       {added ? 'Adicionado!' : 'Adicionar'}
     </button>
   )

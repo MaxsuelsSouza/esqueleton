@@ -10,20 +10,47 @@ import { MOCK_PROMOTIONS } from '@/mocks/promotions'
 import { getActivePromotionForProduct, applyPromotionToProduct } from '@/utils/promotions'
 import { ProductPrice } from '@/components/catalog/ProductPrice'
 import { useBag } from '@/contexts/bag-context'
+import { useFavorites } from '@/contexts/favorites-context'
 import { analyticsService } from '@/services/analytics.service'
 import type { Product } from '@esqueleton/shared'
 
 // Troque para false quando a API estiver pronta
 const USE_MOCK_DATA = false
 
+// Chave usada no localStorage para guardar quais produtos foram vistos e em qual data
+const STORAGE_KEY = 'esqueleton_produtos_vistos'
+
+// Retorna true se o produto já foi visto hoje neste navegador
+function jaViuHoje(productId: string): boolean {
+  try {
+    const hoje = new Date().toISOString().slice(0, 10) // "YYYY-MM-DD"
+    const registros: Record<string, string> = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}')
+    return registros[productId] === hoje
+  } catch {
+    return false
+  }
+}
+
+// Salva a data de hoje para o produto, para não contar novamente no mesmo dia
+function marcarComoVisto(productId: string): void {
+  try {
+    const hoje = new Date().toISOString().slice(0, 10)
+    const registros: Record<string, string> = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}')
+    registros[productId] = hoje
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(registros))
+  } catch {
+    // localStorage pode estar bloqueado em alguns navegadores — ignora silenciosamente
+  }
+}
+
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const { addItem } = useBag()
+  const { isFavorited, toggleFavorite } = useFavorites()
 
   const [product, setProduct] = useState<Product | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [favorited, setFavorited] = useState(false)
   const [copied, setCopied] = useState(false)
   const [added, setAdded] = useState(false)
 
@@ -41,11 +68,28 @@ export default function ProductDetailPage() {
       return
     }
 
+    // cancelled evita duplo registro no StrictMode (React monta o componente duas vezes em desenvolvimento)
+    let cancelled = false
+
     catalogService
       .getProduct(id)
-      .then(setProduct)
+      .then((p) => {
+        setProduct(p)
+        // Registra a visualização apenas se este efeito ainda for o atual
+        // e se o produto ainda não foi visto hoje (evita contar múltiplas vezes no mesmo dia)
+        if (!cancelled && !jaViuHoje(p.id)) {
+          marcarComoVisto(p.id)
+          analyticsService.recordEvent({
+            productId: p.id,
+            productName: p.brand ? `${p.brand} ${p.name}` : p.name,
+            eventType: 'PRODUCT_VIEW',
+          })
+        }
+      })
       .catch(() => setProduct(null))
       .finally(() => setIsLoading(false))
+
+    return () => { cancelled = true }
   }, [id])
 
   async function handleCopyLink() {
@@ -158,18 +202,23 @@ export default function ProductDetailPage() {
 
                 {/* Favoritar e copiar link */}
                 <div className="flex gap-3">
-                  <button
-                    onClick={() => setFavorited((f) => !f)}
-                    aria-label={favorited ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
-                    className={`flex flex-1 items-center justify-center gap-2 rounded-xl border py-3 text-sm font-medium transition-all active:scale-95 ${
-                      favorited
-                        ? 'border-red-200 bg-red-50 text-red-500'
-                        : 'border-gray-200 bg-white text-gray-600 hover:border-gray-400'
-                    }`}
-                  >
-                    <Heart size={16} fill={favorited ? 'currentColor' : 'none'} />
-                    {favorited ? 'Favoritado' : 'Favoritar'}
-                  </button>
+                  {product && (() => {
+                    const fav = isFavorited(product.id)
+                    return (
+                      <button
+                        onClick={() => toggleFavorite(product)}
+                        aria-label={fav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                        className={`flex flex-1 items-center justify-center gap-2 rounded-xl border py-3 text-sm font-medium transition-all active:scale-95 ${
+                          fav
+                            ? 'border-red-200 bg-red-50 text-red-500'
+                            : 'border-gray-200 bg-white text-gray-600 hover:border-gray-400'
+                        }`}
+                      >
+                        <Heart size={16} fill={fav ? 'currentColor' : 'none'} />
+                        {fav ? 'Favoritado' : 'Favoritar'}
+                      </button>
+                    )
+                  })()}
 
                   <button
                     onClick={handleCopyLink}

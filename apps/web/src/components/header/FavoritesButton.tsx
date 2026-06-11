@@ -1,17 +1,18 @@
 'use client'
 
-// Botão de favoritos — exibe a quantidade de itens salvos
+// Botão de favoritos — sempre navega para /favoritos, exibe contador de itens salvos
 import { Heart } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { useFavorites } from '@/contexts/favorites-context'
 
-interface FavoritesButtonProps {
-  count?: number
-  onClick?: () => void
-}
+export function FavoritesButton() {
+  const router = useRouter()
+  const { favoriteIds } = useFavorites()
+  const count = favoriteIds.length
 
-export function FavoritesButton({ count = 0, onClick }: FavoritesButtonProps) {
   return (
     <button
-      onClick={onClick}
+      onClick={() => router.push('/favoritos')}
       aria-label={`Favoritos${count > 0 ? ` (${count} itens)` : ''}`}
       className="relative flex flex-col items-center gap-0.5 text-gray-600 transition-colors hover:text-black"
     >

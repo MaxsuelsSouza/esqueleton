@@ -186,7 +186,13 @@ export interface Customer {
 }
 
 // Evento de produto registrado para analytics
-export type ProductEventType = 'CART_ADD' | 'WHATSAPP_SEND' | 'LINK_COPY'
+export type ProductEventType =
+  | 'CART_ADD'       // adicionado à sacola
+  | 'WHATSAPP_SEND'  // pedido enviado pelo WhatsApp
+  | 'LINK_COPY'      // link do produto copiado
+  | 'PRODUCT_VIEW'   // página do produto aberta
+  | 'FAVORITE_ADD'   // produto adicionado aos favoritos
+  | 'FEATURED_CLICK' // produto clicado dentro de uma seção em destaque
 
 // Métricas de um produto individual no dashboard de analytics
 export interface ProductMetric {
@@ -200,6 +206,10 @@ export interface ProductMetric {
   totalPoints: number
   // Quantidade de vezes que o link do produto foi copiado
   linkCopies: number
+  // Quantidade de vezes que a página do produto foi aberta
+  views: number
+  // Quantidade de vezes que o produto foi adicionado aos favoritos
+  favorites: number
   // Vendas confirmadas pelo conferente no dashboard — chega a 100% quando todos são SOLD
   confirmedSales: number
   // Pedidos aguardando confirmação no dashboard
@@ -217,6 +227,47 @@ export interface ProductMetric {
   withoutCoupon: { cartAdds: number; whatsappSends: number }
 }
 
+// Métricas de uma promoção — agrega o desempenho de todos os produtos que participaram dela
+export interface PromotionMetric {
+  promotionId: string
+  promotionName: string
+  // Quantas vezes produtos com essa promoção foram adicionados à sacola
+  cartAdds: number
+  // Quantas vezes produtos com essa promoção foram enviados pelo WhatsApp
+  whatsappSends: number
+  // Vendas confirmadas em pedidos que continham um produto com essa promoção
+  confirmedSales: number
+  // Percentual de conversão: confirmedSales / whatsappSends × 100
+  conversionRate: number
+}
+
+// Métricas de um cupom — mostra quantas vezes foi usado e o resultado das vendas
+export interface CouponMetric {
+  couponCode: string
+  // Total de pedidos que usaram o cupom
+  totalOrders: number
+  // Pedidos confirmados como vendidos
+  soldOrders: number
+  // Pedidos aguardando confirmação
+  pendingOrders: number
+  // Pedidos marcados como não vendidos
+  notSoldOrders: number
+  // Percentual de conversão: soldOrders / totalOrders × 100
+  conversionRate: number
+}
+
+// Métricas de uma seção em destaque — mostra engajamento e vendas originadas do destaque
+export interface FeaturedMetric {
+  featuredId: string
+  featuredName: string
+  // Quantas vezes um produto do destaque foi clicado (navegou para detalhe)
+  clicks: number
+  // Quantas vezes um produto do destaque foi adicionado à sacola diretamente
+  cartAdds: number
+  // Quantas vezes um produto do destaque foi enviado pelo WhatsApp
+  whatsappSends: number
+}
+
 // Resumo completo de analytics retornado pelo endpoint GET /api/analytics/summary
 export interface AnalyticsSummary {
   topProducts: ProductMetric[]
@@ -225,9 +276,15 @@ export interface AnalyticsSummary {
   cartOnlyProducts: ProductMetric[]
   // Produtos que chegaram até o envio pelo WhatsApp
   convertedProducts: ProductMetric[]
+  // Produtos mais visualizados na página de detalhe
+  mostViewedProducts: ProductMetric[]
+  // Produtos mais favoritados
+  mostFavoritedProducts: ProductMetric[]
   totalCartAdds: number
   totalWhatsappSends: number
   totalLinkCopies: number
+  totalViews: number
+  totalFavorites: number
   totalOrders: number
   totalPendingOrders: number
   totalSoldOrders: number
@@ -238,6 +295,36 @@ export interface AnalyticsSummary {
   withoutCoupon: { cartAdds: number; whatsappSends: number }
   inPromotion: { cartAdds: number; whatsappSends: number }
   originalPrice: { cartAdds: number; whatsappSends: number }
+  // Métricas por promoção
+  promotionMetrics: PromotionMetric[]
+  // Métricas por cupom
+  couponMetrics: CouponMetric[]
+  // Métricas por seção em destaque
+  featuredMetrics: FeaturedMetric[]
+}
+
+// Tipos de notificação do painel administrativo
+export type NotificationType =
+  | 'NEW_ORDER'        // novo pedido recebido pelo WhatsApp
+  | 'LOW_STOCK'        // estoque abaixo de 3 unidades
+  | 'OUT_OF_STOCK'     // produto esgotado
+  | 'PROMOTION_ENDED'  // promoção expirou
+  | 'COUPON_ENDED'     // cupom expirou ou atingiu limite de usos
+  | 'FEATURED_ENDED'   // seção em destaque expirou
+
+export type NotificationStatus = 'PENDING' | 'READ'
+
+export interface Notification {
+  id: string
+  type: NotificationType
+  title: string
+  body?: string
+  // ID do recurso relacionado (pedido, produto, promoção, cupom ou destaque)
+  entityId?: string
+  status: NotificationStatus
+  // Dados extras em JSON — ex: { customerPhone, customerName, total } para NEW_ORDER
+  metadata?: string
+  createdAt: string
 }
 
 // Modo de exibição dos produtos na listagem

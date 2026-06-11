@@ -1,7 +1,7 @@
 'use client'
 
 // Contexto global da sacola de compras — persiste os itens no localStorage
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import type { Product, Coupon } from '@esqueleton/shared'
 import { validateCoupon, couponErrorMessage } from '@/utils/coupons'
 import { couponsService } from '@/services/coupons.service'
@@ -19,6 +19,9 @@ export type BagItem = {
 type AddItemMeta = {
   promotionId?: string
   promotionName?: string
+  // Seção em destaque de onde o produto foi adicionado — para analytics
+  featuredId?: string
+  featuredName?: string
 }
 
 interface BagContextValue {
@@ -52,6 +55,10 @@ export function BagProvider({ children }: { children: React.ReactNode }) {
   const [couponInput, setCouponInput] = useState('')
   const [couponError, setCouponError] = useState<string | null>(null)
 
+  // Controla se o efeito de salvar já passou pela primeira execução (que ocorre com items=[])
+  // Sem esse controle, o efeito de salvar roda antes do de carregar e apaga os dados do localStorage
+  const primeiroSave = useRef(true)
+
   // Recupera a sacola salva no navegador ao iniciar
   useEffect(() => {
     try {
@@ -65,8 +72,13 @@ export function BagProvider({ children }: { children: React.ReactNode }) {
     couponsService.listCoupons().then(setCoupons).catch(() => {})
   }, [])
 
-  // Salva a sacola no navegador sempre que mudar
+  // Salva a sacola no navegador sempre que mudar —
+  // pula a primeira execução (items=[]) para não sobrescrever os dados já salvos
   useEffect(() => {
+    if (primeiroSave.current) {
+      primeiroSave.current = false
+      return
+    }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
   }, [items])
 
@@ -88,6 +100,8 @@ export function BagProvider({ children }: { children: React.ReactNode }) {
       eventType: 'CART_ADD',
       promotionId: meta?.promotionId,
       promotionName: meta?.promotionName,
+      featuredId: meta?.featuredId,
+      featuredName: meta?.featuredName,
     })
   }
 
