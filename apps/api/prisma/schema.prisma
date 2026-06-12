@@ -51,8 +51,6 @@ model Product {
   price         Float
   originalPrice Float?
   imageUrl      String?
-  // Quantidade em estoque — null significa estoque não controlado
-  stock         Int?
   storeId       String
   store         Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
   categories    ProductCategory[]
@@ -241,10 +239,10 @@ model ProductEvent {
   @@index([createdAt])
 }
 
-// Notificação do painel administrativo — estoque, pedidos, expiração de promoções, cupons e destaques
+// Notificação do painel administrativo — pedidos, expiração de promoções, cupons e destaques
 model Notification {
   id        String   @id @default(cuid())
-  // Tipo: NEW_ORDER | LOW_STOCK | OUT_OF_STOCK | PROMOTION_ENDED | COUPON_ENDED | FEATURED_ENDED
+  // Tipo: NEW_ORDER | PROMOTION_ENDED | COUPON_ENDED | FEATURED_ENDED
   type      String
   // Texto principal exibido na notificação
   title     String

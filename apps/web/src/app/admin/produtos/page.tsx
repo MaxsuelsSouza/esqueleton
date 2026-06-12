@@ -24,7 +24,6 @@ type ProductFormData = {
   description: string
   price: string
   originalPrice: string
-  stock: string
   imageUrl: string
   categoryIds: string[]
 }
@@ -35,7 +34,6 @@ const EMPTY_FORM: ProductFormData = {
   description: '',
   price: '',
   originalPrice: '',
-  stock: '',
   imageUrl: '',
   categoryIds: [],
 }
@@ -144,7 +142,6 @@ export default function AdminProdutosPage() {
       price: '',
       // Ao editar, mostra o preço de venda atual no campo "Preço"
       originalPrice: String(product.price),
-      stock: product.stock != null ? String(product.stock) : '',
       imageUrl: product.imageUrl ?? '',
       categoryIds: product.categoryIds ?? [],
     })
@@ -174,7 +171,6 @@ export default function AdminProdutosPage() {
       // originalPrice não é mais definido pelo formulário — pode ser configurado via promoções.
       price: preco,
       originalPrice: undefined,
-      stock: formData.stock !== '' ? Number(formData.stock) : null,
       imageUrl: formData.imageUrl.trim() || null,
       categoryIds: formData.categoryIds,
     }
@@ -237,15 +233,8 @@ export default function AdminProdutosPage() {
     }
   }
 
-  // A busca, a categoria e a ordenação são aplicadas no servidor.
-  // Aqui só reordenamos a página atual para mostrar os produtos esgotados no topo.
-  const pageProducts = [...products].sort((a, b) => {
-    const aEsgotado = a.stock === 0
-    const bEsgotado = b.stock === 0
-    if (aEsgotado && !bEsgotado) return -1
-    if (!aEsgotado && bEsgotado) return 1
-    return 0
-  })
+  // A busca, a categoria e a ordenação são aplicadas no servidor
+  const pageProducts = products
 
   const activeFilterCount =
     (search ? 1 : 0) + (filterCategory ? 1 : 0) + (sortBy !== 'newest' ? 1 : 0)
@@ -405,7 +394,6 @@ export default function AdminProdutosPage() {
               <tr className="border-b bg-gray-50 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">
                 <th className="w-12 px-4 py-3" />
                 <th className="px-4 py-3">Produto</th>
-                <th className="px-4 py-3">Estoque</th>
                 <th className="w-24 px-4 py-3 text-right">Ações</th>
               </tr>
             </thead>
@@ -434,19 +422,6 @@ export default function AdminProdutosPage() {
                       </p>
                     )}
                     <p className="font-medium text-gray-900">{product.name}</p>
-                  </td>
-
-                  {/* Estoque */}
-                  <td className="px-4 py-3">
-                    {product.stock == null ? (
-                      <span className="text-xs text-gray-400">—</span>
-                    ) : product.stock === 0 ? (
-                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-600">Esgotado</span>
-                    ) : product.stock <= 5 ? (
-                      <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-700">{product.stock} un.</span>
-                    ) : (
-                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">{product.stock} un.</span>
-                    )}
                   </td>
 
                   {/* Botões de ação */}
@@ -508,18 +483,6 @@ export default function AdminProdutosPage() {
                 value={formData.originalPrice}
                 onChange={(e) => setFormData((f) => ({ ...f, originalPrice: e.target.value }))}
                 placeholder="0,00"
-                className={inputClass}
-              />
-            </FormField>
-
-            <FormField label="Estoque" optional>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={formData.stock}
-                onChange={(e) => setFormData((f) => ({ ...f, stock: e.target.value }))}
-                placeholder="Deixe vazio se não controla estoque"
                 className={inputClass}
               />
             </FormField>

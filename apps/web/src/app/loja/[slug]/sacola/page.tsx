@@ -359,14 +359,6 @@ export default function SacolaPage() {
                       </p>
                     )}
                     <p className="truncate text-sm font-semibold text-gray-900">{product.name}</p>
-                    {/* Aviso de estoque baixo na sacola */}
-                    {product.stock != null && product.stock < 6 && (
-                      <p className={`text-xs font-semibold ${product.stock === 0 ? 'text-red-500' : 'text-orange-500'}`}>
-                        {product.stock === 0
-                          ? 'Esgotado'
-                          : `Restam ${product.stock} ${product.stock === 1 ? 'unidade' : 'unidades'}`}
-                      </p>
-                    )}
                   </div>
                   <button
                     onClick={() => removeItem(product.id)}

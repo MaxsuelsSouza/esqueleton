@@ -239,26 +239,6 @@ export const catalogAdminRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(404).send({ message: 'Produto não encontrado' })
     }
 
-    // Verifica estoque após a atualização e cria notificação se necessário — fire and forget
-    const stock = product.stock
-    if (stock !== null && stock !== undefined) {
-      const productName = product.brand ? `${product.brand} ${product.name}` : product.name
-      if (stock === 0) {
-        // Upsert: cria a notificação ou reativa caso o admin já tivesse marcado como lida
-        app.prisma.notification.upsert({
-          where: { storeId_type_entityId: { storeId, type: 'OUT_OF_STOCK', entityId: product.id } },
-          create: { storeId, type: 'OUT_OF_STOCK', title: `"${productName}" está sem estoque`, entityId: product.id },
-          update: { status: 'PENDING', createdAt: new Date() },
-        }).catch(() => {})
-      } else if (stock < 3) {
-        app.prisma.notification.upsert({
-          where: { storeId_type_entityId: { storeId, type: 'LOW_STOCK', entityId: product.id } },
-          create: { storeId, type: 'LOW_STOCK', title: `"${productName}" com estoque baixo`, body: `Restam ${stock} unidade${stock === 1 ? '' : 's'}`, entityId: product.id },
-          update: { status: 'PENDING', body: `Restam ${stock} unidade${stock === 1 ? '' : 's'}`, createdAt: new Date() },
-        }).catch(() => {})
-      }
-    }
-
     return toProductResponse(product)
   })
 

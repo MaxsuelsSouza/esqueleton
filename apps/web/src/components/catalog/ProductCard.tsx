@@ -138,9 +138,8 @@ function ProductCardGrid({ product, badge, badgeColor, favorited, onFavorite, on
 
           <div className="flex flex-col gap-1.5">
             <ProductPrice price={product.price} originalPrice={product.originalPrice} size="sm" />
-            <StockBadge stock={product.stock} />
             <div className="flex gap-2">
-              <AddToCartButton onClick={onAddToBag} disabled={product.stock === 0} />
+              <AddToCartButton onClick={onAddToBag} />
               <CopyLinkButton productId={product.id} productName={product.name} />
             </div>
           </div>
@@ -218,15 +217,12 @@ function ProductCardList({ product, badge, badgeColor, favorited, onFavorite, on
             </button>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between gap-3">
-              <ProductPrice price={product.price} originalPrice={product.originalPrice} size="sm" />
-              <div className="flex gap-2">
-                <AddToCartButton onClick={onAddToBag} disabled={product.stock === 0} large />
-                <CopyLinkButton productId={product.id} productName={product.name} />
-              </div>
+          <div className="flex items-center justify-between gap-3">
+            <ProductPrice price={product.price} originalPrice={product.originalPrice} size="sm" />
+            <div className="flex gap-2">
+              <AddToCartButton onClick={onAddToBag} large />
+              <CopyLinkButton productId={product.id} productName={product.name} />
             </div>
-            <StockBadge stock={product.stock} />
           </div>
         </div>
       </div>
@@ -234,37 +230,15 @@ function ProductCardList({ product, badge, badgeColor, favorited, onFavorite, on
   )
 }
 
-// ── Badge de estoque baixo ──────────────────────────────────────────────────
-
-function StockBadge({ stock }: { stock?: number | null }) {
-  if (stock == null || stock >= 6) return null
-  if (stock === 0) return (
-    <span className="text-xs font-semibold text-red-500">Esgotado</span>
-  )
-  return (
-    <span className="text-xs font-semibold text-orange-500">
-      Restam {stock} {stock === 1 ? 'unidade' : 'unidades'}
-    </span>
-  )
-}
-
 // ── Botão adicionar à sacola ────────────────────────────────────────────────
 
-function AddToCartButton({ onClick, disabled, large }: { onClick: () => void; disabled?: boolean; large?: boolean }) {
+function AddToCartButton({ onClick, large }: { onClick: () => void; large?: boolean }) {
   const [added, setAdded] = useState(false)
 
   function handleClick() {
     onClick()
     setAdded(true)
     setTimeout(() => setAdded(false), 1500)
-  }
-
-  if (disabled) {
-    return (
-      <span className={`flex flex-1 items-center justify-center rounded-xl bg-gray-100 font-semibold text-gray-400 ${large ? 'py-2.5 px-4 text-sm' : 'py-2 text-xs'}`}>
-        Esgotado
-      </span>
-    )
   }
 
   return (

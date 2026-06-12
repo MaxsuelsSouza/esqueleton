@@ -163,39 +163,26 @@ export default function ProductDetailPage() {
               {/* Preço */}
               <div className="rounded-xl bg-white p-4 shadow-sm">
                 <ProductPrice price={product.price} originalPrice={product.originalPrice} size="lg" />
-                {/* Aviso de estoque baixo — exibido apenas quando restam menos de 6 unidades */}
-                {product.stock != null && product.stock < 6 && (
-                  <p className={`mt-2 text-sm font-semibold ${product.stock === 0 ? 'text-red-500' : 'text-orange-500'}`}>
-                    {product.stock === 0
-                      ? 'Produto esgotado'
-                      : `Restam apenas ${product.stock} ${product.stock === 1 ? 'unidade' : 'unidades'}`}
-                  </p>
-                )}
               </div>
 
               {/* Botões de ação */}
               <div className="flex flex-col gap-3">
 
-                {/* Adicionar à sacola — desabilitado quando esgotado */}
+                {/* Adicionar à sacola */}
                 <button
                   onClick={() => {
-                    if (!product || product.stock === 0) return
+                    if (!product) return
                     addItem(product)
                     setAdded(true)
                     setTimeout(() => setAdded(false), 1500)
                   }}
-                  disabled={product.stock === 0}
                   className={`flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold transition-all active:scale-95 ${
-                    product.stock === 0
-                      ? 'cursor-not-allowed bg-gray-100 text-gray-400'
-                      : added
+                    added
                       ? 'bg-green-600 text-white'
                       : 'bg-black text-white hover:bg-gray-800'
                   }`}
                 >
-                  {product.stock === 0 ? (
-                    <><ShoppingBag size={17} /> Esgotado</>
-                  ) : added ? (
+                  {added ? (
                     <><Check size={17} /> Adicionado!</>
                   ) : (
                     <><ShoppingBag size={17} /> Adicionar à sacola</>

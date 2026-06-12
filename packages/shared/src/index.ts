@@ -23,8 +23,6 @@ export interface Product {
   // Preço original antes do desconto — quando informado, indica que o produto está em promoção
   originalPrice?: number
   imageUrl: string | null
-  // Quantidade em estoque — null significa que o estoque não é controlado
-  stock?: number | null
   // IDs das categorias às quais o produto pertence (pode ser mais de uma)
   categoryIds?: string[]
   createdAt: string
@@ -341,8 +339,6 @@ export interface AnalyticsSummary {
 // Tipos de notificação do painel administrativo
 export type NotificationType =
   | 'NEW_ORDER'        // novo pedido recebido pelo WhatsApp
-  | 'LOW_STOCK'        // estoque abaixo de 3 unidades
-  | 'OUT_OF_STOCK'     // produto esgotado
   | 'PROMOTION_ENDED'  // promoção expirou
   | 'COUPON_ENDED'     // cupom expirou ou atingiu limite de usos
   | 'FEATURED_ENDED'   // seção em destaque expirou
@@ -354,7 +350,7 @@ export interface Notification {
   type: NotificationType
   title: string
   body?: string
-  // ID do recurso relacionado (pedido, produto, promoção, cupom ou destaque)
+  // ID do recurso relacionado (pedido, promoção, cupom ou destaque)
   entityId?: string
   status: NotificationStatus
   // Dados extras em JSON — ex: { customerPhone, customerName, total } para NEW_ORDER

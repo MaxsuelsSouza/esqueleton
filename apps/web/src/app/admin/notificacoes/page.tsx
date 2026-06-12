@@ -1,10 +1,10 @@
 'use client'
 
-// Página de notificações — exibe alertas de estoque, pedidos, promoções, cupons e destaques
+// Página de notificações — exibe alertas de pedidos, promoções, cupons e destaques
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Bell, MessageCircle, AlertTriangle, XCircle, BadgePercent, Ticket, Sparkles,
+  Bell, MessageCircle, BadgePercent, Ticket, Sparkles,
   Check, Trash2, CheckCheck, ChevronRight, Copy, Phone,
 } from 'lucide-react'
 import { notificationsService } from '@/services/notifications.service'
@@ -16,9 +16,6 @@ function getRedirectPath(notification: Notification): string {
     case 'NEW_ORDER':
       // Vai ao dashboard com o número do pedido pré-preenchido na busca
       return `/admin/dashboard?pedido=${notification.entityId ?? ''}`
-    case 'LOW_STOCK':
-    case 'OUT_OF_STOCK':
-      return '/admin/produtos'
     case 'PROMOTION_ENDED':
       return '/admin/promocoes'
     case 'COUPON_ENDED':
@@ -39,14 +36,12 @@ const TYPE_CONFIG: Record<NotificationType, {
   bgColor: string
 }> = {
   NEW_ORDER:       { label: 'Pedido',    icon: MessageCircle, borderColor: 'border-blue-400',   iconColor: 'text-blue-500',   bgColor: 'bg-blue-50'   },
-  LOW_STOCK:       { label: 'Estoque',   icon: AlertTriangle, borderColor: 'border-orange-400', iconColor: 'text-orange-500', bgColor: 'bg-orange-50' },
-  OUT_OF_STOCK:    { label: 'Esgotado',  icon: XCircle,       borderColor: 'border-red-500',    iconColor: 'text-red-500',    bgColor: 'bg-red-50'    },
   PROMOTION_ENDED: { label: 'Promoção',  icon: BadgePercent,  borderColor: 'border-gray-300',   iconColor: 'text-gray-400',   bgColor: 'bg-gray-50'   },
   COUPON_ENDED:    { label: 'Cupom',     icon: Ticket,        borderColor: 'border-gray-300',   iconColor: 'text-gray-400',   bgColor: 'bg-gray-50'   },
   FEATURED_ENDED:  { label: 'Destaque',  icon: Sparkles,      borderColor: 'border-gray-300',   iconColor: 'text-gray-400',   bgColor: 'bg-gray-50'   },
 }
 
-type FilterTab = 'todas' | 'nao_lidas' | 'pedidos' | 'estoque' | 'expiradas'
+type FilterTab = 'todas' | 'nao_lidas' | 'pedidos' | 'expiradas'
 
 // Retorna quanto tempo atrás a notificação foi criada, em texto legível
 function timeAgo(dateString: string): string {
@@ -109,7 +104,6 @@ export default function NotificacoesPage() {
   const filtered = notifications.filter((n) => {
     if (activeTab === 'nao_lidas') return n.status === 'PENDING'
     if (activeTab === 'pedidos')   return n.type === 'NEW_ORDER'
-    if (activeTab === 'estoque')   return n.type === 'LOW_STOCK' || n.type === 'OUT_OF_STOCK'
     if (activeTab === 'expiradas') return ['PROMOTION_ENDED', 'COUPON_ENDED', 'FEATURED_ENDED'].includes(n.type)
     return true
   })
@@ -120,7 +114,6 @@ export default function NotificacoesPage() {
     { key: 'todas',     label: 'Todas',      count: notifications.length },
     { key: 'nao_lidas', label: 'Não lidas',  count: unreadCount },
     { key: 'pedidos',   label: 'Pedidos',    count: notifications.filter((n) => n.type === 'NEW_ORDER').length },
-    { key: 'estoque',   label: 'Estoque',    count: notifications.filter((n) => n.type === 'LOW_STOCK' || n.type === 'OUT_OF_STOCK').length },
     { key: 'expiradas', label: 'Expiradas',  count: notifications.filter((n) => ['PROMOTION_ENDED', 'COUPON_ENDED', 'FEATURED_ENDED'].includes(n.type)).length },
   ]
 

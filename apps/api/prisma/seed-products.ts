@@ -16,7 +16,6 @@ async function main() {
     description: string
     price: number
     originalPrice?: number
-    stock: number
     categorias: string[]
   }) {
     const produto = await prisma.product.create({
@@ -26,7 +25,6 @@ async function main() {
         description: dados.description,
         price: dados.price,
         originalPrice: dados.originalPrice ?? null,
-        stock: dados.stock,
         categories: {
           create: dados.categorias
             .filter((nome) => cat[nome])
@@ -46,7 +44,6 @@ async function main() {
     description: 'Smartphone premium com câmera de 200MP, S Pen integrada, tela Dynamic AMOLED 2X de 6,8" e processador Snapdragon 8 Gen 3.',
     price: 6299.99,
     originalPrice: 7499.99,
-    stock: 8,
     categorias: ['Smartphones', 'Android'],
   })
 
@@ -56,7 +53,6 @@ async function main() {
     description: 'Smartphone intermediário com tela Super AMOLED de 6,6", câmera tripla de 50MP e bateria de 5000mAh.',
     price: 1799.99,
     originalPrice: 2199.99,
-    stock: 15,
     categorias: ['Smartphones', 'Android'],
   })
 
@@ -66,7 +62,6 @@ async function main() {
     description: 'Design fino com tela pOLED de 6,7", câmera de 50MP com OIS e carregamento turbo de 125W.',
     price: 2499.99,
     originalPrice: 2999.99,
-    stock: 10,
     categorias: ['Smartphones', 'Android'],
   })
 
@@ -75,7 +70,6 @@ async function main() {
     name: 'Moto G84 128GB',
     description: 'Tela pOLED de 6,5", câmera de 50MP, bateria de 5000mAh e carregamento de 33W.',
     price: 1099.99,
-    stock: 20,
     categorias: ['Smartphones', 'Android'],
   })
 
@@ -85,7 +79,6 @@ async function main() {
     description: 'Carcaça em titânio, chip A17 Pro, câmera de 48MP com zoom óptico 5x e botão de ação personalizável.',
     price: 8499.99,
     originalPrice: 9299.99,
-    stock: 5,
     categorias: ['Smartphones', 'iPhone'],
   })
 
@@ -94,7 +87,6 @@ async function main() {
     name: 'iPhone 15 128GB',
     description: 'Chip A16 Bionic, câmera principal de 48MP, Dynamic Island e conector USB-C.',
     price: 5499.99,
-    stock: 12,
     categorias: ['Smartphones', 'iPhone'],
   })
 
@@ -104,7 +96,6 @@ async function main() {
     description: 'Smartphone básico com tela de 6,74", câmera de 50MP e bateria de 5000mAh. Ótimo custo-benefício.',
     price: 699.99,
     originalPrice: 899.99,
-    stock: 30,
     categorias: ['Smartphones', 'Básicos'],
   })
 
@@ -116,7 +107,6 @@ async function main() {
     description: 'Capa transparente com bordas reforçadas em TPU e painel traseiro rígido. Proteção contra quedas com visual clean.',
     price: 159.99,
     originalPrice: 199.99,
-    stock: 50,
     categorias: ['Acessórios para Celular', 'Capinhas'],
   })
 
@@ -125,7 +115,6 @@ async function main() {
     name: 'Capa MagSafe Galaxy S24 Ultra',
     description: 'Capa slim compatível com MagSafe, material em policarbonato fosco, bordas em silicone.',
     price: 79.99,
-    stock: 40,
     categorias: ['Acessórios para Celular', 'Capinhas'],
   })
 
@@ -135,7 +124,6 @@ async function main() {
     description: 'Vidro temperado 9H com cobertura total da tela, bordas curvas e instalação sem bolhas.',
     price: 49.99,
     originalPrice: 69.99,
-    stock: 100,
     categorias: ['Acessórios para Celular', 'Películas'],
   })
 
@@ -144,7 +132,6 @@ async function main() {
     name: 'Suporte Veicular Magnético',
     description: 'Suporte de celular para carro com fixação magnética potente, compatível com MagSafe e todas as marcas.',
     price: 89.99,
-    stock: 35,
     categorias: ['Acessórios para Celular', 'Suportes & Apoios'],
   })
 
@@ -153,7 +140,6 @@ async function main() {
     name: 'Pop Socket Original Translúcido',
     description: 'Suporte e apoio para selfies com base adesiva reutilizável. Design translúcido minimalista.',
     price: 49.99,
-    stock: 80,
     categorias: ['Acessórios para Celular', 'Pop Socket'],
   })
 
@@ -165,7 +151,6 @@ async function main() {
     description: 'Carregador compacto GaN de 65W com uma porta USB-C e uma USB-A. Compatível com notebooks, tablets e celulares.',
     price: 189.99,
     originalPrice: 249.99,
-    stock: 25,
     categorias: ['Carregadores & Cabos', 'Carregamento Turbo'],
   })
 
@@ -174,7 +159,6 @@ async function main() {
     name: 'Carregador 45W Super Fast Charging',
     description: 'Carregador original Samsung de 45W para Galaxy S e Note. Inclui cabo USB-C.',
     price: 149.99,
-    stock: 20,
     categorias: ['Carregadores & Cabos', 'Carregamento Turbo'],
   })
 
@@ -183,7 +167,6 @@ async function main() {
     name: 'MagSafe Charger 15W',
     description: 'Carregador sem fio magnético oficial Apple de 15W para iPhone 12 ou mais recente.',
     price: 299.99,
-    stock: 15,
     categorias: ['Carregadores & Cabos', 'Carregamento sem fio'],
   })
 
@@ -193,7 +176,6 @@ async function main() {
     description: 'Carregador para carro com duas portas (USB-C 30W e USB-A 18W), design compacto e LED indicador.',
     price: 69.99,
     originalPrice: 99.99,
-    stock: 45,
     categorias: ['Carregadores & Cabos', 'Veicular'],
   })
 
@@ -202,7 +184,6 @@ async function main() {
     name: 'Cabo USB-C para USB-C 100W 2m',
     description: 'Cabo reforçado em nylon trançado, suporta carregamento de 100W e transferência de dados USB 3.1.',
     price: 79.99,
-    stock: 60,
     categorias: ['Carregadores & Cabos', 'Cabos USB'],
   })
 
@@ -212,7 +193,6 @@ async function main() {
     description: 'Bateria portátil de alta capacidade com saída de 65W, suporta carregamento de notebook e dois dispositivos ao mesmo tempo.',
     price: 299.99,
     originalPrice: 399.99,
-    stock: 18,
     categorias: ['Carregadores & Cabos', 'Power Bank'],
   })
 
@@ -224,7 +204,6 @@ async function main() {
     description: 'Cancelamento de ruído ativo adaptativo, Áudio Espacial personalizado, resistência à água IPX4 e estojo com carga USB-C.',
     price: 1799.99,
     originalPrice: 2099.99,
-    stock: 10,
     categorias: ['Áudio', 'Fones sem fio (TWS)'],
   })
 
@@ -234,7 +213,6 @@ async function main() {
     description: 'TWS premium com cancelamento de ruído inteligente, som Hi-Fi e design ergonômico com hastes.',
     price: 1099.99,
     originalPrice: 1299.99,
-    stock: 12,
     categorias: ['Áudio', 'Fones sem fio (TWS)'],
   })
 
@@ -244,7 +222,6 @@ async function main() {
     description: 'Headphone over-ear sem fio com até 76h de bateria, dobrável e som JBL Pure Bass.',
     price: 349.99,
     originalPrice: 449.99,
-    stock: 20,
     categorias: ['Áudio', 'Headphones'],
   })
 
@@ -254,7 +231,6 @@ async function main() {
     description: 'Headphone premium com melhor cancelamento de ruído da categoria, 30h de bateria e microfone com IA.',
     price: 1999.99,
     originalPrice: 2499.99,
-    stock: 6,
     categorias: ['Áudio', 'Headphones'],
   })
 
@@ -264,7 +240,6 @@ async function main() {
     description: 'Caixa portátil à prova d\'água IP67, som estéreo com baixo potente, 12h de bateria e conexão PartyBoost.',
     price: 699.99,
     originalPrice: 849.99,
-    stock: 22,
     categorias: ['Áudio', 'Caixas de som Bluetooth'],
   })
 
@@ -273,7 +248,6 @@ async function main() {
     name: 'Caixa Emberton III',
     description: 'Design icônico retrô, IP67, 32h de bateria e som 360° com assinatura Marshall.',
     price: 1099.99,
-    stock: 8,
     categorias: ['Áudio', 'Caixas de som Bluetooth'],
   })
 
@@ -285,7 +259,6 @@ async function main() {
     description: 'Notebook gamer com Intel Core i9-14900HX, RTX 4080 16GB, 32GB RAM, SSD 1TB e tela QHD+ 240Hz.',
     price: 18999.99,
     originalPrice: 21999.99,
-    stock: 3,
     categorias: ['Notebooks', 'Gamer'],
   })
 
@@ -295,7 +268,6 @@ async function main() {
     description: 'Gamer de entrada com Core i5-12450HX, 16GB RAM, SSD 512GB e tela FHD 144Hz.',
     price: 3999.99,
     originalPrice: 4799.99,
-    stock: 7,
     categorias: ['Notebooks', 'Gamer'],
   })
 
@@ -305,7 +277,6 @@ async function main() {
     description: 'Chip M3, 8GB RAM, SSD 256GB, tela Liquid Retina, até 18h de bateria. O ultrafino mais avançado.',
     price: 10499.99,
     originalPrice: 11499.99,
-    stock: 9,
     categorias: ['Notebooks', 'Ultrafino'],
   })
 
@@ -314,7 +285,6 @@ async function main() {
     name: 'XPS 13 Plus',
     description: 'Ultra-slim com Intel Core Ultra 7, 16GB RAM, SSD 512GB e tela OLED 3,5K de 13,4".',
     price: 9999.99,
-    stock: 4,
     categorias: ['Notebooks', 'Ultrafino'],
   })
 
@@ -324,7 +294,6 @@ async function main() {
     description: 'Notebook custo-benefício para trabalho e estudos, com tela Full HD de 15,6" e SSD rápido.',
     price: 2499.99,
     originalPrice: 2999.99,
-    stock: 14,
     categorias: ['Notebooks', 'Custo-benefício'],
   })
 
@@ -336,7 +305,6 @@ async function main() {
     description: 'Mouse sem fio premium com sensor de 8000 DPI, scroll MagSpeed silencioso e até 70 dias de bateria.',
     price: 599.99,
     originalPrice: 749.99,
-    stock: 18,
     categorias: ['Acessórios para Notebook', 'Mouses'],
   })
 
@@ -346,7 +314,6 @@ async function main() {
     description: 'Teclado sem fio inteligente com retroiluminação adaptativa, perfil de tecla esférica e bateria de 10 dias.',
     price: 699.99,
     originalPrice: 849.99,
-    stock: 15,
     categorias: ['Acessórios para Notebook', 'Teclados'],
   })
 
@@ -355,7 +322,6 @@ async function main() {
     name: 'Mochila CityLite Pro 15.6"',
     description: 'Mochila executiva com compartimento acolchoado para notebook, porta USB externa e material resistente à água.',
     price: 349.99,
-    stock: 25,
     categorias: ['Acessórios para Notebook', 'Mochilas & Cases'],
   })
 
@@ -365,7 +331,6 @@ async function main() {
     description: 'Dock com HDMI 4K, 3x USB-A 3.0, USB-C 100W PD, leitor SD/MicroSD e porta Ethernet Gigabit.',
     price: 199.99,
     originalPrice: 279.99,
-    stock: 30,
     categorias: ['Acessórios para Notebook', 'Hubs & Adaptadores'],
   })
 
@@ -377,7 +342,6 @@ async function main() {
     description: 'Tablet Android com tela TFT de 10,9", S Pen incluída, câmera de 8MP e bateria de 8000mAh.',
     price: 1999.99,
     originalPrice: 2499.99,
-    stock: 10,
     categorias: ['Tablets', 'Android'],
   })
 
@@ -386,7 +350,6 @@ async function main() {
     name: 'iPad Air M2 11" 128GB',
     description: 'Chip M2, tela Liquid Retina de 11", compatível com Apple Pencil Pro e Magic Keyboard.',
     price: 5499.99,
-    stock: 7,
     categorias: ['Tablets', 'iPad'],
   })
 
@@ -398,7 +361,6 @@ async function main() {
     description: 'O Apple Watch mais fino, tela sempre ativa maior, detecção de apneia do sono e carregamento rápido.',
     price: 3999.99,
     originalPrice: 4499.99,
-    stock: 8,
     categorias: ['Smartwatch & Pulseiras', 'Apple Watch'],
   })
 
@@ -408,7 +370,6 @@ async function main() {
     description: 'Smartwatch Android com monitoramento avançado de saúde, BioActive Sensor e até 40h de bateria.',
     price: 1799.99,
     originalPrice: 2199.99,
-    stock: 10,
     categorias: ['Smartwatch & Pulseiras', 'Android Wear'],
   })
 
@@ -418,7 +379,6 @@ async function main() {
     description: 'Pulseira fitness ultraleve com tela AMOLED, 150+ modos esportivos, SpO2 e até 21 dias de bateria.',
     price: 249.99,
     originalPrice: 329.99,
-    stock: 35,
     categorias: ['Smartwatch & Pulseiras', 'Pulseiras fitness'],
   })
 
@@ -430,7 +390,6 @@ async function main() {
     description: 'Console de última geração com SSD ultra-rápido, 4K a 120fps, ray tracing e leitor de disco.',
     price: 3799.99,
     originalPrice: 4299.99,
-    stock: 5,
     categorias: ['Games & Consoles', 'Consoles'],
   })
 
@@ -439,7 +398,6 @@ async function main() {
     name: 'Xbox Series X',
     description: 'Console 4K 60fps com retrocompatibilidade, Game Pass e Quick Resume para múltiplos jogos.',
     price: 3499.99,
-    stock: 6,
     categorias: ['Games & Consoles', 'Consoles'],
   })
 
@@ -449,7 +407,6 @@ async function main() {
     description: 'Controle com feedback háptico, gatilhos adaptáveis e microfone integrado. Compatível com PS5 e PC.',
     price: 449.99,
     originalPrice: 549.99,
-    stock: 20,
     categorias: ['Games & Consoles', 'Controles'],
   })
 
@@ -459,7 +416,6 @@ async function main() {
     description: 'Headset gamer sem fio com até 300h de bateria, cancelamento de ruído e som surround virtual.',
     price: 899.99,
     originalPrice: 1099.99,
-    stock: 12,
     categorias: ['Games & Consoles', 'Headset Gamer'],
   })
 
@@ -469,7 +425,6 @@ async function main() {
     description: 'Cadeira gamer com apoio lombar ajustável, braços 4D, inclinação de até 165° e revestimento em couro sintético.',
     price: 1499.99,
     originalPrice: 1799.99,
-    stock: 4,
     categorias: ['Games & Consoles', 'Cadeiras Gamer'],
   })
 
@@ -481,7 +436,6 @@ async function main() {
     description: 'Roteador dual band AX3000 com Wi-Fi 6, 4 antenas e cobertura para casas de até 250m².',
     price: 349.99,
     originalPrice: 449.99,
-    stock: 15,
     categorias: ['Redes & Conectividade', 'Roteadores'],
   })
 
@@ -491,7 +445,6 @@ async function main() {
     description: 'Expande a rede Wi-Fi em até 90m², dual band AC1200 e porta LAN para conexão cabeada.',
     price: 149.99,
     originalPrice: 199.99,
-    stock: 22,
     categorias: ['Redes & Conectividade', 'Repetidores Wi-Fi'],
   })
 
@@ -503,7 +456,6 @@ async function main() {
     description: 'Painel QLED com Quantum Processor 4K Lite, sistema Tizen, Alexa integrada e HDMI 2.1.',
     price: 3199.99,
     originalPrice: 3999.99,
-    stock: 6,
     categorias: ['TV & Vídeo', 'Smart TV'],
   })
 
@@ -513,7 +465,6 @@ async function main() {
     description: 'Transforma qualquer TV em Smart TV com Google TV, suporte a 4K HDR e controle de voz.',
     price: 299.99,
     originalPrice: 399.99,
-    stock: 18,
     categorias: ['TV & Vídeo', 'Streaming (Chromecast, Fire TV)'],
   })
 
@@ -522,7 +473,6 @@ async function main() {
     name: 'Fire TV Stick 4K Max',
     description: 'Streaming 4K com Wi-Fi 6E, Alexa e acesso a Prime Video, Netflix, Disney+ e mais.',
     price: 399.99,
-    stock: 20,
     categorias: ['TV & Vídeo', 'Streaming (Chromecast, Fire TV)'],
   })
 
@@ -534,7 +484,6 @@ async function main() {
     description: 'Drone dobrável com câmera 4K/60fps, autonomia de 34 min, obstáculos em todas as direções e transmissão a 20km.',
     price: 5999.99,
     originalPrice: 6999.99,
-    stock: 4,
     categorias: ['Foto & Vídeo', 'Drones'],
   })
 
@@ -544,7 +493,6 @@ async function main() {
     description: 'Câmera de ação à prova d\'água, vídeo 5.3K, foto de 27MP, HyperSmooth 6.0 e tela frontal.',
     price: 2499.99,
     originalPrice: 2999.99,
-    stock: 8,
     categorias: ['Foto & Vídeo', 'Câmeras'],
   })
 
@@ -554,7 +502,6 @@ async function main() {
     description: 'Tripé flexível e dobrável suporta até 3kg, compatível com câmeras mirrorless, ação e smartphones.',
     price: 299.99,
     originalPrice: 389.99,
-    stock: 16,
     categorias: ['Foto & Vídeo', 'Tripés & Acessórios'],
   })
 

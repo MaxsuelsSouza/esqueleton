@@ -205,19 +205,14 @@ describe('rotas de gestão de pedidos', () => {
     )
   })
 
-  it('confirma venda e desconta o estoque dos produtos', async () => {
-    const updateProduct = vi.fn(async () => ({ count: 1 }))
+  it('confirma venda atualizando o status do pedido', async () => {
+    const updateOrder = vi.fn(async () => ({ count: 1 }))
     app = await buildTestApp(
       createPrismaFake({
         order: {
           findUnique: vi.fn(async () => pedidoSalvo),
-          updateMany: vi.fn(async () => ({ count: 1 })),
+          updateMany: updateOrder,
         },
-        product: {
-          findFirst: vi.fn(async () => ({ id: 'p1', name: 'Perfume Teste', brand: null, stock: 10 })),
-          updateMany: updateProduct,
-        },
-        notification: { upsert: vi.fn(async () => ({})) },
       })
     )
     const token = await createTestToken(app)
@@ -230,11 +225,11 @@ describe('rotas de gestão de pedidos', () => {
     })
 
     expect(response.statusCode).toBe(200)
-    // Estoque desce de 10 para 9 (1 unidade vendida) — sempre dentro da loja
-    expect(updateProduct).toHaveBeenCalledWith(
+    // A atualização é sempre restrita à loja do token
+    expect(updateOrder).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ storeId: LOJA_TESTE.id }),
-        data: { stock: 9 },
+        data: { status: 'SOLD' },
       })
     )
   })

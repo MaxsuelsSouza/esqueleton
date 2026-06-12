@@ -12,7 +12,6 @@ const produto = {
   price: 100,
   originalPrice: null,
   imageUrl: null,
-  stock: 10,
   storeId: LOJA_TESTE.id,
   categories: [{ categoryId: 'cat1' }],
   createdAt: new Date(),
