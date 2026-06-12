@@ -3,6 +3,7 @@
 //   - storeProfileAdminRoutes: leitura e edição pelo painel, a loja vem do token JWT
 import type { FastifyPluginAsync } from 'fastify'
 import { storeProfileSchema } from './store-profile.schema'
+import { requireOwner } from '../auth/role-guard'
 
 // Valores padrão exibidos enquanto a loja ainda não configurou o perfil
 const PERFIL_PADRAO = {
@@ -38,7 +39,8 @@ export const storeProfileAdminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   // Atualiza o perfil da loja
-  app.put('/', async (request) => {
+  // Apenas o OWNER pode editar o perfil da loja
+  app.put('/', { preHandler: [requireOwner] }, async (request) => {
     const storeId = request.user.storeId
     const data = storeProfileSchema.parse(request.body)
     return app.prisma.storeProfile.upsert({

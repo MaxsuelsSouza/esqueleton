@@ -9,6 +9,8 @@ import { jwtAuthPlugin } from './auth/jwt.plugin'
 import { storeContextPlugin } from './store/store-context.plugin'
 import { authRoutes } from './auth/auth.routes'
 import { passwordResetRoutes } from './auth/password-reset.routes'
+import { emailVerificationRoutes } from './auth/email-verification.routes'
+import { userAdminRoutes } from './users/user.routes'
 import { resendPlugin } from './email/resend.plugin'
 import { catalogPublicRoutes, catalogAdminRoutes } from './catalog/catalog.routes'
 import { couponPublicRoutes, couponAdminRoutes } from './coupons/coupon.routes'
@@ -83,6 +85,7 @@ export function buildApp(options: BuildAppOptions = {}) {
 
   app.register(authRoutes, { prefix: '/api/auth' })
   app.register(passwordResetRoutes, { prefix: '/api/auth' })
+  app.register(emailVerificationRoutes, { prefix: '/api/auth' })
 
   // ── Rotas públicas do catálogo — a loja é identificada pelo slug na URL ──
   // Ex: GET /api/lojas/perfumaria-ana/products
@@ -116,6 +119,7 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.register(customerAdminRoutes, { prefix: '/api/customers' })
   app.register(orderAdminRoutes, { prefix: '/api/orders' })
   app.register(notificationRoutes, { prefix: '/api/notifications' })
+  app.register(userAdminRoutes, { prefix: '/api/users' })
 
   app.get('/api/health', async () => ({ status: 'ok' }))
 

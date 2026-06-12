@@ -19,10 +19,17 @@ function suggestSlugFromName(name: string): string {
 }
 
 // Guarda o token e os dados da loja no navegador — usados pelo painel admin
-function saveSession(token: string, store: { slug: string; name: string }) {
-  localStorage.setItem('admin_token', token)
-  localStorage.setItem('admin_store_slug', store.slug)
-  localStorage.setItem('admin_store_name', store.name)
+function saveSession(data: {
+  token: string
+  role: string
+  emailVerified: boolean
+  store: { slug: string; name: string }
+}) {
+  localStorage.setItem('admin_token', data.token)
+  localStorage.setItem('admin_store_slug', data.store.slug)
+  localStorage.setItem('admin_store_name', data.store.name)
+  localStorage.setItem('admin_role', data.role)
+  localStorage.setItem('admin_email_verified', String(data.emailVerified))
 }
 
 export default function AdminLoginPage() {
@@ -77,8 +84,8 @@ export default function AdminLoginPage() {
       }
 
       // Faz login (após o cadastro, entra automaticamente)
-      const { token, store } = await authService.login({ email, password })
-      saveSession(token, store)
+      const loginResponse = await authService.login({ email, password })
+      saveSession(loginResponse)
       router.replace('/admin/produtos')
     } catch (err: unknown) {
       if (mode === 'register') {

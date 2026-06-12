@@ -45,5 +45,5 @@ export async function createTestToken(
   app: Awaited<ReturnType<typeof buildTestApp>>,
   storeId: string = LOJA_TESTE.id,
 ) {
-  return app.jwt.sign({ sub: 'usuario-teste', email: 'teste@teste.com', storeId })
+  return app.jwt.sign({ sub: 'usuario-teste', email: 'teste@teste.com', storeId, role: 'OWNER', emailVerified: true })
 }

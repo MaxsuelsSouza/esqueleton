@@ -1,0 +1,1 @@
+-- Migration já aplicada diretamente no banco (arquivo original perdido)

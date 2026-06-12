@@ -33,20 +33,39 @@ model Store {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  storeId   String
-  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String
+  // OWNER = criou a loja, controle total | STAFF = convidado, acesso limitado
+  role          String   @default("STAFF")
+  // true = e-mail verificado | false = pendente de verificação
+  emailVerified Boolean  @default(false)
+  storeId       String
+  store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
 
-  passwordResetTokens PasswordResetToken[]
+  passwordResetTokens         PasswordResetToken[]
+  emailVerificationTokens     EmailVerificationToken[]
 
   @@index([storeId])
 }
 
 // Token de redefinição de senha — expira em 1 hora, uso único
 model PasswordResetToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([token])
+  @@index([userId])
+}
+
+// Token de verificação de e-mail — enviado ao criar a conta, expira em 7 dias
+model EmailVerificationToken {
   id        String    @id @default(cuid())
   token     String    @unique
   userId    String

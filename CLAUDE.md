@@ -75,9 +75,11 @@ pnpm --filter @esqueleton/web test
 ## Security rules
 
 - `POST /api/auth/register` has two modes: without a token it is the public SaaS signup — creates `Store` + `StoreProfile` + first `User` in one transaction (body: `email`, `password`, `storeName`, `storeSlug`); with a valid JWT it creates another user **in the caller's store**. Slugs are validated by `slugSchema` (lowercase/numbers/hyphen, 3–40 chars) and a reserved list (`admin`, `api`, `loja`, …).
-- `POST /api/auth/login` returns `{ token, store: { slug, name } }`. The JWT payload is `{ sub, email, storeId }`; tokens without `storeId` (pre-multi-tenancy) are rejected by `app.authenticate`.
+- `POST /api/auth/login` returns `{ token, role, emailVerified, store: { slug, name } }`. The JWT payload is `{ sub, email, storeId, role, emailVerified }`; tokens without `storeId` or `role` are rejected by `app.authenticate`.
 - `JWT_SECRET` is **required** in production — the API refuses to start without it. Tokens expire in 1 day.
 - **Password reset:** `POST /api/auth/forgot-password` (3/min) accepts `{ email }`, creates a `PasswordResetToken` (crypto.randomBytes, 32 bytes hex, 1h expiry), sends a reset link via Resend, and **always returns 200** (does not reveal if the email exists). `POST /api/auth/reset-password` (5/min) accepts `{ token, password }`, validates the token (not expired, not used), updates the password and marks the token as used. Previous tokens for the same user are deleted on each new request. The `PasswordResetToken` model is NOT tenant-scoped (no storeId) — it is looked up by token globally. Web pages: `/admin/esqueci-senha` and `/admin/redefinir-senha?token=xxx`.
+- **Roles (OWNER/STAFF):** users have a `role` field (`OWNER` or `STAFF`). The first user of a store is always `OWNER`; additional users created via `POST /api/auth/register` (with JWT) are `STAFF`. `requireOwner` (`auth/role-guard.ts`) returns 403 if the caller is not OWNER — applied on `PUT /api/store-profile`, `POST /api/auth/register` (invite mode), `DELETE /api/users/:id`. `GET /api/users` and `DELETE /api/users/:id` are OWNER-only routes for managing store staff.
+- **Email verification:** new users start with `emailVerified: false`. `POST /api/auth/verify-email` (10/min) validates a token from the verification email. `POST /api/auth/resend-verification` (2/min, JWT required) sends a new verification email. `requireVerifiedEmail` (`auth/role-guard.ts`) blocks admin routes after 7 days without verification. `EmailVerificationToken` model is NOT tenant-scoped (global lookup by token). Web pages: `/admin/verificar-email?token=xxx`.
 - `GET /api/coupons` and `GET /api/coupons/:id` require JWT (the list would expose all discount codes). The public checkout uses `GET /api/lojas/:slug/coupons/codigo/:code`, which validates server-side and returns only the fields needed to apply the discount.
 - Rate limiting via `@fastify/rate-limit`: 300 req/min global, stricter per-route limits on login (10/min), register (5/min), public POSTs (orders/customers 10/min, analytics 120/min) and coupon code lookup (20/min). Login additionally has a **per-email** limit (10 attempts / 15 min, `preHandler` via `app.rateLimit`) that blocks distributed brute force against a single account. Counters live in process memory by default; setting `REDIS_URL` moves them to a shared Redis (`common/rate-limit-redis.ts`, lazy-loads `ioredis`, `skipOnError: true` so a Redis outage never blocks requests) — required for the limits to hold on serverless.
 - Reusable input validators live in `apps/api/src/common/validation.ts` (`idSchema`, `dateSchema`, `timeSchema`, `hexColorSchema`, `httpUrlSchema`, `imageUrlSchema`, `phoneSchema`, `shortText`). Use them in every new schema — IDs, dates, colors and URLs must match the expected format before reaching Prisma.
@@ -93,7 +95,7 @@ pnpm --filter @esqueleton/web test
 
 - JWT stored in `localStorage` (XSS could steal it; httpOnly cookie would be the alternative).
 - No server-side token revocation — logout only clears the browser; tokens stay valid until expiry (1 day).
-- No roles: every authenticated user has full admin power **within their store**, including creating more users in it.
+- Roles are enforced server-side (`requireOwner`) but the web hides UI elements by reading `role` from localStorage — a savvy user could access `/admin/usuarios` directly, but the API would reject the request.
 - `orderNumber` is generated client-side (unique-constrained; collision makes the fire-and-forget create fail silently).
 - Item `unitPrice` comes from the client — only the arithmetic is verified, prices are not recomputed from the database (admin confirms each order manually via WhatsApp).
 - Rate limiting without `REDIS_URL` is in-memory: per serverless instance on Vercel. With Redis configured, login brute force (per-IP and per-email) is blocked across instances; other routes remain per-IP only.
@@ -116,9 +118,13 @@ apps/api/
       templates.ts               # templates HTML de e-mail (reset de senha, verificação)
     auth/
       jwt.plugin.ts              # verifica token JWT (payload com storeId) e expõe app.authenticate
-      auth.routes.ts             # POST /api/auth/register (cria a loja) e /api/auth/login
+      auth.routes.ts             # POST /api/auth/register (cria a loja ou convida staff) e /api/auth/login
       password-reset.routes.ts   # POST /api/auth/forgot-password e /api/auth/reset-password
       password-reset.schema.ts   # validações Zod dos dados de redefinição de senha
+      email-verification.routes.ts # POST /api/auth/verify-email e /api/auth/resend-verification
+      role-guard.ts              # requireOwner (403 se não é OWNER) e requireVerifiedEmail (bloqueia após 7 dias)
+    users/
+      user.routes.ts             # GET /api/users e DELETE /api/users/:id (OWNER only)
     catalog/
       catalog.routes.ts          # catalogPublicRoutes (/api/lojas/:slug/products) + catalogAdminRoutes (/api/products)
       catalog.schema.ts          # validações Zod dos dados de produto
@@ -143,6 +149,8 @@ apps/web/
         login/page.tsx                # tela de login do admin
         esqueci-senha/page.tsx        # formulário "esqueci minha senha" (envia link por e-mail)
         redefinir-senha/page.tsx      # formulário de nova senha (recebe token da URL)
+        verificar-email/page.tsx      # verifica e-mail ao clicar no link recebido por e-mail
+        usuarios/page.tsx             # gestão da equipe — convidar e remover membros (OWNER only)
         produtos/page.tsx             # gestão de produtos (CRUD + upload de foto)
         categorias/page.tsx           # gestão de categorias em árvore (CRUD)
         promocoes/page.tsx            # gestão de promoções (desconto, kit, compre X leve Y, horário)
@@ -167,7 +175,8 @@ apps/web/
       coupons.ts                      # cupons de exemplo
     services/
       api-client.ts                   # cliente HTTP base — todas as chamadas passam aqui
-      auth.service.ts                 # login e cadastro
+      auth.service.ts                 # login, cadastro, reset de senha
+      users.service.ts                # gestão de equipe (listar e remover membros)
       catalog.service.ts              # busca e gestão de produtos
       categories.service.ts           # busca e gestão de categorias
       promotions.service.ts           # busca e gestão de promoções
@@ -186,7 +195,7 @@ packages/shared/
 
 **Data flow (public):** a page under `/loja/[slug]` calls `catalogService.listPublicProducts(slug)` → `services/api-client.ts` prefixes with `NEXT_PUBLIC_API_URL/api` → Fastify route `/api/lojas/:slug/products`. Public service functions are prefixed `Public` and take the slug (from `useStoreSlug()`).
 
-**Auth flow:** `POST /api/auth/login` returns `{ token, store: { slug, name } }` → token goes in the `Authorization: Bearer <token>` header; the web saves `admin_token`, `admin_store_slug` and `admin_store_name` in `localStorage`.
+**Auth flow:** `POST /api/auth/login` returns `{ token, role, emailVerified, store: { slug, name } }` → token goes in the `Authorization: Bearer <token>` header; the web saves `admin_token`, `admin_store_slug`, `admin_store_name`, `admin_role` and `admin_email_verified` in `localStorage`.
 
 **Protected routes:** every admin route group (`/api/products`, `/api/coupons`, `/api/orders`, …) requires JWT — including GETs. Protection is applied via `app.addHook('preHandler', app.authenticate)` in each `<feature>AdminRoutes`. Public reads happen only under `/api/lojas/:slug/...`.
 
@@ -203,7 +212,8 @@ All pages that load data have a `USE_MOCK_DATA = true` flag at the top. Set to `
 | `Promotion` | Promoção com tipo, desconto, horário e período opcionais |
 | `Coupon` | Cupom com código, desconto, limite de usos e validade |
 | `Store` | Loja (tenant) com `slug`, `name` e `status` |
-| `LoginResponse` | `{ token, store: { slug, name } }` retornado pelo login |
+| `UserRole` | `'OWNER' \| 'STAFF'` — papel do usuário na loja |
+| `LoginResponse` | `{ token, role, emailVerified, store: { slug, name } }` retornado pelo login |
 | `DisplayMode` | `'grid'` ou `'list'` |
 | `CatalogFilters` | Filtros do catálogo: busca, categorias, preço, ordenação |
 
@@ -227,23 +237,27 @@ O cliente digita um código de cupom no campo acima do catálogo. O cupom é val
 
 ## Admin area
 
-`/admin` is a protected area with its own layout (no public Header). Currently runs without auth enforcement (`USE_MOCK_DATA = true`). The login page at `/admin/login` has two modes: sign in, and "Criar minha loja" (public SaaS signup — store name + slug with auto-suggestion + email + password). On login it saves `admin_token`, `admin_store_slug` and `admin_store_name` to `localStorage`; the admin layout shows a "Ver minha loja" link to `/loja/<slug>`.
+`/admin` is a protected area with its own layout (no public Header). The login page at `/admin/login` has two modes: sign in, and "Criar minha loja" (public SaaS signup — store name + slug with auto-suggestion + email + password). On login it saves `admin_token`, `admin_store_slug`, `admin_store_name`, `admin_role` and `admin_email_verified` to `localStorage`; the admin layout shows a "Ver minha loja" link to `/loja/<slug>`.
+
+The layout uses `useAdminAuth()` hook which reads role/emailVerified from localStorage. OWNER users see extra nav items (Equipe). A yellow `EmailVerificationBanner` appears at the top when the email is not verified.
 
 - `/admin/produtos` — CRUD de produtos com upload de foto (galeria ou câmera)
 - `/admin/categorias` — árvore interativa de categorias com criar/editar/excluir
 - `/admin/promocoes` — promoções flexíveis: tipo é apenas um rótulo, todos os campos são sempre disponíveis
 - `/admin/cupons` — cupons com código, desconto, limite de usos e validade
+- `/admin/usuarios` — gestão da equipe (OWNER only) — convidar e remover membros
 
 ## Prisma schema (models)
 
 - `Store` — loja (tenant): slug único, name, status (`ACTIVE`/`SUSPENDED`)
-- `User` — email + senha, pertence a uma `Store`
+- `User` — email + senha, pertence a uma `Store`. Tem `role` (`OWNER`/`STAFF`) e `emailVerified`
 - `Product` — brand, name, description, price, originalPrice, imageUrl
 - `Category` — self-referential via `parent`/`children` (`CategoryTree` relation)
 - `ProductCategory` — junção many-to-many entre Product e Category
 - `PasswordResetToken` — token de redefinição de senha (1h de validade, uso único). **Sem storeId** — lookup por token é global.
+- `EmailVerificationToken` — token de verificação de e-mail (7 dias de validade, uso único). **Sem storeId** — lookup por token é global.
 
-Todos os modelos de dados (exceto `Store`, `ProductCategory` e `PasswordResetToken`) têm `storeId` obrigatório com índice. A migração `20260611200000_multi_tenancy` fez o backfill: dados pré-existentes viraram a "loja inicial" (slug derivado do `storeName` do perfil).
+Todos os modelos de dados (exceto `Store`, `ProductCategory`, `PasswordResetToken` e `EmailVerificationToken`) têm `storeId` obrigatório com índice. A migração `20260611200000_multi_tenancy` fez o backfill: dados pré-existentes viraram a "loja inicial" (slug derivado do `storeName` do perfil).
 
 ## Environment variables
 

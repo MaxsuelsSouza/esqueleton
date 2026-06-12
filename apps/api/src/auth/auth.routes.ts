@@ -1,7 +1,10 @@
 import type { FastifyPluginAsync } from 'fastify'
+import crypto from 'crypto'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import { shortText, slugSchema } from '../common/validation'
+import { requireOwner } from './role-guard'
+import { emailVerificationEmail } from '../email/templates'
 
 const emailSchema = z.string().email('Email inválido').max(254, 'Email muito longo')
 
@@ -49,7 +52,11 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         .catch(() => false)
 
       if (isAuthenticated) {
-        // ── Modo 2: novo usuário na loja de quem está autenticado ──
+        // ── Modo 2: OWNER convida um novo membro para a equipe da loja ──
+        // Apenas o dono da loja pode convidar novos membros
+        await requireOwner(request, reply)
+        if (reply.sent) return
+
         const { email, password } = registerUserSchema.parse(request.body)
 
         const existing = await app.prisma.user.findUnique({ where: { email } })
@@ -59,8 +66,13 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
         const hashed = await bcrypt.hash(password, 10)
         const user = await app.prisma.user.create({
-          data: { email, password: hashed, storeId: request.user.storeId },
-          select: { id: true, email: true, storeId: true, createdAt: true },
+          data: {
+            email,
+            password: hashed,
+            storeId: request.user.storeId,
+            role: 'STAFF',
+          },
+          select: { id: true, email: true, role: true, storeId: true, createdAt: true },
         })
 
         return reply.status(201).send(user)
@@ -90,12 +102,36 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         await tx.storeProfile.create({
           data: { storeId: store.id, storeName },
         })
+        // O primeiro usuário da loja é OWNER — e-mail pendente de verificação
         const user = await tx.user.create({
-          data: { email, password: hashed, storeId: store.id },
-          select: { id: true, email: true, storeId: true, createdAt: true },
+          data: { email, password: hashed, storeId: store.id, role: 'OWNER' },
+          select: { id: true, email: true, role: true, storeId: true, createdAt: true },
         })
         return { store, user }
       })
+
+      // Envia o e-mail de verificação (fora da transação — se falhar, a loja já foi criada)
+      try {
+        const verificationToken = crypto.randomBytes(32).toString('hex')
+        await app.prisma.emailVerificationToken.create({
+          data: {
+            token: verificationToken,
+            userId: result.user.id,
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          },
+        })
+
+        const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000'
+        const verifyUrl = `${frontendUrl}/admin/verificar-email?token=${verificationToken}`
+        await app.email.send(
+          email,
+          'Confirme seu e-mail — Esqueleton',
+          emailVerificationEmail(verifyUrl, storeName),
+        )
+      } catch (emailError) {
+        // Falha no envio do e-mail não deve impedir o cadastro
+        app.log.error({ emailError, email }, 'Falha ao enviar e-mail de verificação no cadastro')
+      }
 
       return reply.status(201).send({
         ...result.user,
@@ -137,7 +173,10 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     async (request, reply) => {
       const { email, password } = loginSchema.parse(request.body)
 
-      const user = await app.prisma.user.findUnique({ where: { email } })
+      const user = await app.prisma.user.findUnique({
+        where: { email },
+        select: { id: true, email: true, password: true, storeId: true, role: true, emailVerified: true },
+      })
       if (!user) {
         // Compara contra um hash falso para o tempo de resposta não revelar se o email existe
         await bcrypt.compare(password, FAKE_PASSWORD_HASH)
@@ -159,9 +198,20 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         return reply.status(401).send({ message: 'Credenciais inválidas' })
       }
 
-      // O token carrega a loja — toda consulta do admin usa o storeId do token
-      const token = app.jwt.sign({ sub: user.id, email: user.email, storeId: user.storeId })
-      return { token, store: { slug: store.slug, name: store.name } }
+      // O token carrega a loja e o papel — toda consulta do admin usa o storeId do token
+      const token = app.jwt.sign({
+        sub: user.id,
+        email: user.email,
+        storeId: user.storeId,
+        role: user.role,
+        emailVerified: user.emailVerified,
+      })
+      return {
+        token,
+        role: user.role,
+        emailVerified: user.emailVerified,
+        store: { slug: store.slug, name: store.name },
+      }
     }
   )
 }

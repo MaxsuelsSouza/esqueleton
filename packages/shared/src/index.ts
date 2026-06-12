@@ -66,9 +66,16 @@ export interface Store {
   createdAt: string
 }
 
+// OWNER = criou a loja, controle total | STAFF = convidado, acesso limitado
+export type UserRole = 'OWNER' | 'STAFF'
+
 export interface User {
   id: string
   email: string
+  // Papel do usuário dentro da loja
+  role: UserRole
+  // true = e-mail verificado | false = pendente
+  emailVerified: boolean
   // Loja à qual o usuário pertence
   storeId: string
   createdAt: string
@@ -77,6 +84,8 @@ export interface User {
 // Resposta do login — o token carrega a loja, e o slug é usado para montar links públicos
 export interface LoginResponse {
   token: string
+  role: UserRole
+  emailVerified: boolean
   store: {
     slug: string
     name: string
