@@ -104,10 +104,36 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     }
   )
 
-  // Login — limite rígido por IP para impedir tentativas de adivinhar a senha
+  // Login — dois limites contra adivinhação de senha:
+  //   1. Por IP (config abaixo): barra muitas tentativas vindas de um mesmo endereço.
+  //   2. Por email (preHandler abaixo): barra ataques distribuídos — muitos IPs
+  //      diferentes tentando senhas contra uma MESMA conta.
   app.post(
     '/login',
-    { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    {
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      preHandler: app.rateLimit({
+        max: 10,
+        timeWindow: '15 minutes',
+        // Conta as tentativas pelo email informado, não pelo IP — em minúsculas,
+        // para "Ana@loja.com" e "ana@loja.com" contarem como a mesma conta
+        keyGenerator: (request) => {
+          const body = request.body as { email?: unknown } | null
+          const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
+          // Sem email no corpo a validação rejeita a requisição de qualquer
+          // forma — o IP serve apenas como chave reserva para o contador
+          return email ? `email:${email}` : request.ip
+        },
+        // Registra no log quando uma conta passa do limite — ajuda a perceber ataques
+        onExceeded: (request, key) => {
+          app.log.warn({ key, ip: request.ip }, 'Limite de tentativas de login por conta excedido')
+        },
+        errorResponseBuilder: () => ({
+          statusCode: 429,
+          message: 'Muitas tentativas de login para esta conta. Aguarde alguns minutos e tente novamente.',
+        }),
+      }),
+    },
     async (request, reply) => {
       const { email, password } = loginSchema.parse(request.body)
 

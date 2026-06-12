@@ -231,6 +231,34 @@ describe('POST /api/auth/login', () => {
     expect(last).toBe(429)
   })
 
+  it('bloqueia ataque distribuído contra uma mesma conta (limite por email)', async () => {
+    app = await buildTestApp(
+      createPrismaFake({
+        user: { findUnique: vi.fn(async () => null) },
+      })
+    )
+
+    // 11 tentativas para o MESMO email, cada uma vinda de um IP DIFERENTE —
+    // o limite por IP (10/minuto) não dispara, mas o por conta (10 em 15 min) sim
+    let lastStatus = 0
+    let lastMessage = ''
+    for (let i = 0; i < 11; i++) {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        // trustProxy está ligado — o IP do cliente vem do cabeçalho x-forwarded-for
+        headers: { 'x-forwarded-for': `10.0.0.${i + 1}` },
+        payload: { email: 'alvo@loja.com', password: `tentativa-${i}` },
+      })
+      lastStatus = response.statusCode
+      lastMessage = response.json().message
+    }
+
+    expect(lastStatus).toBe(429)
+    // A mensagem é a do limite por conta, não a do limite por IP
+    expect(lastMessage).toContain('conta')
+  })
+
   it('token antigo sem storeId é recusado nas rotas protegidas', async () => {
     app = await buildTestApp(createPrismaFake({}))
     // Simula um token emitido antes do multi-tenancy (sem a loja)

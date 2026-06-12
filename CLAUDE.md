@@ -77,7 +77,7 @@ pnpm --filter @esqueleton/web test
 - `POST /api/auth/login` returns `{ token, store: { slug, name } }`. The JWT payload is `{ sub, email, storeId }`; tokens without `storeId` (pre-multi-tenancy) are rejected by `app.authenticate`.
 - `JWT_SECRET` is **required** in production — the API refuses to start without it. Tokens expire in 1 day.
 - `GET /api/coupons` and `GET /api/coupons/:id` require JWT (the list would expose all discount codes). The public checkout uses `GET /api/lojas/:slug/coupons/codigo/:code`, which validates server-side and returns only the fields needed to apply the discount.
-- Rate limiting via `@fastify/rate-limit`: 300 req/min global, stricter per-route limits on login (10/min), register (5/min), public POSTs (orders/customers 10/min, analytics 120/min) and coupon code lookup (20/min).
+- Rate limiting via `@fastify/rate-limit`: 300 req/min global, stricter per-route limits on login (10/min), register (5/min), public POSTs (orders/customers 10/min, analytics 120/min) and coupon code lookup (20/min). Login additionally has a **per-email** limit (10 attempts / 15 min, `preHandler` via `app.rateLimit`) that blocks distributed brute force against a single account. Counters live in process memory by default; setting `REDIS_URL` moves them to a shared Redis (`common/rate-limit-redis.ts`, lazy-loads `ioredis`, `skipOnError: true` so a Redis outage never blocks requests) — required for the limits to hold on serverless.
 - Reusable input validators live in `apps/api/src/common/validation.ts` (`idSchema`, `dateSchema`, `timeSchema`, `hexColorSchema`, `httpUrlSchema`, `imageUrlSchema`, `phoneSchema`, `shortText`). Use them in every new schema — IDs, dates, colors and URLs must match the expected format before reaching Prisma.
 - Image fields (`Product.imageUrl`, `StoreProfile.logoUrl`) use `imageUrlSchema`: accepts an `http(s)://` URL **or** a `data:image/...;base64,...` upload (the admin uploader produces base64), capped at ~3 MB. It blocks `javascript:` and non-image data URIs. Fastify `bodyLimit` is raised to 5 MB so base64 images aren't rejected as 1 MB-over. Images are stored inline (no external file storage yet) — migrating to S3/Cloudinary/Vercel Blob is a known follow-up.
 - Error handler hides internals: 5xx responses always return `"Erro interno do servidor"`.
@@ -94,7 +94,7 @@ pnpm --filter @esqueleton/web test
 - No roles: every authenticated user has full admin power **within their store**, including creating more users in it.
 - `orderNumber` is generated client-side (unique-constrained; collision makes the fire-and-forget create fail silently).
 - Item `unitPrice` comes from the client — only the arithmetic is verified, prices are not recomputed from the database (admin confirms each order manually via WhatsApp).
-- Rate limiting is in-memory: per serverless instance on Vercel, and per-IP (distributed brute force is not blocked).
+- Rate limiting without `REDIS_URL` is in-memory: per serverless instance on Vercel. With Redis configured, login brute force (per-IP and per-email) is blocked across instances; other routes remain per-IP only.
 
 ## Architecture
 
@@ -261,5 +261,5 @@ Copy `.env.example` to `.env` in each app before running.
 ## Deployment
 
 - **Web (Vercel):** Deploy `apps/web` as a standard Next.js project. Set `NEXT_PUBLIC_API_URL` to the deployed API URL.
-- **API (Vercel):** Deploy `apps/api` as a separate Vercel project. `vercel.json` routes all requests to `src/vercel.ts` via `@vercel/node`. Set `DATABASE_URL`, `CORS_ORIGIN`, and `JWT_SECRET` as environment variables.
+- **API (Vercel):** Deploy `apps/api` as a separate Vercel project. `vercel.json` routes all requests to `src/vercel.ts` via `@vercel/node`. Set `DATABASE_URL`, `CORS_ORIGIN`, `JWT_SECRET` and `REDIS_URL` (shared rate-limit counters — e.g. Upstash) as environment variables.
 - **API (VPS):** Run `pnpm build` then `pnpm start`. The `docker-compose.yml` at the root is for local Postgres only.

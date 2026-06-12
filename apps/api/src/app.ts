@@ -3,6 +3,7 @@ import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
 import { ZodError } from 'zod'
+import { createRateLimitRedis } from './common/rate-limit-redis'
 import { prismaPlugin } from './database/prisma.plugin'
 import { jwtAuthPlugin } from './auth/jwt.plugin'
 import { storeContextPlugin } from './store/store-context.plugin'
@@ -47,11 +48,26 @@ export function buildApp(options: BuildAppOptions = {}) {
 
   // Limite global de requisições por IP — protege contra abuso e sobrecarga.
   // Rotas sensíveis (login, cadastro, pedidos) têm limites mais rígidos definidos na própria rota.
-  // Observação: em ambiente serverless (Vercel) o contador vive na memória de cada instância,
-  // então o limite é aproximado — ainda assim barra a maior parte dos abusos.
+  // Sem REDIS_URL os contadores ficam na memória do processo (ok em dev e VPS);
+  // com REDIS_URL ficam em um Redis compartilhado — necessário em serverless
+  // (Vercel), onde cada instância teria contadores próprios (veja rate-limit-redis.ts).
+  const rateLimitRedis = createRateLimitRedis(process.env.REDIS_URL)
+  if (rateLimitRedis) {
+    // Fecha a conexão com o Redis junto com o servidor
+    app.addHook('onClose', async () => {
+      await rateLimitRedis.quit()
+    })
+  }
   app.register(rateLimit, {
     max: 300,
     timeWindow: '1 minute',
+    ...(rateLimitRedis
+      ? {
+          redis: rateLimitRedis,
+          // Redis fora do ar não pode derrubar a API: a requisição passa sem ser contada
+          skipOnError: true,
+        }
+      : {}),
     errorResponseBuilder: () => ({
       statusCode: 429,
       message: 'Muitas requisições. Aguarde um instante e tente novamente.',
