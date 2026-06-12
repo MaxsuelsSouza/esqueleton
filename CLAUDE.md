@@ -33,6 +33,7 @@ Every file must be readable by someone who is not a programmer. This applies to:
 - **Web:** Next.js 14 + TypeScript + Tailwind CSS (App Router, `src/` directory)
 - **Database:** PostgreSQL via Prisma
 - **Auth:** JWT via `@fastify/jwt` + bcryptjs
+- **Email:** Resend (`resend` npm) — reset de senha e verificação de e-mail. Sem `RESEND_API_KEY`, e-mails são apenas logados (no-op em dev).
 - **Shared types:** `packages/shared` (TypeScript source consumed directly, no build step)
 
 ## Commands
@@ -76,6 +77,7 @@ pnpm --filter @esqueleton/web test
 - `POST /api/auth/register` has two modes: without a token it is the public SaaS signup — creates `Store` + `StoreProfile` + first `User` in one transaction (body: `email`, `password`, `storeName`, `storeSlug`); with a valid JWT it creates another user **in the caller's store**. Slugs are validated by `slugSchema` (lowercase/numbers/hyphen, 3–40 chars) and a reserved list (`admin`, `api`, `loja`, …).
 - `POST /api/auth/login` returns `{ token, store: { slug, name } }`. The JWT payload is `{ sub, email, storeId }`; tokens without `storeId` (pre-multi-tenancy) are rejected by `app.authenticate`.
 - `JWT_SECRET` is **required** in production — the API refuses to start without it. Tokens expire in 1 day.
+- **Password reset:** `POST /api/auth/forgot-password` (3/min) accepts `{ email }`, creates a `PasswordResetToken` (crypto.randomBytes, 32 bytes hex, 1h expiry), sends a reset link via Resend, and **always returns 200** (does not reveal if the email exists). `POST /api/auth/reset-password` (5/min) accepts `{ token, password }`, validates the token (not expired, not used), updates the password and marks the token as used. Previous tokens for the same user are deleted on each new request. The `PasswordResetToken` model is NOT tenant-scoped (no storeId) — it is looked up by token globally. Web pages: `/admin/esqueci-senha` and `/admin/redefinir-senha?token=xxx`.
 - `GET /api/coupons` and `GET /api/coupons/:id` require JWT (the list would expose all discount codes). The public checkout uses `GET /api/lojas/:slug/coupons/codigo/:code`, which validates server-side and returns only the fields needed to apply the discount.
 - Rate limiting via `@fastify/rate-limit`: 300 req/min global, stricter per-route limits on login (10/min), register (5/min), public POSTs (orders/customers 10/min, analytics 120/min) and coupon code lookup (20/min). Login additionally has a **per-email** limit (10 attempts / 15 min, `preHandler` via `app.rateLimit`) that blocks distributed brute force against a single account. Counters live in process memory by default; setting `REDIS_URL` moves them to a shared Redis (`common/rate-limit-redis.ts`, lazy-loads `ioredis`, `skipOnError: true` so a Redis outage never blocks requests) — required for the limits to hold on serverless.
 - Reusable input validators live in `apps/api/src/common/validation.ts` (`idSchema`, `dateSchema`, `timeSchema`, `hexColorSchema`, `httpUrlSchema`, `imageUrlSchema`, `phoneSchema`, `shortText`). Use them in every new schema — IDs, dates, colors and URLs must match the expected format before reaching Prisma.
@@ -109,9 +111,14 @@ apps/api/
       tenant-guard.ts            # bloqueia consultas a dados de loja sem storeId (multi-tenancy)
     store/
       store-context.plugin.ts    # resolve o :slug das rotas públicas → request.store
+    email/
+      resend.plugin.ts           # integração com Resend — decora app.email.send() (no-op sem API key)
+      templates.ts               # templates HTML de e-mail (reset de senha, verificação)
     auth/
       jwt.plugin.ts              # verifica token JWT (payload com storeId) e expõe app.authenticate
       auth.routes.ts             # POST /api/auth/register (cria a loja) e /api/auth/login
+      password-reset.routes.ts   # POST /api/auth/forgot-password e /api/auth/reset-password
+      password-reset.schema.ts   # validações Zod dos dados de redefinição de senha
     catalog/
       catalog.routes.ts          # catalogPublicRoutes (/api/lojas/:slug/products) + catalogAdminRoutes (/api/products)
       catalog.schema.ts          # validações Zod dos dados de produto
@@ -134,6 +141,8 @@ apps/web/
         layout.tsx                    # layout da área admin (sidebar + nav mobile em carrossel)
         page.tsx                      # redireciona /admin → /admin/produtos
         login/page.tsx                # tela de login do admin
+        esqueci-senha/page.tsx        # formulário "esqueci minha senha" (envia link por e-mail)
+        redefinir-senha/page.tsx      # formulário de nova senha (recebe token da URL)
         produtos/page.tsx             # gestão de produtos (CRUD + upload de foto)
         categorias/page.tsx           # gestão de categorias em árvore (CRUD)
         promocoes/page.tsx            # gestão de promoções (desconto, kit, compre X leve Y, horário)
@@ -232,14 +241,15 @@ O cliente digita um código de cupom no campo acima do catálogo. O cupom é val
 - `Product` — brand, name, description, price, originalPrice, imageUrl
 - `Category` — self-referential via `parent`/`children` (`CategoryTree` relation)
 - `ProductCategory` — junção many-to-many entre Product e Category
+- `PasswordResetToken` — token de redefinição de senha (1h de validade, uso único). **Sem storeId** — lookup por token é global.
 
-Todos os modelos de dados (exceto `Store` e a junção `ProductCategory`) têm `storeId` obrigatório com índice. A migração `20260611200000_multi_tenancy` fez o backfill: dados pré-existentes viraram a "loja inicial" (slug derivado do `storeName` do perfil).
+Todos os modelos de dados (exceto `Store`, `ProductCategory` e `PasswordResetToken`) têm `storeId` obrigatório com índice. A migração `20260611200000_multi_tenancy` fez o backfill: dados pré-existentes viraram a "loja inicial" (slug derivado do `storeName` do perfil).
 
 ## Environment variables
 
 Copy `.env.example` to `.env` in each app before running.
 
-- `apps/api/.env` — `DATABASE_URL`, `PORT`, `CORS_ORIGIN`, `JWT_SECRET`
+- `apps/api/.env` — `DATABASE_URL`, `PORT`, `CORS_ORIGIN`, `JWT_SECRET`, `RESEND_API_KEY` (opcional), `FROM_EMAIL` (opcional), `FRONTEND_URL` (opcional)
 - `apps/web/.env.local` — `NEXT_PUBLIC_API_URL`
 
 ### Database profiles (multiple local databases)

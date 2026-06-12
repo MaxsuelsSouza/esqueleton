@@ -4,6 +4,7 @@
 // Também permite criar uma loja nova ("Criar minha loja") com nome, endereço, e-mail e senha
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { authService } from '@/services/auth.service'
 
 // Converte o nome da loja em um endereço (slug): minúsculas, sem acentos, hífens
@@ -191,6 +192,14 @@ export default function AdminLoginPage() {
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               className={inputClass}
             />
+            {mode === 'login' && (
+              <Link
+                href="/admin/esqueci-senha"
+                className="self-end text-xs text-gray-400 transition-colors hover:text-gray-900"
+              >
+                Esqueci minha senha
+              </Link>
+            )}
           </div>
 
           {error && (

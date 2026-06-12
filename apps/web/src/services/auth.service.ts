@@ -39,4 +39,12 @@ export const authService = {
   // Faz login e retorna o token de acesso e os dados da loja
   login: (credentials: Credentials) =>
     apiClient.post<LoginResponse>('/auth/login', credentials),
+
+  // Envia o link de redefinição de senha para o e-mail informado
+  forgotPassword: (email: string) =>
+    apiClient.post<{ message: string }>('/auth/forgot-password', { email }),
+
+  // Redefine a senha usando o token recebido por e-mail
+  resetPassword: (token: string, password: string) =>
+    apiClient.post<{ message: string }>('/auth/reset-password', { token, password }),
 }
