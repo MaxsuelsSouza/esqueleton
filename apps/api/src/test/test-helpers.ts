@@ -27,6 +27,11 @@ export function createPrismaFake(models: Record<string, Record<string, (...args:
         return null
       },
     },
+    // Sem assinatura = sem limites de plano — as rotas com checkPlanLimit passam direto.
+    // Testes de limite podem sobrescrever passando um "subscription" próprio em models.
+    subscription: {
+      findFirst: async () => null,
+    },
     ...models,
   }
   return fake as unknown as PrismaClient

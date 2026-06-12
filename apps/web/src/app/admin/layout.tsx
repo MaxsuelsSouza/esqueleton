@@ -4,7 +4,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { Package, Tag, BadgePercent, Ticket, Sparkles, LogOut, Store, LayoutDashboard, Bell, ExternalLink, Users } from 'lucide-react'
+import { Package, Tag, BadgePercent, Ticket, Sparkles, LogOut, Store, LayoutDashboard, Bell, ExternalLink, Users, CreditCard } from 'lucide-react'
 import { useAdminAuth } from '@/hooks/useAdminAuth'
 import { NotificationBell } from '@/components/admin/NotificationBell'
 import { PendingOrdersPopup } from '@/components/admin/PendingOrdersPopup'
@@ -19,6 +19,7 @@ const NAV_LINKS = [
   { href: '/admin/cupons',        label: 'Cupons',         icon: Ticket },
   { href: '/admin/notificacoes',  label: 'Notificações',   icon: Bell },
   { href: '/admin/perfil',        label: 'Perfil',         icon: Store },
+  { href: '/admin/plano',         label: 'Plano',          icon: CreditCard },
 ]
 
 // Links extras visíveis apenas para o OWNER

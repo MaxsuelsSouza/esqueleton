@@ -367,6 +367,63 @@ export interface Notification {
   createdAt: string
 }
 
+// ── Planos e cobrança ───────────────────────────────────────────────────────
+
+// Limites de uso definidos em cada plano — campo ausente ou null significa ilimitado
+export interface PlanLimits {
+  maxProducts?: number | null
+  maxUsers?: number | null
+  maxOrdersPerMonth?: number | null
+}
+
+// Plano de assinatura da plataforma — criado pelo super-admin
+export interface Plan {
+  id: string
+  name: string
+  // Identificador curto (ex: "gratuito", "profissional")
+  slug: string
+  limits: PlanLimits
+  // Preço em centavos — 0 = gratuito
+  priceInCents: number
+  // Período de cobrança
+  billingPeriod: 'MONTHLY' | 'YEARLY'
+  sortOrder: number
+  active?: boolean
+}
+
+// ACTIVE = em dia | PAUSED = pagamento pendente | CANCELLED = cancelada | PENDING = aguardando pagamento
+export type SubscriptionStatus = 'ACTIVE' | 'PAUSED' | 'CANCELLED' | 'PENDING'
+
+// Assinatura da loja a um plano
+export interface Subscription {
+  id: string
+  planId: string
+  status: SubscriptionStatus
+  currentPeriodStart?: string | null
+  currentPeriodEnd?: string | null
+  createdAt: string
+  plan: Plan
+}
+
+// Uso atual da loja — comparado com os limites do plano no painel
+export interface BillingUsage {
+  products: number
+  users: number
+  ordersThisMonth: number
+}
+
+// Resposta do GET /api/billing/current
+export interface BillingCurrentResponse {
+  subscription: Subscription | null
+  usage: BillingUsage | null
+}
+
+// Resposta do POST /api/billing/subscribe — checkoutUrl preenchida apenas em planos pagos
+export interface SubscribeResponse {
+  subscription: Subscription
+  checkoutUrl: string | null
+}
+
 // Modo de exibição dos produtos na listagem
 export type DisplayMode = 'grid' | 'list'
 

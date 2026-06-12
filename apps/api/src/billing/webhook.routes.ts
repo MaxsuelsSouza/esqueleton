@@ -54,8 +54,10 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
 
     app.log.info({ action, dataId }, 'Webhook MercadoPago: evento de assinatura')
 
-    // Busca a assinatura no banco pelo ID do MercadoPago
-    const subscription = await app.prisma.subscription.findFirst({
+    // Busca a assinatura no banco pelo ID do MercadoPago.
+    // Usa prismaRaw (sem tenant guard): o webhook não sabe de qual loja é a
+    // assinatura — é justamente esta busca que descobre.
+    const subscription = await app.prismaRaw.subscription.findFirst({
       where: { mercadoPagoPreapprovalId: dataId },
     })
 
@@ -86,8 +88,10 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
     }
 
     if (newStatus && newStatus !== subscription.status) {
-      await app.prisma.subscription.update({
-        where: { id: subscription.id },
+      // updateMany com id + storeId: satisfaz o tenant guard e garante que o
+      // registro alterado é exatamente o da loja encontrada acima
+      await app.prisma.subscription.updateMany({
+        where: { id: subscription.id, storeId: subscription.storeId },
         data: {
           status: newStatus,
           ...(newStatus === 'ACTIVE' ? { currentPeriodStart: new Date() } : {}),

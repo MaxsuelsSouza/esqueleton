@@ -89,8 +89,9 @@ export const billingAdminRoutes: FastifyPluginAsync = async (app) => {
       if (currentSub.mercadoPagoPreapprovalId) {
         await app.mercadopago.cancelSubscription(currentSub.mercadoPagoPreapprovalId)
       }
-      await app.prisma.subscription.update({
-        where: { id: currentSub.id },
+      // updateMany com id + storeId: só altera se a assinatura for desta loja (tenant guard)
+      await app.prisma.subscription.updateMany({
+        where: { id: currentSub.id, storeId },
         data: { status: 'CANCELLED' },
       })
     }
@@ -143,8 +144,8 @@ export const billingAdminRoutes: FastifyPluginAsync = async (app) => {
     })
 
     if (mpResult) {
-      await app.prisma.subscription.update({
-        where: { id: subscription.id },
+      await app.prisma.subscription.updateMany({
+        where: { id: subscription.id, storeId },
         data: { mercadoPagoPreapprovalId: mpResult.id },
       })
       return { subscription, checkoutUrl: mpResult.initPoint }
@@ -176,9 +177,9 @@ export const billingAdminRoutes: FastifyPluginAsync = async (app) => {
       await app.mercadopago.cancelSubscription(currentSub.mercadoPagoPreapprovalId)
     }
 
-    // Marca como cancelada
-    await app.prisma.subscription.update({
-      where: { id: currentSub.id },
+    // Marca como cancelada — updateMany com id + storeId satisfaz o tenant guard
+    await app.prisma.subscription.updateMany({
+      where: { id: currentSub.id, storeId },
       data: { status: 'CANCELLED' },
     })
 

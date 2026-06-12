@@ -8,8 +8,12 @@ import { createOrderSchema, updateOrderStatusSchema } from './order.schema'
 export async function orderPublicRoutes(app: FastifyInstance) {
 
   // POST /api/lojas/:slug/orders — público, chamado quando o cliente clica em "Enviar pelo WhatsApp"
-  // Limite por IP — impede que alguém crie pedidos falsos em massa
-  app.post('/', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request, reply) => {
+  // Limite por IP — impede que alguém crie pedidos falsos em massa.
+  // checkPlanLimit — bloqueia quando a loja atingiu o teto de pedidos do mês no plano dela.
+  app.post('/', {
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+    preHandler: [app.checkPlanLimit('maxOrdersPerMonth')],
+  }, async (request, reply) => {
     const storeId = request.store!.id
     const data = createOrderSchema.parse(request.body)
 

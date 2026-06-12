@@ -12,6 +12,10 @@ import { passwordResetRoutes } from './auth/password-reset.routes'
 import { emailVerificationRoutes } from './auth/email-verification.routes'
 import { userAdminRoutes } from './users/user.routes'
 import { resendPlugin } from './email/resend.plugin'
+import { mercadopagoPlugin } from './billing/mercadopago.plugin'
+import { planLimitsPlugin } from './billing/plan-limits.plugin'
+import { billingPublicRoutes, billingAdminRoutes } from './billing/billing.routes'
+import { webhookRoutes } from './billing/webhook.routes'
 import { catalogPublicRoutes, catalogAdminRoutes } from './catalog/catalog.routes'
 import { couponPublicRoutes, couponAdminRoutes } from './coupons/coupon.routes'
 import { promotionPublicRoutes, promotionAdminRoutes } from './promotions/promotion.routes'
@@ -82,10 +86,18 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.register(jwtAuthPlugin)
   app.register(resendPlugin)
   app.register(storeContextPlugin)
+  // Cobrança: integração com o MercadoPago e verificação dos limites do plano
+  app.register(mercadopagoPlugin)
+  app.register(planLimitsPlugin)
 
   app.register(authRoutes, { prefix: '/api/auth' })
   app.register(passwordResetRoutes, { prefix: '/api/auth' })
   app.register(emailVerificationRoutes, { prefix: '/api/auth' })
+
+  // ── Cobrança — planos públicos, assinatura da loja e webhook do MercadoPago ──
+  app.register(billingPublicRoutes, { prefix: '/api/billing' })
+  app.register(billingAdminRoutes, { prefix: '/api/billing' })
+  app.register(webhookRoutes, { prefix: '/api/webhooks' })
 
   // ── Rotas públicas do catálogo — a loja é identificada pelo slug na URL ──
   // Ex: GET /api/lojas/perfumaria-ana/products

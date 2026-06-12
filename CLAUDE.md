@@ -80,6 +80,7 @@ pnpm --filter @esqueleton/web test
 - **Password reset:** `POST /api/auth/forgot-password` (3/min) accepts `{ email }`, creates a `PasswordResetToken` (crypto.randomBytes, 32 bytes hex, 1h expiry), sends a reset link via Resend, and **always returns 200** (does not reveal if the email exists). `POST /api/auth/reset-password` (5/min) accepts `{ token, password }`, validates the token (not expired, not used), updates the password and marks the token as used. Previous tokens for the same user are deleted on each new request. The `PasswordResetToken` model is NOT tenant-scoped (no storeId) — it is looked up by token globally. Web pages: `/admin/esqueci-senha` and `/admin/redefinir-senha?token=xxx`.
 - **Roles (OWNER/STAFF):** users have a `role` field (`OWNER` or `STAFF`). The first user of a store is always `OWNER`; additional users created via `POST /api/auth/register` (with JWT) are `STAFF`. `requireOwner` (`auth/role-guard.ts`) returns 403 if the caller is not OWNER — applied on `PUT /api/store-profile`, `POST /api/auth/register` (invite mode), `DELETE /api/users/:id`. `GET /api/users` and `DELETE /api/users/:id` are OWNER-only routes for managing store staff.
 - **Email verification:** new users start with `emailVerified: false`. `POST /api/auth/verify-email` (10/min) validates a token from the verification email. `POST /api/auth/resend-verification` (2/min, JWT required) sends a new verification email. `requireVerifiedEmail` (`auth/role-guard.ts`) blocks admin routes after 7 days without verification. `EmailVerificationToken` model is NOT tenant-scoped (global lookup by token). Web pages: `/admin/verificar-email?token=xxx`.
+- **Billing (MercadoPago):** plans (`Plan`, platform-wide) define JSON `limits` (`maxProducts`, `maxUsers`, `maxOrdersPerMonth`); each store has a `Subscription`. `app.checkPlanLimit('<limit>')` (`billing/plan-limits.plugin.ts`) is a preHandler that returns 403 when the store's active plan limit is reached — applied on `POST /api/products`, `POST /api/lojas/:slug/orders` (storeId comes from the slug there) and imperatively (`app.planLimitStatus`) on the register invite mode. No active subscription or missing limit key = unlimited (never locks a store out by accident). `POST /api/billing/subscribe`/`cancel` are OWNER-only; paid plans redirect to the MercadoPago checkout (`init_point`) and the subscription stays `PENDING` until the webhook (`POST /api/webhooks/mercadopago`, HMAC-validated via `MERCADOPAGO_WEBHOOK_SECRET`) flips it to `ACTIVE`. Without `MERCADOPAGO_ACCESS_TOKEN` payment operations are no-ops (dev). Web page: `/admin/plano`.
 - `GET /api/coupons` and `GET /api/coupons/:id` require JWT (the list would expose all discount codes). The public checkout uses `GET /api/lojas/:slug/coupons/codigo/:code`, which validates server-side and returns only the fields needed to apply the discount.
 - Rate limiting via `@fastify/rate-limit`: 300 req/min global, stricter per-route limits on login (10/min), register (5/min), public POSTs (orders/customers 10/min, analytics 120/min) and coupon code lookup (20/min). Login additionally has a **per-email** limit (10 attempts / 15 min, `preHandler` via `app.rateLimit`) that blocks distributed brute force against a single account. Counters live in process memory by default; setting `REDIS_URL` moves them to a shared Redis (`common/rate-limit-redis.ts`, lazy-loads `ioredis`, `skipOnError: true` so a Redis outage never blocks requests) — required for the limits to hold on serverless.
 - Reusable input validators live in `apps/api/src/common/validation.ts` (`idSchema`, `dateSchema`, `timeSchema`, `hexColorSchema`, `httpUrlSchema`, `imageUrlSchema`, `phoneSchema`, `shortText`). Use them in every new schema — IDs, dates, colors and URLs must match the expected format before reaching Prisma.
@@ -125,6 +126,12 @@ apps/api/
       role-guard.ts              # requireOwner (403 se não é OWNER) e requireVerifiedEmail (bloqueia após 7 dias)
     users/
       user.routes.ts             # GET /api/users e DELETE /api/users/:id (OWNER only)
+    billing/
+      mercadopago.plugin.ts      # integração com MercadoPago — app.mercadopago (no-op sem access token)
+      plan-limits.plugin.ts      # app.checkPlanLimit (preHandler 403) e app.planLimitStatus (limites do plano)
+      billing.routes.ts          # GET /api/billing/plans (público), /current, /subscribe e /cancel (OWNER)
+      billing.schema.ts          # validações Zod de billing
+      webhook.routes.ts          # POST /api/webhooks/mercadopago — atualiza o status da assinatura
     catalog/
       catalog.routes.ts          # catalogPublicRoutes (/api/lojas/:slug/products) + catalogAdminRoutes (/api/products)
       catalog.schema.ts          # validações Zod dos dados de produto
@@ -155,6 +162,7 @@ apps/web/
         categorias/page.tsx           # gestão de categorias em árvore (CRUD)
         promocoes/page.tsx            # gestão de promoções (desconto, kit, compre X leve Y, horário)
         cupons/page.tsx               # gestão de cupons de desconto com código
+        plano/page.tsx                # plano atual, uso dos limites e troca/cancelamento (ações OWNER)
     components/
       catalog/
         ProductCard.tsx               # cartão de produto (grade e lista) — exibe marca, nome, preço
@@ -177,6 +185,7 @@ apps/web/
       api-client.ts                   # cliente HTTP base — todas as chamadas passam aqui
       auth.service.ts                 # login, cadastro, reset de senha
       users.service.ts                # gestão de equipe (listar e remover membros)
+      billing.service.ts              # planos e assinatura (listar, assinar, cancelar)
       catalog.service.ts              # busca e gestão de produtos
       categories.service.ts           # busca e gestão de categorias
       promotions.service.ts           # busca e gestão de promoções
@@ -256,14 +265,16 @@ The layout uses `useAdminAuth()` hook which reads role/emailVerified from localS
 - `ProductCategory` — junção many-to-many entre Product e Category
 - `PasswordResetToken` — token de redefinição de senha (1h de validade, uso único). **Sem storeId** — lookup por token é global.
 - `EmailVerificationToken` — token de verificação de e-mail (7 dias de validade, uso único). **Sem storeId** — lookup por token é global.
+- `Plan` — plano da plataforma: slug único, `limits` (JSON), `priceInCents` (0 = gratuito), `billingPeriod`. **Sem storeId** — entidade global gerenciada pelo super-admin.
+- `Subscription` — assinatura de uma loja a um plano (`ACTIVE`/`PAUSED`/`CANCELLED`/`PENDING`). Tenant-scoped (está no `MODELOS_DE_LOJA` do tenant guard). A migração de billing criou o plano `Gratuito` e uma assinatura ativa para cada loja existente.
 
-Todos os modelos de dados (exceto `Store`, `ProductCategory`, `PasswordResetToken` e `EmailVerificationToken`) têm `storeId` obrigatório com índice. A migração `20260611200000_multi_tenancy` fez o backfill: dados pré-existentes viraram a "loja inicial" (slug derivado do `storeName` do perfil).
+Todos os modelos de dados (exceto `Store`, `ProductCategory`, `PasswordResetToken`, `EmailVerificationToken` e `Plan`) têm `storeId` obrigatório com índice. A migração `20260611200000_multi_tenancy` fez o backfill: dados pré-existentes viraram a "loja inicial" (slug derivado do `storeName` do perfil).
 
 ## Environment variables
 
 Copy `.env.example` to `.env` in each app before running.
 
-- `apps/api/.env` — `DATABASE_URL`, `PORT`, `CORS_ORIGIN`, `JWT_SECRET`, `RESEND_API_KEY` (opcional), `FROM_EMAIL` (opcional), `FRONTEND_URL` (opcional)
+- `apps/api/.env` — `DATABASE_URL`, `PORT`, `CORS_ORIGIN`, `JWT_SECRET`, `RESEND_API_KEY` (opcional), `FROM_EMAIL` (opcional), `FRONTEND_URL` (opcional), `MERCADOPAGO_ACCESS_TOKEN` (opcional), `MERCADOPAGO_WEBHOOK_SECRET` (opcional), `REDIS_URL` (opcional)
 - `apps/web/.env.local` — `NEXT_PUBLIC_API_URL`
 
 ### Database profiles (multiple local databases)

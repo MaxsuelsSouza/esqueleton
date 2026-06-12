@@ -57,6 +57,16 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         await requireOwner(request, reply)
         if (reply.sent) return
 
+        // Limite de usuários do plano — bloqueia o convite quando a equipe está cheia
+        const limiteDeUsuarios = await app.planLimitStatus(request.user.storeId, 'maxUsers')
+        if (limiteDeUsuarios?.reached) {
+          return reply.status(403).send({
+            message: 'Limite de usuários do plano foi atingido. Faça upgrade para convidar mais membros.',
+            limit: limiteDeUsuarios.max,
+            current: limiteDeUsuarios.current,
+          })
+        }
+
         const { email, password } = registerUserSchema.parse(request.body)
 
         const existing = await app.prisma.user.findUnique({ where: { email } })

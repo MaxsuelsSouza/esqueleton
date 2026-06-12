@@ -6,6 +6,12 @@ import { comProtecaoDeLoja } from './tenant-guard'
 declare module 'fastify' {
   interface FastifyInstance {
     prisma: PrismaClient
+    /**
+     * Cliente SEM a proteção de loja — apenas para operações da plataforma que
+     * são globais por natureza (ex: webhook do MercadoPago, que localiza a
+     * assinatura pelo ID externo; rotas super-admin). NUNCA use em rotas de loja.
+     */
+    prismaRaw: PrismaClient
   }
 }
 
@@ -29,6 +35,8 @@ const plugin: FastifyPluginAsync<PrismaPluginOptions> = async (app, options) => 
   const prisma = comProtecaoDeLoja(clienteBase)
 
   app.decorate('prisma', prisma)
+  // Acesso sem o guard — restrito a operações globais da plataforma (veja o aviso acima)
+  app.decorate('prismaRaw', clienteBase)
 
   app.addHook('onClose', async () => {
     if (!isInjectedClient) {
