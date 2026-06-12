@@ -10,6 +10,7 @@ export function useAdminAuth() {
   const [token, setToken] = useState<string | null>(null)
   const [role, setRole] = useState<UserRole | null>(null)
   const [emailVerified, setEmailVerified] = useState(true)
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   const [isChecking, setIsChecking] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
@@ -24,6 +25,7 @@ export function useAdminAuth() {
       setToken(saved)
       setRole((localStorage.getItem('admin_role') as UserRole) ?? 'STAFF')
       setEmailVerified(localStorage.getItem('admin_email_verified') !== 'false')
+      setIsSuperAdmin(localStorage.getItem('admin_is_super_admin') === 'true')
       setIsChecking(false)
     }
   }, [pathname, router])
@@ -34,6 +36,7 @@ export function useAdminAuth() {
     localStorage.removeItem('admin_store_name')
     localStorage.removeItem('admin_role')
     localStorage.removeItem('admin_email_verified')
+    localStorage.removeItem('admin_is_super_admin')
     // Navegação dura — garante que todo estado é limpo
     window.location.href = '/admin/login'
   }
@@ -41,5 +44,5 @@ export function useAdminAuth() {
   // Atalhos para verificações de papel
   const isOwner = role === 'OWNER'
 
-  return { token, role, isOwner, emailVerified, isChecking, logout }
+  return { token, role, isOwner, isSuperAdmin, emailVerified, isChecking, logout }
 }

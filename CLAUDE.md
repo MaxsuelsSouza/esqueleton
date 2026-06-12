@@ -81,6 +81,7 @@ pnpm --filter @esqueleton/web test
 - **Roles (OWNER/STAFF):** users have a `role` field (`OWNER` or `STAFF`). The first user of a store is always `OWNER`; additional users created via `POST /api/auth/register` (with JWT) are `STAFF`. `requireOwner` (`auth/role-guard.ts`) returns 403 if the caller is not OWNER — applied on `PUT /api/store-profile`, `POST /api/auth/register` (invite mode), `DELETE /api/users/:id`. `GET /api/users` and `DELETE /api/users/:id` are OWNER-only routes for managing store staff.
 - **Email verification:** new users start with `emailVerified: false`. `POST /api/auth/verify-email` (10/min) validates a token from the verification email. `POST /api/auth/resend-verification` (2/min, JWT required) sends a new verification email. `requireVerifiedEmail` (`auth/role-guard.ts`) blocks admin routes after 7 days without verification. `EmailVerificationToken` model is NOT tenant-scoped (global lookup by token). Web pages: `/admin/verificar-email?token=xxx`.
 - **Billing (MercadoPago):** plans (`Plan`, platform-wide) define JSON `limits` (`maxProducts`, `maxUsers`, `maxOrdersPerMonth`); each store has a `Subscription`. `app.checkPlanLimit('<limit>')` (`billing/plan-limits.plugin.ts`) is a preHandler that returns 403 when the store's active plan limit is reached — applied on `POST /api/products`, `POST /api/lojas/:slug/orders` (storeId comes from the slug there) and imperatively (`app.planLimitStatus`) on the register invite mode. No active subscription or missing limit key = unlimited (never locks a store out by accident). `POST /api/billing/subscribe`/`cancel` are OWNER-only; paid plans redirect to the MercadoPago checkout (`init_point`) and the subscription stays `PENDING` until the webhook (`POST /api/webhooks/mercadopago`, HMAC-validated via `MERCADOPAGO_WEBHOOK_SECRET`) flips it to `ACTIVE`. Without `MERCADOPAGO_ACCESS_TOKEN` payment operations are no-ops (dev). Web page: `/admin/plano`.
+- **Super-admin:** `User.isSuperAdmin` is set manually in the database (no UI creates it — `UPDATE "User" SET "isSuperAdmin" = true WHERE email = '...'`). The JWT carries the flag (optional — old tokens fall back to 403); `requireSuperAdmin` (`auth/super-admin-guard.ts`) protects every `/api/super/*` route (stores list/detail/PATCH status+plan, plans CRUD with MercadoPago preapproval-plan creation, platform users list, metrics with MRR). Super routes use `app.prismaRaw` (no tenant guard) because their queries are cross-store by design — never use `prismaRaw` in store routes. Plan deactivation is blocked while stores hold ACTIVE/PENDING/PAUSED subscriptions on it. Web: "Plataforma" nav section (visible only with `admin_is_super_admin` in localStorage) → `/admin/super/{lojas,planos,usuarios,metricas}`.
 - `GET /api/coupons` and `GET /api/coupons/:id` require JWT (the list would expose all discount codes). The public checkout uses `GET /api/lojas/:slug/coupons/codigo/:code`, which validates server-side and returns only the fields needed to apply the discount.
 - Rate limiting via `@fastify/rate-limit`: 300 req/min global, stricter per-route limits on login (10/min), register (5/min), public POSTs (orders/customers 10/min, analytics 120/min) and coupon code lookup (20/min). Login additionally has a **per-email** limit (10 attempts / 15 min, `preHandler` via `app.rateLimit`) that blocks distributed brute force against a single account. Counters live in process memory by default; setting `REDIS_URL` moves them to a shared Redis (`common/rate-limit-redis.ts`, lazy-loads `ioredis`, `skipOnError: true` so a Redis outage never blocks requests) — required for the limits to hold on serverless.
 - Reusable input validators live in `apps/api/src/common/validation.ts` (`idSchema`, `dateSchema`, `timeSchema`, `hexColorSchema`, `httpUrlSchema`, `imageUrlSchema`, `phoneSchema`, `shortText`). Use them in every new schema — IDs, dates, colors and URLs must match the expected format before reaching Prisma.
@@ -132,6 +133,12 @@ apps/api/
       billing.routes.ts          # GET /api/billing/plans (público), /current, /subscribe e /cancel (OWNER)
       billing.schema.ts          # validações Zod de billing
       webhook.routes.ts          # POST /api/webhooks/mercadopago — atualiza o status da assinatura
+    super/
+      super-stores.routes.ts     # gestão de lojas da plataforma (listar, suspender, trocar plano)
+      super-plans.routes.ts      # CRUD de planos (planos pagos criam recorrência no MercadoPago)
+      super-users.routes.ts      # lista de todos os usuários da plataforma
+      super-metrics.routes.ts    # totais, MRR e assinaturas por plano
+      super.schema.ts            # validações Zod das rotas super-admin
     catalog/
       catalog.routes.ts          # catalogPublicRoutes (/api/lojas/:slug/products) + catalogAdminRoutes (/api/products)
       catalog.schema.ts          # validações Zod dos dados de produto
@@ -163,6 +170,10 @@ apps/web/
         promocoes/page.tsx            # gestão de promoções (desconto, kit, compre X leve Y, horário)
         cupons/page.tsx               # gestão de cupons de desconto com código
         plano/page.tsx                # plano atual, uso dos limites e troca/cancelamento (ações OWNER)
+        super/lojas/page.tsx          # plataforma: lojas (busca, suspender/reativar, trocar plano)
+        super/planos/page.tsx         # plataforma: CRUD de planos
+        super/usuarios/page.tsx       # plataforma: todos os usuários
+        super/metricas/page.tsx       # plataforma: totais, MRR e assinaturas por plano
     components/
       catalog/
         ProductCard.tsx               # cartão de produto (grade e lista) — exibe marca, nome, preço
@@ -186,6 +197,7 @@ apps/web/
       auth.service.ts                 # login, cadastro, reset de senha
       users.service.ts                # gestão de equipe (listar e remover membros)
       billing.service.ts              # planos e assinatura (listar, assinar, cancelar)
+      super.service.ts                # chamadas super-admin (lojas, planos, usuários, métricas)
       catalog.service.ts              # busca e gestão de produtos
       categories.service.ts           # busca e gestão de categorias
       promotions.service.ts           # busca e gestão de promoções
@@ -259,7 +271,7 @@ The layout uses `useAdminAuth()` hook which reads role/emailVerified from localS
 ## Prisma schema (models)
 
 - `Store` — loja (tenant): slug único, name, status (`ACTIVE`/`SUSPENDED`)
-- `User` — email + senha, pertence a uma `Store`. Tem `role` (`OWNER`/`STAFF`) e `emailVerified`
+- `User` — email + senha, pertence a uma `Store`. Tem `role` (`OWNER`/`STAFF`), `emailVerified` e `isSuperAdmin` (flag de plataforma, definida manualmente no banco)
 - `Product` — brand, name, description, price, originalPrice, imageUrl
 - `Category` — self-referential via `parent`/`children` (`CategoryTree` relation)
 - `ProductCategory` — junção many-to-many entre Product e Category

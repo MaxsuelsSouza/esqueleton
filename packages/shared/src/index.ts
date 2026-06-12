@@ -76,6 +76,8 @@ export interface User {
   role: UserRole
   // true = e-mail verificado | false = pendente
   emailVerified: boolean
+  // Administrador da plataforma — definido manualmente no banco
+  isSuperAdmin?: boolean
   // Loja à qual o usuário pertence
   storeId: string
   createdAt: string
@@ -86,6 +88,7 @@ export interface LoginResponse {
   token: string
   role: UserRole
   emailVerified: boolean
+  isSuperAdmin: boolean
   store: {
     slug: string
     name: string
@@ -422,6 +425,76 @@ export interface BillingCurrentResponse {
 export interface SubscribeResponse {
   subscription: Subscription
   checkoutUrl: string | null
+}
+
+// ── Super-admin (gestão da plataforma) ──────────────────────────────────────
+
+// Linha da tabela de lojas do super-admin
+export interface SuperStore {
+  id: string
+  slug: string
+  name: string
+  status: 'ACTIVE' | 'SUSPENDED'
+  createdAt: string
+  usersCount: number
+  productsCount: number
+  // Plano atual da loja (da assinatura mais recente)
+  plan: { id: string; name: string } | null
+  subscriptionStatus: SubscriptionStatus | null
+}
+
+// Detalhe de uma loja no super-admin
+export interface SuperStoreDetail {
+  id: string
+  slug: string
+  name: string
+  status: 'ACTIVE' | 'SUSPENDED'
+  createdAt: string
+  users: Array<{ id: string; email: string; role: UserRole; emailVerified: boolean; createdAt: string }>
+  subscription: Subscription | null
+  counts: { products: number; orders: number; coupons: number }
+}
+
+// Linha da tabela de usuários da plataforma
+export interface SuperUser {
+  id: string
+  email: string
+  role: UserRole
+  emailVerified: boolean
+  isSuperAdmin: boolean
+  createdAt: string
+  store: { slug: string; name: string }
+}
+
+// Plano na visão do super-admin — inclui inativos e a contagem de lojas ativas nele
+export interface SuperPlan extends Plan {
+  active: boolean
+  mercadoPagoPreapprovalPlanId?: string | null
+  activeSubscriptions: number
+  createdAt: string
+  updatedAt: string
+}
+
+// Dados para criar/editar um plano
+export interface PlanInput {
+  name: string
+  slug: string
+  limits: PlanLimits
+  priceInCents: number
+  billingPeriod: 'MONTHLY' | 'YEARLY'
+  sortOrder: number
+  active: boolean
+}
+
+// Métricas gerais da plataforma
+export interface PlatformMetrics {
+  totalStores: number
+  activeStores: number
+  suspendedStores: number
+  totalUsers: number
+  // Receita recorrente mensal em centavos (planos anuais divididos por 12)
+  mrrInCents: number
+  subscriptionsByPlan: Array<{ planId: string; planName: string; count: number }>
 }
 
 // Modo de exibição dos produtos na listagem

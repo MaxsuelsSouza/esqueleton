@@ -4,7 +4,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { Package, Tag, BadgePercent, Ticket, Sparkles, LogOut, Store, LayoutDashboard, Bell, ExternalLink, Users, CreditCard } from 'lucide-react'
+import { Package, Tag, BadgePercent, Ticket, Sparkles, LogOut, Store, LayoutDashboard, Bell, ExternalLink, Users, CreditCard, Building2, Layers, UserCog, BarChart3 } from 'lucide-react'
 import { useAdminAuth } from '@/hooks/useAdminAuth'
 import { NotificationBell } from '@/components/admin/NotificationBell'
 import { PendingOrdersPopup } from '@/components/admin/PendingOrdersPopup'
@@ -27,13 +27,21 @@ const OWNER_LINKS = [
   { href: '/admin/usuarios',      label: 'Equipe',         icon: Users },
 ]
 
+// Seção "Plataforma" — visível apenas para super-admins (gestão do SaaS inteiro)
+const SUPER_LINKS = [
+  { href: '/admin/super/lojas',    label: 'Lojas',          icon: Building2 },
+  { href: '/admin/super/planos',   label: 'Planos',         icon: Layers },
+  { href: '/admin/super/usuarios', label: 'Usuários',       icon: UserCog },
+  { href: '/admin/super/metricas', label: 'Métricas',       icon: BarChart3 },
+]
+
 // Páginas que não exibem a barra lateral nem verificam autenticação
 const PUBLIC_PAGES = ['/admin/login', '/admin/esqueci-senha', '/admin/redefinir-senha', '/admin/verificar-email']
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isPublicPage = PUBLIC_PAGES.some((p) => pathname.startsWith(p))
-  const { isChecking, isOwner, emailVerified, logout } = useAdminAuth()
+  const { isChecking, isOwner, isSuperAdmin, emailVerified, logout } = useAdminAuth()
   const [scrolled, setScrolled] = useState(false)
   // Endereço (slug) da loja do admin, salvo no login — usado no link "Ver minha loja"
   const [storeSlug, setStoreSlug] = useState<string | null>(null)
@@ -94,6 +102,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {label}
             </Link>
           ))}
+
+          {/* Seção da plataforma — só para super-admins */}
+          {isSuperAdmin && (
+            <>
+              <p className="mt-4 px-3 pb-1 text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+                Plataforma
+              </p>
+              {SUPER_LINKS.map(({ href, label, icon: Icon }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
+                    pathname.startsWith(href)
+                      ? 'bg-gray-900 text-white'
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  }`}
+                >
+                  <Icon size={16} />
+                  {label}
+                </Link>
+              ))}
+            </>
+          )}
         </nav>
 
         {/* Link discreto para abrir o site público da loja em outra aba */}
@@ -150,9 +181,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
           </div>
 
-          {/* Carrossel de navegação — rola dentro do cabeçalho sem mover a página */}
+          {/* Carrossel de navegação — rola dentro do cabeçalho sem mover a página.
+              No mobile os links da plataforma (super-admin) entram no fim do carrossel. */}
           <nav className={`flex w-full gap-1 overflow-x-auto px-3 [&::-webkit-scrollbar]:hidden transition-all duration-300 ${scrolled ? 'pb-1.5' : 'pb-3'}`} style={{ WebkitOverflowScrolling: 'touch' }}>
-            {navLinks.map(({ href, label, icon: Icon }) => (
+            {[...navLinks, ...(isSuperAdmin ? SUPER_LINKS : [])].map(({ href, label, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}

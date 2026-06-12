@@ -16,6 +16,10 @@ import { mercadopagoPlugin } from './billing/mercadopago.plugin'
 import { planLimitsPlugin } from './billing/plan-limits.plugin'
 import { billingPublicRoutes, billingAdminRoutes } from './billing/billing.routes'
 import { webhookRoutes } from './billing/webhook.routes'
+import { superStoresRoutes } from './super/super-stores.routes'
+import { superPlansRoutes } from './super/super-plans.routes'
+import { superUsersRoutes } from './super/super-users.routes'
+import { superMetricsRoutes } from './super/super-metrics.routes'
 import { catalogPublicRoutes, catalogAdminRoutes } from './catalog/catalog.routes'
 import { couponPublicRoutes, couponAdminRoutes } from './coupons/coupon.routes'
 import { promotionPublicRoutes, promotionAdminRoutes } from './promotions/promotion.routes'
@@ -98,6 +102,13 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.register(billingPublicRoutes, { prefix: '/api/billing' })
   app.register(billingAdminRoutes, { prefix: '/api/billing' })
   app.register(webhookRoutes, { prefix: '/api/webhooks' })
+
+  // ── Super-admin — gestão da plataforma (lojas, planos, usuários, métricas) ──
+  // Todas exigem JWT com isSuperAdmin (flag definida manualmente no banco)
+  app.register(superStoresRoutes, { prefix: '/api/super/stores' })
+  app.register(superPlansRoutes, { prefix: '/api/super/plans' })
+  app.register(superUsersRoutes, { prefix: '/api/super/users' })
+  app.register(superMetricsRoutes, { prefix: '/api/super/metrics' })
 
   // ── Rotas públicas do catálogo — a loja é identificada pelo slug na URL ──
   // Ex: GET /api/lojas/perfumaria-ana/products

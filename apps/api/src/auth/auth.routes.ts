@@ -185,7 +185,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
       const user = await app.prisma.user.findUnique({
         where: { email },
-        select: { id: true, email: true, password: true, storeId: true, role: true, emailVerified: true },
+        select: { id: true, email: true, password: true, storeId: true, role: true, emailVerified: true, isSuperAdmin: true },
       })
       if (!user) {
         // Compara contra um hash falso para o tempo de resposta não revelar se o email existe
@@ -215,11 +215,13 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         storeId: user.storeId,
         role: user.role,
         emailVerified: user.emailVerified,
+        isSuperAdmin: user.isSuperAdmin,
       })
       return {
         token,
         role: user.role,
         emailVerified: user.emailVerified,
+        isSuperAdmin: user.isSuperAdmin,
         store: { slug: store.slug, name: store.name },
       }
     }

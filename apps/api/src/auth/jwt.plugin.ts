@@ -6,8 +6,9 @@ declare module '@fastify/jwt' {
   interface FastifyJWT {
     // storeId identifica a loja do usuário — toda consulta do admin filtra por ele
     // role: OWNER (dono, controle total) ou STAFF (equipe, acesso limitado)
-    payload: { sub: string; email: string; storeId: string; role: string; emailVerified: boolean }
-    user: { sub: string; email: string; storeId: string; role: string; emailVerified: boolean }
+    // isSuperAdmin: administrador da plataforma — opcional porque tokens antigos não carregam
+    payload: { sub: string; email: string; storeId: string; role: string; emailVerified: boolean; isSuperAdmin?: boolean }
+    user: { sub: string; email: string; storeId: string; role: string; emailVerified: boolean; isSuperAdmin?: boolean }
   }
 }
 
