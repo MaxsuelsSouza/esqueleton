@@ -51,7 +51,9 @@ export const emailVerificationRoutes: FastifyPluginAsync = async (app) => {
   app.post(
     '/resend-verification',
     {
-      config: { rateLimit: { max: 2, timeWindow: '1 minute' } },
+      // skipEmailVerification: esta rota precisa funcionar mesmo após o bloqueio
+      // de 7 dias — é justamente por ela que o usuário pede um novo link
+      config: { rateLimit: { max: 2, timeWindow: '1 minute' }, skipEmailVerification: true },
       preHandler: [app.authenticate],
     },
     async (request, reply) => {

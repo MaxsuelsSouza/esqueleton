@@ -99,7 +99,22 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
       })
       app.log.info({ subscriptionId: subscription.id, newStatus }, 'Assinatura atualizada pelo webhook')
 
-      // Se cancelou, cria assinatura gratuita automaticamente
+      // Avisa o lojista no painel — fire and forget, o webhook responde rápido de qualquer forma
+      if (newStatus === 'PAUSED') {
+        app.prisma.notification.upsert({
+          where: { storeId_type_entityId: { storeId: subscription.storeId, type: 'SUBSCRIPTION_PAYMENT_FAILED', entityId: subscription.id } },
+          create: {
+            storeId: subscription.storeId,
+            type: 'SUBSCRIPTION_PAYMENT_FAILED',
+            title: 'O pagamento da sua assinatura falhou',
+            body: 'A assinatura foi pausada até o pagamento ser regularizado.',
+            entityId: subscription.id,
+          },
+          update: { status: 'PENDING', createdAt: new Date() },
+        }).catch(() => {})
+      }
+
+      // Se cancelou, cria assinatura gratuita automaticamente e avisa o lojista
       if (newStatus === 'CANCELLED') {
         const freePlan = await app.prisma.plan.findFirst({
           where: { priceInCents: 0, active: true },
@@ -114,6 +129,18 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
             },
           })
         }
+
+        app.prisma.notification.upsert({
+          where: { storeId_type_entityId: { storeId: subscription.storeId, type: 'SUBSCRIPTION_CANCELLED', entityId: subscription.id } },
+          create: {
+            storeId: subscription.storeId,
+            type: 'SUBSCRIPTION_CANCELLED',
+            title: 'Sua assinatura foi cancelada',
+            body: 'Sua loja voltou ao plano gratuito.',
+            entityId: subscription.id,
+          },
+          update: { status: 'PENDING', createdAt: new Date() },
+        }).catch(() => {})
       }
     }
 

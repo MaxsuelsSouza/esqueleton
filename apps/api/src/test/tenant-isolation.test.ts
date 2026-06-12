@@ -27,6 +27,11 @@ function criaBancoComDuasLojas() {
     { ...baseProduto, id: 'produto-a', name: 'Produto da Loja A', storeId: LOJA_A.id },
     { ...baseProduto, id: 'produto-b', name: 'Produto da Loja B', storeId: LOJA_B.id },
   ]
+  // Cada loja tem a própria assinatura, em planos diferentes
+  const assinaturas = [
+    { id: 'sub-a', storeId: LOJA_A.id, planId: 'plan-x', status: 'ACTIVE', createdAt: new Date(), plan: { id: 'plan-x', name: 'Plano X', limits: {}, priceInCents: 0 } },
+    { id: 'sub-b', storeId: LOJA_B.id, planId: 'plan-y', status: 'ACTIVE', createdAt: new Date(), plan: { id: 'plan-y', name: 'Plano Y', limits: {}, priceInCents: 0 } },
+  ]
   // O mesmo código de cupom existe nas duas lojas — cada uma com um desconto
   const cupons = [
     { id: 'cupom-a', code: 'PROMO10', discountType: 'percentage', discountPercent: 10, discountValue: null, minimumOrderValue: null, maxUses: null, usedCount: 0, maxUsesPerUser: null, productIds: [], startDate: null, endDate: null, active: true, description: null, storeId: LOJA_A.id, createdAt: new Date() },
@@ -71,6 +76,15 @@ function criaBancoComDuasLojas() {
         return cupons.filter((c) => c.storeId === where?.storeId)
       }),
     },
+    subscription: {
+      findFirst: vi.fn(async (args: unknown) => {
+        const where = (args as { where?: { storeId?: string } })?.where
+        return assinaturas.find((s) => s.storeId === where?.storeId) ?? null
+      }),
+    },
+    // Contagens usadas pelo GET /api/billing/current
+    user: { count: vi.fn(async () => 1) },
+    order: { count: vi.fn(async () => 0) },
   })
 }
 
@@ -125,6 +139,27 @@ describe('isolamento entre lojas', () => {
 
     const ids = response.json().map((c: { id: string }) => c.id)
     expect(ids).toEqual(['cupom-a'])
+  })
+
+  it('a assinatura retornada é sempre a da própria loja', async () => {
+    app = await buildTestApp(criaBancoComDuasLojas() as PrismaClient)
+    const tokenLojaA = await createTestToken(app, LOJA_A.id)
+    const tokenLojaB = await createTestToken(app, LOJA_B.id)
+
+    const billingA = await app.inject({
+      method: 'GET',
+      url: '/api/billing/current',
+      headers: { authorization: `Bearer ${tokenLojaA}` },
+    })
+    const billingB = await app.inject({
+      method: 'GET',
+      url: '/api/billing/current',
+      headers: { authorization: `Bearer ${tokenLojaB}` },
+    })
+
+    // Cada loja enxerga apenas o próprio plano
+    expect(billingA.json().subscription.plan.id).toBe('plan-x')
+    expect(billingB.json().subscription.plan.id).toBe('plan-y')
   })
 
   it('o mesmo código de cupom vale de forma independente em cada loja', async () => {

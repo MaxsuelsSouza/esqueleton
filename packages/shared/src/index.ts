@@ -350,10 +350,13 @@ export interface AnalyticsSummary {
 
 // Tipos de notificação do painel administrativo
 export type NotificationType =
-  | 'NEW_ORDER'        // novo pedido recebido pelo WhatsApp
-  | 'PROMOTION_ENDED'  // promoção expirou
-  | 'COUPON_ENDED'     // cupom expirou ou atingiu limite de usos
-  | 'FEATURED_ENDED'   // seção em destaque expirou
+  | 'NEW_ORDER'                    // novo pedido recebido pelo WhatsApp
+  | 'PROMOTION_ENDED'              // promoção expirou
+  | 'COUPON_ENDED'                 // cupom expirou ou atingiu limite de usos
+  | 'FEATURED_ENDED'               // seção em destaque expirou
+  | 'PLAN_LIMIT_APPROACHING'       // uso chegou a 80% de um limite do plano
+  | 'SUBSCRIPTION_CANCELLED'       // assinatura cancelada — loja voltou ao gratuito
+  | 'SUBSCRIPTION_PAYMENT_FAILED'  // pagamento da assinatura falhou (pausada)
 
 export type NotificationStatus = 'PENDING' | 'READ'
 

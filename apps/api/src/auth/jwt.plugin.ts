@@ -1,6 +1,7 @@
 import fp from 'fastify-plugin'
 import jwtPlugin from '@fastify/jwt'
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
+import { requireVerifiedEmail } from './role-guard'
 
 declare module '@fastify/jwt' {
   interface FastifyJWT {
@@ -15,6 +16,11 @@ declare module '@fastify/jwt' {
 declare module 'fastify' {
   interface FastifyInstance {
     authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>
+  }
+  interface FastifyContextConfig {
+    // Rotas com esta marca não exigem e-mail verificado mesmo após os 7 dias
+    // de tolerância — usada no reenvio do link de verificação
+    skipEmailVerification?: boolean
   }
 }
 
@@ -41,11 +47,17 @@ const plugin: FastifyPluginAsync = async (app) => {
         // Tokens antigos não carregam storeId ou role — sem eles nenhuma
         // consulta pode ser feita, então o login precisa ser refeito
         if (!request.user.storeId || !request.user.role) {
-          reply.status(401).send({ message: 'Não autorizado. Faça login novamente.' })
+          return reply.status(401).send({ message: 'Não autorizado. Faça login novamente.' })
         }
       } catch {
         // Token ausente, inválido ou expirado — nega o acesso sem expor detalhes
-        reply.status(401).send({ message: 'Não autorizado. Faça login novamente.' })
+        return reply.status(401).send({ message: 'Não autorizado. Faça login novamente.' })
+      }
+
+      // Após 7 dias sem verificar o e-mail, o painel é bloqueado (403) —
+      // exceto nas rotas marcadas com skipEmailVerification (reenvio do link)
+      if (!request.routeOptions.config.skipEmailVerification) {
+        await requireVerifiedEmail(request, reply)
       }
     }
   )

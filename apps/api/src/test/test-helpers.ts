@@ -17,8 +17,11 @@ export const LOJA_TESTE = {
 // passando um "store" próprio em models).
 export function createPrismaFake(models: Record<string, Record<string, (...args: unknown[]) => unknown>>): PrismaClient {
   const fake: Record<string, unknown> = {
-    // O Prisma real tem $transaction — aqui apenas executa a função recebida com o próprio banco falso
-    $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(fake),
+    // O Prisma real tem $transaction nas duas formas: com função (recebe o banco
+    // da transação) e com array de operações (executa todas). Aqui a função roda
+    // com o próprio banco falso, e o array apenas aguarda as promessas.
+    $transaction: async (fnOuLista: ((tx: unknown) => Promise<unknown>) | Promise<unknown>[]) =>
+      typeof fnOuLista === 'function' ? fnOuLista(fake) : Promise.all(fnOuLista),
     // Resolve o slug das rotas públicas para a loja de teste
     store: {
       findUnique: async (args: unknown) => {
@@ -45,10 +48,20 @@ export async function buildTestApp(prismaFake: PrismaClient) {
 }
 
 // Gera um token JWT válido para testar rotas protegidas — pertence à LOJA_TESTE
-// por padrão; informe outro storeId para simular um admin de outra loja
+// por padrão; informe outro storeId para simular um admin de outra loja.
+// O terceiro parâmetro permite variar o papel (STAFF), o e-mail não verificado
+// ou a flag de super-admin.
 export async function createTestToken(
   app: Awaited<ReturnType<typeof buildTestApp>>,
   storeId: string = LOJA_TESTE.id,
+  extras: { sub?: string; role?: string; emailVerified?: boolean; isSuperAdmin?: boolean } = {},
 ) {
-  return app.jwt.sign({ sub: 'usuario-teste', email: 'teste@teste.com', storeId, role: 'OWNER', emailVerified: true })
+  return app.jwt.sign({
+    sub: extras.sub ?? 'usuario-teste',
+    email: 'teste@teste.com',
+    storeId,
+    role: extras.role ?? 'OWNER',
+    emailVerified: extras.emailVerified ?? true,
+    isSuperAdmin: extras.isSuperAdmin ?? false,
+  })
 }

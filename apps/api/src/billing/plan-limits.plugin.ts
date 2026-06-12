@@ -90,6 +90,22 @@ export const planLimitsPlugin = fp(async (app: FastifyInstance) => {
           current: status.current,
         })
       }
+
+      // A partir de 80% de uso, avisa o lojista no painel — fire and forget,
+      // a criação do recurso nunca espera (nem falha) por causa do aviso
+      if (status && status.max > 0 && status.current / status.max >= 0.8) {
+        app.prisma.notification.upsert({
+          where: { storeId_type_entityId: { storeId, type: 'PLAN_LIMIT_APPROACHING', entityId: limitKey } },
+          create: {
+            storeId,
+            type: 'PLAN_LIMIT_APPROACHING',
+            title: `Seu plano está chegando ao limite de ${NOMES_DOS_LIMITES[limitKey]}`,
+            body: `${status.current} de ${status.max} em uso`,
+            entityId: limitKey,
+          },
+          update: { status: 'PENDING', body: `${status.current} de ${status.max} em uso`, createdAt: new Date() },
+        }).catch(() => {})
+      }
     }
   }
 

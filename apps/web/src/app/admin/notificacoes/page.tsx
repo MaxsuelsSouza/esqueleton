@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import {
   Bell, MessageCircle, BadgePercent, Ticket, Sparkles,
   Check, Trash2, CheckCheck, ChevronRight, Copy, Phone,
+  Gauge, CreditCard, AlertTriangle,
 } from 'lucide-react'
 import { notificationsService } from '@/services/notifications.service'
 import type { Notification, NotificationType } from '@esqueleton/shared'
@@ -16,6 +17,10 @@ function getRedirectPath(notification: Notification): string {
     case 'NEW_ORDER':
       // Vai ao dashboard com o número do pedido pré-preenchido na busca
       return `/admin/dashboard?pedido=${notification.entityId ?? ''}`
+    case 'PLAN_LIMIT_APPROACHING':
+    case 'SUBSCRIPTION_CANCELLED':
+    case 'SUBSCRIPTION_PAYMENT_FAILED':
+      return '/admin/plano'
     case 'PROMOTION_ENDED':
       return '/admin/promocoes'
     case 'COUPON_ENDED':
@@ -39,6 +44,9 @@ const TYPE_CONFIG: Record<NotificationType, {
   PROMOTION_ENDED: { label: 'Promoção',  icon: BadgePercent,  borderColor: 'border-gray-300',   iconColor: 'text-gray-400',   bgColor: 'bg-gray-50'   },
   COUPON_ENDED:    { label: 'Cupom',     icon: Ticket,        borderColor: 'border-gray-300',   iconColor: 'text-gray-400',   bgColor: 'bg-gray-50'   },
   FEATURED_ENDED:  { label: 'Destaque',  icon: Sparkles,      borderColor: 'border-gray-300',   iconColor: 'text-gray-400',   bgColor: 'bg-gray-50'   },
+  PLAN_LIMIT_APPROACHING:      { label: 'Plano',      icon: Gauge,         borderColor: 'border-orange-400', iconColor: 'text-orange-500', bgColor: 'bg-orange-50' },
+  SUBSCRIPTION_CANCELLED:      { label: 'Assinatura', icon: CreditCard,    borderColor: 'border-red-500',    iconColor: 'text-red-500',    bgColor: 'bg-red-50'    },
+  SUBSCRIPTION_PAYMENT_FAILED: { label: 'Pagamento',  icon: AlertTriangle, borderColor: 'border-red-500',    iconColor: 'text-red-500',    bgColor: 'bg-red-50'    },
 }
 
 type FilterTab = 'todas' | 'nao_lidas' | 'pedidos' | 'expiradas'

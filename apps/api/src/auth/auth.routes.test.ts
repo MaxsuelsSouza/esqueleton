@@ -47,7 +47,12 @@ describe('POST /api/auth/register (cadastro público de loja)', () => {
     // Loja, perfil e usuário criados na mesma transação
     expect(storeCreate).toHaveBeenCalled()
     expect(profileCreate).toHaveBeenCalled()
-    expect(userCreate).toHaveBeenCalled()
+    // O primeiro usuário da loja nasce como OWNER
+    expect(userCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ role: 'OWNER' }),
+      })
+    )
   })
 
   it('rejeita cadastro sem o nome e o endereço da loja', async () => {
@@ -121,12 +126,32 @@ describe('POST /api/auth/register (cadastro público de loja)', () => {
     })
 
     expect(response.statusCode).toBe(201)
-    // O novo usuário nasce na loja de quem criou — nunca em outra
+    // O novo usuário nasce na loja de quem criou — nunca em outra — e sempre como STAFF
     expect(userCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ storeId: LOJA_TESTE.id }),
+        data: expect.objectContaining({ storeId: LOJA_TESTE.id, role: 'STAFF' }),
       })
     )
+  })
+
+  it('STAFF não pode convidar novos membros', async () => {
+    const userCreate = vi.fn(async () => ({}))
+    app = await buildTestApp(
+      createPrismaFake({
+        user: { findUnique: vi.fn(async () => null), create: userCreate },
+      })
+    )
+    const token = await createTestToken(app, undefined, { role: 'STAFF' })
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { email: 'novo@loja.com', password: 'senha-segura-123' },
+    })
+
+    expect(response.statusCode).toBe(403)
+    expect(userCreate).not.toHaveBeenCalled()
   })
 
   it('rejeita senha com menos de 8 caracteres', async () => {
@@ -154,13 +179,14 @@ describe('POST /api/auth/login', () => {
     await app?.close()
   })
 
-  it('retorna token e os dados da loja quando as credenciais estão corretas', async () => {
+  it('retorna token, papel e os dados da loja quando as credenciais estão corretas', async () => {
     const hashed = await bcrypt.hash('senha-correta-123', 10)
     app = await buildTestApp(
       createPrismaFake({
         user: {
           findUnique: vi.fn(async () => ({
             id: 'u1', email: 'admin@loja.com', password: hashed, storeId: LOJA_TESTE.id,
+            role: 'OWNER', emailVerified: true, isSuperAdmin: false,
           })),
         },
       })
@@ -175,8 +201,16 @@ describe('POST /api/auth/login', () => {
     expect(response.statusCode).toBe(200)
     const body = response.json()
     expect(body.token).toBeTruthy()
+    // O papel e a verificação voltam para o painel ajustar a interface
+    expect(body.role).toBe('OWNER')
+    expect(body.emailVerified).toBe(true)
+    expect(body.isSuperAdmin).toBe(false)
     // O slug volta para o painel montar o link "ver minha loja"
     expect(body.store.slug).toBe(LOJA_TESTE.slug)
+    // O token carrega a loja e o papel — é o que as rotas protegidas leem
+    const payload = app.jwt.decode(body.token) as { storeId: string; role: string }
+    expect(payload.storeId).toBe(LOJA_TESTE.id)
+    expect(payload.role).toBe('OWNER')
   })
 
   it('retorna 401 com a mesma mensagem para email inexistente e senha errada', async () => {
