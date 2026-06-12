@@ -22,6 +22,7 @@ const MODELOS_DE_LOJA = new Set([
   'customer',
   'productEvent',
   'notification',
+  'subscription',
 ])
 
 // Operações que leem ou alteram dados e por isso precisam do filtro por loja

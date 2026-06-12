@@ -44,6 +44,9 @@ importers:
       ioredis:
         specifier: ^5.4.1
         version: 5.11.1
+      mercadopago:
+        specifier: ^3.1.0
+        version: 3.1.0
       resend:
         specifier: ^6.12.4
         version: 6.12.4
@@ -1322,6 +1325,10 @@ packages:
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
+
+  mercadopago@3.1.0:
+    resolution: {integrity: sha512-3VB8AFpE8eZgm67e22kVbR19k9JC/1j66voLSh7m9tPvkASuRKNH2Y7yb793rO+fIpMtvl+wBj27UY4jIItWYA==}
+    engines: {node: '>=18'}
 
   merge-stream@2.0.0:
     resolution: {integrity: sha512-abv/qOcuPfk3URPfDzmZU1LKmuw8kT+0nIHvKrKgFrwifol/doWcdA4ZqsWQ8ENrFKkd67Mfpo/LovbIUsbt3w==}
@@ -2882,6 +2889,8 @@ snapshots:
   magic-string@0.30.21:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  mercadopago@3.1.0: {}
 
   merge-stream@2.0.0: {}
 

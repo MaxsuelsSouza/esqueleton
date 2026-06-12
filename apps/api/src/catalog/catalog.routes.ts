@@ -168,7 +168,7 @@ export const catalogAdminRoutes: FastifyPluginAsync = async (app) => {
     return toProductResponse(product)
   })
 
-  app.post('/', async (request, reply) => {
+  app.post('/', { preHandler: [app.checkPlanLimit('maxProducts')] }, async (request, reply) => {
     const storeId = request.user.storeId
     const { categoryIds, ...fields } = productSchema.parse(request.body)
 

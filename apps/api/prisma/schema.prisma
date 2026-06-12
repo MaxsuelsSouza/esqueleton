@@ -30,6 +30,7 @@ model Store {
   customers     Customer[]
   productEvents ProductEvent[]
   notifications Notification[]
+  subscriptions Subscription[]
 }
 
 model User {
@@ -298,6 +299,50 @@ model Notification {
   @@index([createdAt])
   // Impede notificações duplicadas para o mesmo tipo + entidade dentro da mesma loja
   @@unique([storeId, type, entityId])
+}
+
+// Plano de assinatura da plataforma — define limites e preço
+// Entidade global (não pertence a uma loja) — gerenciada pelo super-admin
+model Plan {
+  id                           String   @id @default(cuid())
+  name                         String
+  // Identificador curto na URL (ex: "gratuito", "profissional")
+  slug                         String   @unique
+  // Limites em JSON: { maxProducts, maxUsers, maxOrdersPerMonth }
+  limits                       Json
+  // Preço em centavos — 0 = gratuito
+  priceInCents                 Int      @default(0)
+  // Período de cobrança: MONTHLY ou YEARLY
+  billingPeriod                String   @default("MONTHLY")
+  // ID do plano de recorrência no MercadoPago (preenchido ao criar plano pago)
+  mercadoPagoPreapprovalPlanId String?
+  active                       Boolean  @default(true)
+  // Ordem de exibição na página de preços (menor = primeiro)
+  sortOrder                    Int      @default(0)
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+// Assinatura de uma loja a um plano — cada loja tem no máximo uma assinatura ativa
+model Subscription {
+  id                         String    @id @default(cuid())
+  storeId                    String
+  store                      Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  planId                     String
+  plan                       Plan      @relation(fields: [planId], references: [id])
+  // ACTIVE = em dia | PAUSED = pagamento pendente | CANCELLED = cancelada | PENDING = aguardando pagamento
+  status                     String    @default("PENDING")
+  // ID da assinatura recorrente no MercadoPago
+  mercadoPagoPreapprovalId   String?
+  currentPeriodStart         DateTime?
+  currentPeriodEnd           DateTime?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+
+  @@index([storeId])
+  @@index([planId])
 }
 
 // Tabela de junção — permite que um produto pertença a várias categorias
