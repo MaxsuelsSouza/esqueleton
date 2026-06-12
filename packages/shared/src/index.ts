@@ -355,7 +355,8 @@ export type NotificationType =
   | 'COUPON_ENDED'                 // cupom expirou ou atingiu limite de usos
   | 'FEATURED_ENDED'               // seção em destaque expirou
   | 'PLAN_LIMIT_APPROACHING'       // uso chegou a 80% de um limite do plano
-  | 'SUBSCRIPTION_CANCELLED'       // assinatura cancelada — loja voltou ao gratuito
+  | 'SUBSCRIPTION_REQUIRED'        // lembrete pós-cadastro: ativar assinatura antes do fim do teste
+  | 'SUBSCRIPTION_CANCELLED'       // assinatura cancelada — loja sai do ar para clientes
   | 'SUBSCRIPTION_PAYMENT_FAILED'  // pagamento da assinatura falhou (pausada)
 
 export type NotificationStatus = 'PENDING' | 'READ'
@@ -418,10 +419,20 @@ export interface BillingUsage {
   ordersThisMonth: number
 }
 
+// Situação do período de teste de 7 dias ("pagou, usou")
+export interface TrialStatus {
+  endsAt: string
+  active: boolean
+  daysLeft: number
+}
+
 // Resposta do GET /api/billing/current
 export interface BillingCurrentResponse {
   subscription: Subscription | null
   usage: BillingUsage | null
+  trial: TrialStatus | null
+  // true = catálogo público no ar (teste vigente ou assinatura ativa)
+  storeAvailable: boolean
 }
 
 // Resposta do POST /api/billing/subscribe — checkoutUrl preenchida apenas em planos pagos

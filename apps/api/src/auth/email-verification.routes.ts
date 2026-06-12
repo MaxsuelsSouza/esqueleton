@@ -19,7 +19,7 @@ export const emailVerificationRoutes: FastifyPluginAsync = async (app) => {
 
       const verificationToken = await app.prisma.emailVerificationToken.findUnique({
         where: { token },
-        select: { id: true, userId: true, expiresAt: true, usedAt: true },
+        select: { id: true, userId: true, expiresAt: true, usedAt: true, user: { select: { storeId: true } } },
       })
 
       // Token inexistente, já usado ou expirado — mesma mensagem genérica
@@ -40,6 +40,20 @@ export const emailVerificationRoutes: FastifyPluginAsync = async (app) => {
           data: { usedAt: new Date() },
         }),
       ])
+
+      // Lembra o lojista de ativar a assinatura — a loja funciona por 7 dias de
+      // teste e depois sai do ar para os clientes. Fire and forget.
+      app.prisma.notification.upsert({
+        where: { storeId_type_entityId: { storeId: verificationToken.user.storeId, type: 'SUBSCRIPTION_REQUIRED', entityId: 'ativacao' } },
+        create: {
+          storeId: verificationToken.user.storeId,
+          type: 'SUBSCRIPTION_REQUIRED',
+          title: 'Ative sua assinatura para manter a loja no ar',
+          body: 'Sua loja funciona por 7 dias de teste. Depois disso, só fica disponível para os clientes com a assinatura ativa.',
+          entityId: 'ativacao',
+        },
+        update: {},
+      }).catch(() => {})
 
       return reply.status(200).send({
         message: 'E-mail verificado com sucesso!',

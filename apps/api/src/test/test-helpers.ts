@@ -10,6 +10,8 @@ export const LOJA_TESTE = {
   slug: 'loja-teste',
   name: 'Loja Teste',
   status: 'ACTIVE',
+  // Loja recém-criada: dentro do período de teste, o catálogo público responde
+  createdAt: new Date(),
 }
 
 // Cria um banco de dados falso — cada teste configura apenas os métodos que usa.

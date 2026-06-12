@@ -89,17 +89,17 @@ describe('POST /api/webhooks/mercadopago', () => {
     )
   })
 
-  it('cancelamento volta a loja ao plano gratuito e avisa o lojista', async () => {
+  it('cancelamento marca a assinatura e avisa o lojista (sem voltar a plano gratuito)', async () => {
     const subscriptionCreate = vi.fn(async () => ({}))
+    const updateMany = vi.fn(async () => ({ count: 1 }))
     const notificationUpsert = vi.fn(async () => ({}))
     app = await buildTestApp(
       bancoComAssinatura({
         subscription: {
           findFirst: vi.fn(async () => ASSINATURA),
-          updateMany: vi.fn(async () => ({ count: 1 })),
+          updateMany,
           create: subscriptionCreate,
         },
-        plan: { findFirst: vi.fn(async () => ({ id: 'plan-free', priceInCents: 0 })) },
         notification: { upsert: notificationUpsert },
       })
     )
@@ -111,12 +111,11 @@ describe('POST /api/webhooks/mercadopago', () => {
     })
 
     expect(response.statusCode).toBe(200)
-    // Nova assinatura gratuita já ativa, na mesma loja
-    expect(subscriptionCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ storeId: LOJA_TESTE.id, planId: 'plan-free', status: 'ACTIVE' }),
-      })
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'CANCELLED' }) })
     )
+    // Modelo "pagou, usou": nenhuma assinatura gratuita é criada no lugar
+    expect(subscriptionCreate).not.toHaveBeenCalled()
     expect(notificationUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({ type: 'SUBSCRIPTION_CANCELLED' }),

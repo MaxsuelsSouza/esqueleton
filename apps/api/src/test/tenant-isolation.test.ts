@@ -7,8 +7,8 @@ import { createPrismaFake, buildTestApp, createTestToken } from './test-helpers'
 
 type TestApp = Awaited<ReturnType<typeof buildTestApp>>
 
-const LOJA_A = { id: 'loja-a', slug: 'loja-a', name: 'Loja A', status: 'ACTIVE' }
-const LOJA_B = { id: 'loja-b', slug: 'loja-b', name: 'Loja B', status: 'ACTIVE' }
+const LOJA_A = { id: 'loja-a', slug: 'loja-a', name: 'Loja A', status: 'ACTIVE', createdAt: new Date() }
+const LOJA_B = { id: 'loja-b', slug: 'loja-b', name: 'Loja B', status: 'ACTIVE', createdAt: new Date() }
 
 const baseProduto = {
   brand: null,
@@ -41,9 +41,9 @@ function criaBancoComDuasLojas() {
   return createPrismaFake({
     store: {
       findUnique: vi.fn(async (args: unknown) => {
-        const where = (args as { where?: { slug?: string } })?.where
-        if (where?.slug === LOJA_A.slug) return LOJA_A
-        if (where?.slug === LOJA_B.slug) return LOJA_B
+        const where = (args as { where?: { slug?: string; id?: string } })?.where
+        if (where?.slug === LOJA_A.slug || where?.id === LOJA_A.id) return LOJA_A
+        if (where?.slug === LOJA_B.slug || where?.id === LOJA_B.id) return LOJA_B
         return null
       }),
     },

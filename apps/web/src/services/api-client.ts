@@ -8,10 +8,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
 
   if (!res.ok) {
-    // Tenta ler a mensagem de erro retornada pela API
+    // Tenta ler a mensagem de erro retornada pela API.
+    // O status HTTP vai junto no erro — quem chama pode diferenciar, por exemplo,
+    // o 503 de loja indisponível de uma falha de rede comum.
     const body = await res.json().catch(() => null)
     const message = body?.message ?? `${res.status} ${res.statusText}`
-    throw new Error(message)
+    const error = new Error(message) as Error & { status?: number }
+    error.status = res.status
+    throw error
   }
 
   // 204 No Content — resposta válida sem corpo (ex: DELETE bem-sucedido)

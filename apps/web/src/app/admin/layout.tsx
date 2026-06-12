@@ -8,6 +8,8 @@ import { Package, Tag, BadgePercent, Ticket, Sparkles, LogOut, Store, LayoutDash
 import { useAdminAuth } from '@/hooks/useAdminAuth'
 import { NotificationBell } from '@/components/admin/NotificationBell'
 import { PendingOrdersPopup } from '@/components/admin/PendingOrdersPopup'
+import { billingService } from '@/services/billing.service'
+import type { BillingCurrentResponse } from '@esqueleton/shared'
 
 // Links do menu lateral — visíveis para todos os papéis
 const NAV_LINKS = [
@@ -206,12 +208,56 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <EmailVerificationBanner />
         )}
 
+        {/* Banner da assinatura — período de teste correndo ou loja fora do ar */}
+        <SubscriptionBanner pathname={pathname} />
+
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           {children}
           {/* Popup de pedidos pendentes há mais de 3h — aparece em qualquer página do admin */}
           <PendingOrdersPopup />
         </main>
       </div>
+    </div>
+  )
+}
+
+// Banner da assinatura — mostra os dias restantes do teste ou avisa que a loja
+// saiu do ar para os clientes, sempre com o atalho para ativar a assinatura
+function SubscriptionBanner({ pathname }: { pathname: string }) {
+  const [billing, setBilling] = useState<BillingCurrentResponse | null>(null)
+
+  // Recarrega ao trocar de página — assim o banner some logo após assinar
+  useEffect(() => {
+    const token = localStorage.getItem('admin_token')
+    if (!token) return
+    billingService.current(token).then(setBilling).catch(() => {})
+  }, [pathname])
+
+  // Sem dados ainda, assinatura ativa, ou já na página de ativação: não mostra nada
+  if (!billing) return null
+  if (billing.subscription?.status === 'ACTIVE') return null
+  if (pathname.startsWith('/admin/assinatura')) return null
+
+  if (billing.trial?.active) {
+    return (
+      <div className="border-b border-orange-200 bg-orange-50 px-4 py-3 text-center text-sm text-orange-800">
+        <span>
+          Período de teste: {billing.trial.daysLeft === 1 ? 'falta 1 dia' : `faltam ${billing.trial.daysLeft} dias`} —
+          depois disso sua loja sai do ar para os clientes.{' '}
+        </span>
+        <Link href="/admin/assinatura" className="font-medium text-orange-900 underline hover:text-orange-700">
+          Ativar assinatura
+        </Link>
+      </div>
+    )
+  }
+
+  return (
+    <div className="border-b border-red-200 bg-red-50 px-4 py-3 text-center text-sm text-red-800">
+      <span>Sua loja está fora do ar para os clientes. </span>
+      <Link href="/admin/assinatura" className="font-medium text-red-900 underline hover:text-red-700">
+        Ativar assinatura
+      </Link>
     </div>
   )
 }

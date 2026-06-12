@@ -76,7 +76,7 @@ export default function PlanoPage() {
 
   async function handleCancel() {
     if (!token) return
-    if (!confirm('Cancelar a assinatura e voltar ao plano gratuito?')) return
+    if (!confirm('Cancelar a assinatura? Sem ela, sua loja fica fora do ar para os clientes.')) return
 
     setFeedback(null)
     setCancelling(true)

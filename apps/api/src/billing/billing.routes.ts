@@ -4,6 +4,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { subscribeSchema } from './billing.schema'
 import { requireOwner } from '../auth/role-guard'
+import { trialStatus } from './trial'
 
 // ── Rota pública — lista planos disponíveis ───────────────────────
 export const billingPublicRoutes: FastifyPluginAsync = async (app) => {
@@ -29,19 +30,29 @@ export const billingPublicRoutes: FastifyPluginAsync = async (app) => {
 export const billingAdminRoutes: FastifyPluginAsync = async (app) => {
   app.addHook('preHandler', app.authenticate)
 
-  // Retorna a assinatura atual da loja com o plano e uso
+  // Retorna a assinatura atual da loja, o plano, o uso, o período de teste
+  // e se a loja está disponível para o público ("pagou, usou")
   app.get('/current', async (request) => {
     const storeId = request.user.storeId
 
-    // Busca a assinatura ativa (ou a mais recente)
-    const subscription = await app.prisma.subscription.findFirst({
-      where: { storeId },
-      orderBy: { createdAt: 'desc' },
-      include: { plan: true },
-    })
+    // Busca a assinatura mais recente (para exibição) e a loja (para o período de teste)
+    const [subscription, store] = await Promise.all([
+      app.prisma.subscription.findFirst({
+        where: { storeId },
+        orderBy: { createdAt: 'desc' },
+        include: { plan: true },
+      }),
+      app.prisma.store.findUnique({ where: { id: storeId } }),
+    ])
+
+    // Situação do período de teste de 7 dias, contado do cadastro da loja
+    const trial = store ? trialStatus(store.createdAt) : null
+    // A loja fica no ar com assinatura ATIVA ou dentro do período de teste
+    const hasActiveSubscription = subscription?.status === 'ACTIVE'
+    const storeAvailable = hasActiveSubscription || Boolean(trial?.active)
 
     if (!subscription) {
-      return { subscription: null, usage: null }
+      return { subscription: null, usage: null, trial, storeAvailable }
     }
 
     // Calcula o uso atual para exibir no painel
@@ -64,6 +75,8 @@ export const billingAdminRoutes: FastifyPluginAsync = async (app) => {
         users: userCount,
         ordersThisMonth: orderCount,
       },
+      trial,
+      storeAvailable,
     }
   })
 
@@ -154,7 +167,8 @@ export const billingAdminRoutes: FastifyPluginAsync = async (app) => {
     return { subscription, checkoutUrl: null }
   })
 
-  // Cancela a assinatura ativa e volta para o plano gratuito
+  // Cancela a assinatura ativa — sem assinatura, a loja sai do ar para o público
+  // (modelo "pagou, usou"; o painel continua acessível para reativar)
   app.post('/cancel', { preHandler: [requireOwner] }, async (request, reply) => {
     const storeId = request.user.storeId
 
@@ -165,11 +179,6 @@ export const billingAdminRoutes: FastifyPluginAsync = async (app) => {
 
     if (!currentSub) {
       return reply.status(400).send({ message: 'Nenhuma assinatura ativa encontrada.' })
-    }
-
-    // Não permite cancelar o plano gratuito
-    if (currentSub.plan.priceInCents === 0) {
-      return reply.status(400).send({ message: 'Você já está no plano gratuito.' })
     }
 
     // Cancela no MercadoPago se existir
@@ -183,18 +192,8 @@ export const billingAdminRoutes: FastifyPluginAsync = async (app) => {
       data: { status: 'CANCELLED' },
     })
 
-    // Cria assinatura gratuita automaticamente
-    const freePlan = await app.prisma.plan.findFirst({
-      where: { priceInCents: 0, active: true },
-      orderBy: { sortOrder: 'asc' },
-    })
-
-    if (freePlan) {
-      await app.prisma.subscription.create({
-        data: { storeId, planId: freePlan.id, status: 'ACTIVE' },
-      })
+    return {
+      message: 'Assinatura cancelada. Sem uma assinatura ativa, sua loja fica indisponível para os clientes — você pode reativar quando quiser.',
     }
-
-    return { message: 'Assinatura cancelada. Você voltou ao plano gratuito.' }
   })
 }

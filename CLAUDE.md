@@ -11,6 +11,7 @@ A monorepo skeleton for building simple catalog/showcase projects, now **multi-t
 - Every data model has a required `storeId` column pointing to `Store` (the tenant). Deleting a store cascades to all its data.
 - **Admin requests** (panel): the JWT payload carries `storeId` — every query filters by `request.user.storeId`.
 - **Public requests** (catalog): routes live under `/api/lojas/:slug/...`. The `resolveStore` preHandler (`store/store-context.plugin.ts`) resolves the slug (60s in-memory cache) and attaches `request.store`; unknown or `SUSPENDED` stores answer 404 "Loja não encontrada".
+- **Store availability ("pagou, usou"):** a store's public catalog only works during the 7-day trial (counted from `Store.createdAt` — see `billing/trial.ts`) or with an ACTIVE subscription. Outside that, `resolveStore` answers **503 "Ops! Aconteceu um erro..."** — a deliberately generic error so end customers never learn it's a billing issue (the web shows a full-screen error via `store-profile-context`). The admin panel stays accessible so the owner can subscribe. Signup creates NO subscription (trial is implicit); the free plan was deactivated by migration `20260613000000` (legacy free subscriptions remain valid). Cancelling (route or webhook) no longer re-subscribes to a free plan.
 - **Tenant guard** (`database/tenant-guard.ts`): wraps the Prisma client (real and test fakes) and THROWS when a query on a tenant model lacks `storeId` (in `where` for reads/updates/deletes, in `data` for creates). It never injects the filter automatically — routes must be explicit. `User` (login by global email) and `Store` are exempt.
 - Uniques are per-store composites: `Coupon @@unique([storeId, code])`, `Customer @@unique([storeId, phone])`, `Order @@unique([storeId, orderNumber])`, `Notification @@unique([storeId, type, entityId])`. In Prisma lookups use e.g. `where: { storeId_code: { storeId, code } }`.
 - `update`/`delete` by id use the ownership pattern: `updateMany/deleteMany({ where: { id, storeId } })` + 404 when `count === 0`.
@@ -129,6 +130,7 @@ apps/api/
     users/
       user.routes.ts             # GET /api/users e DELETE /api/users/:id (OWNER only)
     billing/
+      trial.ts                   # período de teste de 7 dias (TRIAL_MS, trialStatus)
       mercadopago.plugin.ts      # integração com MercadoPago — app.mercadopago (no-op sem access token)
       plan-limits.plugin.ts      # app.checkPlanLimit (preHandler 403) e app.planLimitStatus (limites do plano)
       billing.routes.ts          # GET /api/billing/plans (público), /current, /subscribe e /cancel (OWNER)
@@ -171,6 +173,7 @@ apps/web/
         promocoes/page.tsx            # gestão de promoções (desconto, kit, compre X leve Y, horário)
         cupons/page.tsx               # gestão de cupons de desconto com código
         plano/page.tsx                # plano atual, uso dos limites e troca/cancelamento (ações OWNER)
+        assinatura/page.tsx           # onboarding da ativação: teste de 7 dias, como funciona, assinar (OWNER)
         super/lojas/page.tsx          # plataforma: lojas (busca, suspender/reativar, trocar plano)
         super/planos/page.tsx         # plataforma: CRUD de planos
         super/usuarios/page.tsx       # plataforma: todos os usuários
@@ -217,13 +220,13 @@ packages/shared/
 
 **Data flow (public):** a page under `/loja/[slug]` calls `catalogService.listPublicProducts(slug)` → `services/api-client.ts` prefixes with `NEXT_PUBLIC_API_URL/api` → Fastify route `/api/lojas/:slug/products`. Public service functions are prefixed `Public` and take the slug (from `useStoreSlug()`).
 
-**Auth flow:** `POST /api/auth/login` returns `{ token, role, emailVerified, store: { slug, name } }` → token goes in the `Authorization: Bearer <token>` header; the web saves `admin_token`, `admin_store_slug`, `admin_store_name`, `admin_role` and `admin_email_verified` in `localStorage`.
+**Auth flow:** `POST /api/auth/login` returns `{ token, role, emailVerified, isSuperAdmin, store: { slug, name } }` → token goes in the `Authorization: Bearer <token>` header; the web saves `admin_token`, `admin_store_slug`, `admin_store_name`, `admin_role`, `admin_email_verified` and `admin_is_super_admin` in `localStorage`.
 
 **Protected routes:** every admin route group (`/api/products`, `/api/coupons`, `/api/orders`, …) requires JWT — including GETs. Protection is applied via `app.addHook('preHandler', app.authenticate)` in each `<feature>AdminRoutes`. Public reads happen only under `/api/lojas/:slug/...`.
 
 ## Mock data flag
 
-All pages that load data have a `USE_MOCK_DATA = true` flag at the top. Set to `false` when the API is ready. Mocks live in `apps/web/src/mocks/`. With mocks on, the store slug is ignored — any `/loja/<slug>` shows the same sample data.
+Pages that load data have a `USE_MOCK_DATA` flag at the top — **all currently set to `false`** (the web talks to the real API). Mocks live in `apps/web/src/mocks/` and remain useful for desenvolvimento sem API. With mocks on, the store slug is ignored — any `/loja/<slug>` shows the same sample data.
 
 ## Shared types summary
 

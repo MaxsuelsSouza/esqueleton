@@ -30,14 +30,20 @@ export function StoreProfileProvider({ children }: { children: React.ReactNode }
   // Slug da loja visitada — o perfil público é buscado pela rota /lojas/:slug
   const slug = useStoreSlug()
   const [profile, setProfile] = useState<StoreProfile>(DEFAULT_PROFILE)
+  // true quando a API responde 503 — loja fora do ar (período de teste vencido
+  // sem assinatura ativa); o visitante vê apenas um erro genérico
+  const [unavailable, setUnavailable] = useState(false)
 
   useEffect(() => {
     if (!slug) return
     storeProfileService
       .getPublicProfile(slug)
       .then(setProfile)
-      .catch(() => {
-        // Se a API não estiver disponível, mantém os valores padrão silenciosamente
+      .catch((error: unknown) => {
+        if ((error as { status?: number })?.status === 503) {
+          setUnavailable(true)
+        }
+        // Outras falhas mantêm os valores padrão silenciosamente
       })
   }, [slug])
 
@@ -45,6 +51,18 @@ export function StoreProfileProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     document.documentElement.style.setProperty('--color-primary', profile.themeColor)
   }, [profile.themeColor])
+
+  // Loja indisponível: nada do site aparece, apenas o erro genérico —
+  // de propósito, sem revelar que é uma pendência do lojista
+  if (unavailable) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-white px-6 text-center">
+        <p className="text-4xl">😕</p>
+        <h1 className="text-lg font-semibold text-gray-900">Ops! Aconteceu um erro</h1>
+        <p className="text-sm text-gray-500">Tente novamente mais tarde.</p>
+      </div>
+    )
+  }
 
   return (
     <StoreProfileContext.Provider value={{ profile, setProfile }}>

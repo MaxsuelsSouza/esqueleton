@@ -114,29 +114,16 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
         }).catch(() => {})
       }
 
-      // Se cancelou, cria assinatura gratuita automaticamente e avisa o lojista
+      // Se cancelou, avisa o lojista — sem assinatura ativa a loja sai do ar
+      // para os clientes (modelo "pagou, usou")
       if (newStatus === 'CANCELLED') {
-        const freePlan = await app.prisma.plan.findFirst({
-          where: { priceInCents: 0, active: true },
-          orderBy: { sortOrder: 'asc' },
-        })
-        if (freePlan) {
-          await app.prisma.subscription.create({
-            data: {
-              storeId: subscription.storeId,
-              planId: freePlan.id,
-              status: 'ACTIVE',
-            },
-          })
-        }
-
         app.prisma.notification.upsert({
           where: { storeId_type_entityId: { storeId: subscription.storeId, type: 'SUBSCRIPTION_CANCELLED', entityId: subscription.id } },
           create: {
             storeId: subscription.storeId,
             type: 'SUBSCRIPTION_CANCELLED',
             title: 'Sua assinatura foi cancelada',
-            body: 'Sua loja voltou ao plano gratuito.',
+            body: 'Sem uma assinatura ativa, sua loja fica indisponível para os clientes. Reative quando quiser.',
             entityId: subscription.id,
           },
           update: { status: 'PENDING', createdAt: new Date() },

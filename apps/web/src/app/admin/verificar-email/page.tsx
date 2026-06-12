@@ -63,11 +63,30 @@ export default function VerificarEmailPage() {
           <div className="flex flex-col items-center gap-4">
             <CheckCircle2 size={48} className="text-green-500" />
             <p className="text-lg font-semibold text-gray-900">{message}</p>
+
+            {/* Aviso da ativação — a loja funciona 7 dias de teste e depois
+                sai do ar para os clientes até a assinatura ser ativada */}
+            <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 text-left">
+              <p className="text-sm font-semibold text-orange-800">
+                Sua loja ainda não está ativada
+              </p>
+              <p className="mt-1 text-sm text-orange-700">
+                Você tem <strong>7 dias de teste</strong> com tudo liberado. Depois disso,
+                o seu catálogo sai do ar para os clientes até você ativar a assinatura.
+              </p>
+            </div>
+
+            <Link
+              href="/admin/assinatura"
+              className="inline-block w-full rounded-xl bg-gray-900 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-gray-700"
+            >
+              Ativar minha loja
+            </Link>
             <Link
               href="/admin/dashboard"
-              className="mt-2 inline-block rounded-xl bg-gray-900 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-gray-700"
+              className="text-sm font-medium text-gray-500 transition hover:text-gray-900"
             >
-              Ir para o painel
+              Deixar para depois — ir para o painel
             </Link>
           </div>
         )}
