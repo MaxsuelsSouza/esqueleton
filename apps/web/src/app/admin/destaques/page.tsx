@@ -5,7 +5,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   Plus, Pencil, Trash2, X, Clock, Calendar,
-  Sparkles, ToggleLeft, ToggleRight, Search,
+  Sparkles, ToggleLeft, ToggleRight, Search, GalleryHorizontalEnd,
 } from 'lucide-react'
 import { featuredService } from '@/services/featured.service'
 import { catalogService } from '@/services/catalog.service'
@@ -26,6 +26,7 @@ const EMPTY_FORM: FeaturedFormData = {
   startTime: undefined,
   endTime: undefined,
   active: false,
+  carousel: false,
 }
 
 export default function AdminDestaquesPage() {
@@ -98,6 +99,7 @@ export default function AdminDestaquesPage() {
       startTime: section.startTime,
       endTime: section.endTime,
       active: section.active,
+      carousel: section.carousel ?? false,
     })
     setHasTimeWindow(!!(section.startTime || section.endTime))
     setHasDateRange(!!(section.startDate || section.endDate))
@@ -274,6 +276,12 @@ export default function AdminDestaquesPage() {
                       {section.tag}
                     </span>
                     <StatusBadge status={status} />
+                    {section.carousel && (
+                      <span className="flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold text-purple-700">
+                        <GalleryHorizontalEnd size={10} />
+                        Carrossel
+                      </span>
+                    )}
                   </div>
 
                   {/* Produtos */}
@@ -465,6 +473,22 @@ export default function AdminDestaquesPage() {
                 </div>
               )}
             </div>
+
+            {/* Carrossel */}
+            <label className="flex cursor-pointer items-center gap-2">
+              <Toggle
+                value={form.carousel}
+                onChange={(v) => setForm((f) => ({ ...f, carousel: v }))}
+              />
+              <span className="text-sm text-gray-700">
+                Exibir como carrossel
+              </span>
+              {form.carousel && (
+                <span className="text-xs text-gray-400">
+                  Produtos passam automaticamente, 4 por vez.
+                </span>
+              )}
+            </label>
 
             {/* Ativo */}
             <label className="flex cursor-pointer items-center gap-2">

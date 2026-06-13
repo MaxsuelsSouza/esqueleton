@@ -111,6 +111,8 @@ export interface Featured {
   startTime?: string
   endTime?: string
   active: boolean
+  // Exibe os produtos em carrossel automático (4 por vez) em vez de grade estática
+  carousel: boolean
   createdAt: string
 }
 

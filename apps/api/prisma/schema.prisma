@@ -127,6 +127,8 @@ model Featured {
   startTime  String?
   endTime    String?
   active     Boolean  @default(false)
+  // Exibe os produtos em carrossel (4 por vez, avanço automático) em vez de grade estática
+  carousel   Boolean  @default(false)
   storeId    String
   store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())

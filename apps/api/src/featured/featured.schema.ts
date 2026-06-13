@@ -10,6 +10,7 @@ export const featuredSchema = z.object({
   startTime: timeSchema.nullish().transform(v => v || undefined),
   endTime: timeSchema.nullish().transform(v => v || undefined),
   active: z.boolean().default(false),
+  carousel: z.boolean().default(false),
 })
 
 export type FeaturedInput = z.infer<typeof featuredSchema>

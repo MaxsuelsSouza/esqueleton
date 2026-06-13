@@ -246,6 +246,7 @@ export default function CatalogPage() {
                 tag={activeFeatured.tag}
                 featuredId={activeFeatured.id}
                 featuredName={activeFeatured.title}
+                carousel={activeFeatured.carousel}
               />
             )}
 

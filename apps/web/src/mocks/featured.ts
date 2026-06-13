@@ -8,6 +8,7 @@ export const MOCK_FEATURED: Featured[] = [
     tag: 'Destaque',
     productIds: ['1', '2', '3', '4'],
     active: true,
+    carousel: false,
     createdAt: new Date().toISOString(),
   },
   {
@@ -16,6 +17,7 @@ export const MOCK_FEATURED: Featured[] = [
     tag: 'Oferta',
     productIds: ['7', '8', '9', '10'],
     active: false,
+    carousel: true,
     createdAt: new Date().toISOString(),
   },
 ]
