@@ -30,6 +30,8 @@ import { analyticsPublicRoutes, analyticsAdminRoutes } from './analytics/analyti
 import { customerPublicRoutes, customerAdminRoutes } from './customers/customer.routes'
 import { orderPublicRoutes, orderAdminRoutes } from './orders/order.routes'
 import { notificationRoutes } from './notifications/notification.routes'
+import { sessionPlugin } from './session/session.plugin'
+import { sessionPublicRoutes } from './session/session.routes'
 
 // Nos testes é possível injetar um banco de dados falso — veja prisma.plugin.ts
 type BuildAppOptions = {
@@ -93,6 +95,8 @@ export function buildApp(options: BuildAppOptions = {}) {
   // Cobrança: integração com o MercadoPago e verificação dos limites do plano
   app.register(mercadopagoPlugin)
   app.register(planLimitsPlugin)
+  // Sacola e favoritos dos visitantes — armazenados em Redis (ou memória em dev)
+  app.register(sessionPlugin)
 
   app.register(authRoutes, { prefix: '/api/auth' })
   app.register(passwordResetRoutes, { prefix: '/api/auth' })
@@ -127,6 +131,8 @@ export function buildApp(options: BuildAppOptions = {}) {
       publicApp.register(analyticsPublicRoutes, { prefix: '/analytics' })
       publicApp.register(customerPublicRoutes, { prefix: '/customers' })
       publicApp.register(orderPublicRoutes, { prefix: '/orders' })
+      // Sacola e favoritos do visitante — identificados por X-Session-Token
+      publicApp.register(sessionPublicRoutes, { prefix: '/session' })
     },
     { prefix: '/api/lojas/:slug' },
   )

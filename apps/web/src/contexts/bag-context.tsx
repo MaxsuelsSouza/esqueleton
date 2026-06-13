@@ -1,19 +1,17 @@
 'use client'
 
-// Contexto global da sacola de compras — persiste os itens no localStorage
-import { createContext, useContext, useState, useEffect, useRef } from 'react'
+// Contexto global da sacola de compras — persiste os itens no servidor (Redis)
+// em vez do localStorage, evitando consumo excessivo de memória do navegador.
+//
+// Os dados completos dos produtos (nome, preço, imagem) não são armazenados —
+// apenas os IDs e quantidades. A página da sacola busca os produtos frescos do
+// banco quando precisa renderizar.
+import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react'
 import type { Product, Coupon } from '@esqueleton/shared'
 import { couponsService } from '@/services/coupons.service'
 import { analyticsService } from '@/services/analytics.service'
+import { sessionService, type CartApiItem } from '@/services/session.service'
 import { useStoreSlug } from '@/hooks/useStoreSlug'
-
-export type BagItem = {
-  product: Product
-  quantity: number
-  // Promoção ativa no momento em que o produto foi adicionado — usado nos eventos de analytics
-  promotionId?: string
-  promotionName?: string
-}
 
 // Metadados opcionais que acompanham o produto ao ser adicionado à sacola
 type AddItemMeta = {
@@ -25,8 +23,10 @@ type AddItemMeta = {
 }
 
 interface BagContextValue {
-  items: BagItem[]
+  // Itens da sacola — apenas IDs e quantidades (sem dados completos do produto)
+  cartItems: CartApiItem[]
   totalItems: number
+  isLoading: boolean
   addItem: (product: Product, meta?: AddItemMeta) => void
   removeItem: (productId: string) => void
   updateQuantity: (productId: string, quantity: number) => void
@@ -38,61 +38,91 @@ interface BagContextValue {
   couponError: string | null
   applyCoupon: () => void
   removeCoupon: () => void
-  // Totais calculados
-  subtotal: number
-  discount: number
-  total: number
 }
 
 const BagContext = createContext<BagContextValue | null>(null)
 
 export function BagProvider({ children }: { children: React.ReactNode }) {
-  // Slug da loja visitada — a chave do localStorage inclui o slug para que
-  // um visitante de duas lojas diferentes não misture as sacolas
   const slug = useStoreSlug()
-  const storageKey = `sacola:${slug}`
 
-  const [items, setItems] = useState<BagItem[]>([])
+  const [cartItems, setCartItems] = useState<CartApiItem[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null)
   const [couponInput, setCouponInput] = useState('')
   const [couponError, setCouponError] = useState<string | null>(null)
 
-  // Controla se o efeito de salvar já passou pela primeira execução (que ocorre com items=[])
-  // Sem esse controle, o efeito de salvar roda antes do de carregar e apaga os dados do localStorage
-  const primeiroSave = useRef(true)
+  // Ref para evitar sincronizar o estado inicial (vazio) de volta ao servidor
+  const loaded = useRef(false)
 
-  // Recupera a sacola salva no navegador ao iniciar (e ao trocar de loja)
+  // Carrega a sacola do servidor ao montar (e ao trocar de loja).
+  // Na primeira vez após a migração, verifica se há dados antigos no localStorage
+  // e envia para o servidor — assim o visitante não perde a sacola que já tinha.
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(storageKey)
-      setItems(saved ? JSON.parse(saved) : [])
-    } catch {}
-    // Cupom pertence à loja anterior — descarta ao trocar de loja
+    if (!slug) return
+    loaded.current = false
+    setIsLoading(true)
     setAppliedCoupon(null)
-  }, [storageKey])
 
-  // Salva a sacola no navegador sempre que mudar —
-  // pula a primeira execução (items=[]) para não sobrescrever os dados já salvos
-  useEffect(() => {
-    if (primeiroSave.current) {
-      primeiroSave.current = false
-      return
-    }
-    localStorage.setItem(storageKey, JSON.stringify(items))
-  }, [items, storageKey])
+    sessionService.getCart(slug)
+      .then(async (items) => {
+        // Se o servidor está vazio, tenta migrar dados antigos do localStorage
+        if (items.length === 0) {
+          try {
+            const oldKey = `sacola:${slug}`
+            const oldData = localStorage.getItem(oldKey)
+            if (oldData) {
+              const oldItems = JSON.parse(oldData) as Array<{ product: { id: string }; quantity: number; promotionId?: string; promotionName?: string }>
+              if (oldItems.length > 0) {
+                const migrated = oldItems.map((i) => ({
+                  productId: i.product.id,
+                  quantity: i.quantity,
+                  promotionId: i.promotionId,
+                  promotionName: i.promotionName,
+                }))
+                await sessionService.setCart(slug, migrated)
+                items = migrated
+              }
+              localStorage.removeItem(oldKey)
+            }
+          } catch {}
+        }
+        setCartItems(items)
+        loaded.current = true
+      })
+      .catch(() => {
+        setCartItems([])
+        loaded.current = true
+      })
+      .finally(() => setIsLoading(false))
+  }, [slug])
+
+  // Sincroniza com o servidor sempre que os itens mudam — pula o carregamento inicial
+  const syncToServer = useCallback((items: CartApiItem[]) => {
+    if (!slug || !loaded.current) return
+    sessionService.setCart(slug, items)
+  }, [slug])
 
   function addItem(product: Product, meta?: AddItemMeta) {
-    setItems((prev) => {
-      const existing = prev.find((i) => i.product.id === product.id)
+    setCartItems((prev) => {
+      const existing = prev.find((i) => i.productId === product.id)
+      let next: CartApiItem[]
       if (existing) {
-        return prev.map((i) =>
-          i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i,
+        next = prev.map((i) =>
+          i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i,
         )
+      } else {
+        next = [...prev, {
+          productId: product.id,
+          quantity: 1,
+          promotionId: meta?.promotionId,
+          promotionName: meta?.promotionName,
+        }]
       }
-      return [...prev, { product, quantity: 1, promotionId: meta?.promotionId, promotionName: meta?.promotionName }]
+      syncToServer(next)
+      return next
     })
 
-    // Registra o evento de analytics — fire and forget, nunca bloqueia o usuário
+    // Registra o evento de analytics — fire and forget
     analyticsService.recordEvent(slug, {
       productId: product.id,
       productName: product.brand ? `${product.brand} ${product.name}` : product.name,
@@ -105,7 +135,11 @@ export function BagProvider({ children }: { children: React.ReactNode }) {
   }
 
   function removeItem(productId: string) {
-    setItems((prev) => prev.filter((i) => i.product.id !== productId))
+    setCartItems((prev) => {
+      const next = prev.filter((i) => i.productId !== productId)
+      syncToServer(next)
+      return next
+    })
   }
 
   function updateQuantity(productId: string, quantity: number) {
@@ -113,14 +147,19 @@ export function BagProvider({ children }: { children: React.ReactNode }) {
       removeItem(productId)
       return
     }
-    setItems((prev) =>
-      prev.map((i) => (i.product.id === productId ? { ...i, quantity } : i)),
-    )
+    setCartItems((prev) => {
+      const next = prev.map((i) =>
+        i.productId === productId ? { ...i, quantity } : i,
+      )
+      syncToServer(next)
+      return next
+    })
   }
 
   function clear() {
-    setItems([])
+    setCartItems([])
     setAppliedCoupon(null)
+    if (slug) sessionService.clearCart(slug)
   }
 
   // Valida o código na API — o servidor confere se o cupom existe, está ativo
@@ -137,7 +176,6 @@ export function BagProvider({ children }: { children: React.ReactNode }) {
       setCouponInput('')
       setCouponError(null)
     } catch (error) {
-      // A API retorna a mensagem do motivo (não encontrado, expirado, limite atingido…)
       setCouponError(error instanceof Error ? error.message : 'Cupom não encontrado.')
     }
   }
@@ -147,41 +185,13 @@ export function BagProvider({ children }: { children: React.ReactNode }) {
     setCouponError(null)
   }
 
-  // Subtotal sem desconto
-  const subtotal = items.reduce(
-    (sum, { product, quantity }) => sum + product.price * quantity,
-    0,
-  )
-
-  // Calcula o desconto do cupom sobre os produtos elegíveis
-  let discount = 0
-  if (appliedCoupon) {
-    const eligible = items.filter(
-      ({ product }) =>
-        !appliedCoupon.productIds?.length ||
-        appliedCoupon.productIds.includes(product.id),
-    )
-    const eligibleTotal = eligible.reduce(
-      (sum, { product, quantity }) => sum + product.price * quantity,
-      0,
-    )
-
-    if (appliedCoupon.discountType === 'percentage' && appliedCoupon.discountPercent) {
-      discount = Math.round(eligibleTotal * (appliedCoupon.discountPercent / 100) * 100) / 100
-    } else if (appliedCoupon.discountType === 'fixed' && appliedCoupon.discountValue) {
-      discount = Math.min(appliedCoupon.discountValue, eligibleTotal)
-    }
-  }
-
-  const total = Math.max(0, subtotal - discount)
-  const totalItems = items.reduce((sum, i) => sum + i.quantity, 0)
+  const totalItems = cartItems.reduce((sum, i) => sum + i.quantity, 0)
 
   return (
     <BagContext.Provider
       value={{
-        items, totalItems, addItem, removeItem, updateQuantity, clear,
+        cartItems, totalItems, isLoading, addItem, removeItem, updateQuantity, clear,
         appliedCoupon, couponInput, setCouponInput, couponError, applyCoupon, removeCoupon,
-        subtotal, discount, total,
       }}
     >
       {children}

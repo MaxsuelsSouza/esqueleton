@@ -2,7 +2,10 @@
 
 // Página da sacola de compras — mostra itens, cupom e total
 // O botão "Enviar pedido" abre o WhatsApp com o resumo formatado
-import { useState, useEffect, useRef } from 'react'
+//
+// Os itens da sacola ficam no servidor (Redis) com apenas IDs e quantidades —
+// os dados completos dos produtos (nome, preço, imagem) são buscados aqui ao abrir a página.
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Trash2, Plus, Minus, ShoppingBag, Tag, X, ArrowLeft, User, Phone, CheckSquare, Square } from 'lucide-react'
 import { useBag } from '@/contexts/bag-context'
@@ -11,19 +14,76 @@ import { useStoreProfile } from '@/contexts/store-profile-context'
 import { analyticsService } from '@/services/analytics.service'
 import { customersService } from '@/services/customers.service'
 import { ordersService } from '@/services/orders.service'
+import { catalogService } from '@/services/catalog.service'
 import { useStoreSlug } from '@/hooks/useStoreSlug'
+import type { Product, Coupon } from '@esqueleton/shared'
+
+// Item completo para renderização — combina dados do servidor (Redis) com o produto do banco
+type FullBagItem = {
+  product: Product
+  quantity: number
+  promotionId?: string
+  promotionName?: string
+}
 
 export default function SacolaPage() {
   const router = useRouter()
-  // Slug da loja visitada — usado nos links e nas chamadas públicas da API
   const slug = useStoreSlug()
   const {
-    items, totalItems, removeItem, updateQuantity, clear,
+    cartItems, totalItems, isLoading: isBagLoading,
+    removeItem, updateQuantity, clear,
     appliedCoupon, couponInput, setCouponInput, couponError, applyCoupon, removeCoupon,
-    subtotal, discount, total,
   } = useBag()
   const { customer, setCustomer } = useCustomer()
   const { profile } = useStoreProfile()
+
+  // Produtos buscados do banco — mapa por ID para acesso rápido
+  const [productMap, setProductMap] = useState<Map<string, Product>>(new Map())
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true)
+
+  // Busca os dados completos dos produtos sempre que os itens da sacola mudam
+  const productIds = useMemo(
+    () => cartItems.map((i) => i.productId),
+    [cartItems],
+  )
+
+  useEffect(() => {
+    if (productIds.length === 0) {
+      setProductMap(new Map())
+      setIsLoadingProducts(false)
+      return
+    }
+
+    setIsLoadingProducts(true)
+    catalogService.getPublicProductsByIds(slug, productIds)
+      .then((page) => {
+        const map = new Map<string, Product>()
+        for (const p of page.data ?? []) {
+          map.set(p.id, p)
+        }
+        setProductMap(map)
+      })
+      .catch(() => setProductMap(new Map()))
+      .finally(() => setIsLoadingProducts(false))
+  }, [slug, productIds.join(',')])
+
+  // Combina itens da sacola (Redis) com dados dos produtos (banco)
+  const items: FullBagItem[] = useMemo(() => {
+    const result: FullBagItem[] = []
+    for (const ci of cartItems) {
+      const product = productMap.get(ci.productId)
+      if (!product) continue
+      result.push({
+        product,
+        quantity: ci.quantity,
+        promotionId: ci.promotionId,
+        promotionName: ci.promotionName,
+      })
+    }
+    return result
+  }, [cartItems, productMap])
+
+  const isLoading = isBagLoading || isLoadingProducts
 
   // Itens selecionados para envio — começa com todos marcados
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
@@ -65,8 +125,7 @@ export default function SacolaPage() {
   // Apenas os itens que o usuário marcou para enviar agora
   const selectedItems = items.filter((i) => selectedIds.has(i.product.id))
 
-  // Recalcula os totais somente sobre os itens selecionados —
-  // o contexto calcula sobre tudo, então ignoramos seus valores aqui
+  // Recalcula os totais somente sobre os itens selecionados
   const selectedSubtotal = selectedItems.reduce(
     (sum, { product, quantity }) => sum + product.price * quantity,
     0,
@@ -112,11 +171,9 @@ export default function SacolaPage() {
 
     const lines: string[] = []
 
-    // Cabeçalho do pedido
     lines.push(`🛍️ *NOVO PEDIDO #${orderNumber}*`)
     lines.push(`📅 ${date} às ${time}`)
 
-    // Dados do cliente
     if (customerInfo) {
       lines.push('')
       lines.push(`👤 *CLIENTE*`)
@@ -124,7 +181,6 @@ export default function SacolaPage() {
       lines.push(`Telefone: ${customerInfo.phone}`)
     }
 
-    // Itens
     lines.push('')
     lines.push(divider)
     lines.push(`📦 *PRODUTOS*`)
@@ -139,12 +195,10 @@ export default function SacolaPage() {
       lines.push(`*${index + 1}. ${name}*`)
       lines.push(`   🔢 ${quantity} ${quantity === 1 ? 'unidade' : 'unidades'} × ${formatCurrency(unitPrice)}`)
 
-      // Mostra preço original quando há desconto de promoção
       if (product.originalPrice && product.originalPrice > product.price) {
         lines.push(`   De: ~R$ ${product.originalPrice.toFixed(2).replace('.', ',')}~ → Por: ${formatCurrency(unitPrice)}`)
       }
 
-      // Nome da promoção ativa
       if (promotionName) {
         lines.push(`   🏷️ Promoção: *${promotionName}*`)
       }
@@ -152,7 +206,6 @@ export default function SacolaPage() {
       lines.push(`   💵 Subtotal: *${formatCurrency(lineTotal)}*`)
     })
 
-    // Resumo financeiro
     lines.push('')
     lines.push(divider)
     lines.push(`💰 *RESUMO*`)
@@ -178,19 +231,16 @@ export default function SacolaPage() {
 
   // Efetivamente abre o WhatsApp, salva o pedido e dispara analytics — tudo em paralelo
   function goToWhatsApp(customerInfo: { name: string; phone: string }) {
-    // 1. Gera o número do pedido — o mesmo que vai na mensagem e no banco
     const orderNumber = String(Date.now()).slice(-6)
 
-    // 2. Abre o WhatsApp imediatamente
     const message = encodeURIComponent(buildWhatsAppMessage(customerInfo, orderNumber))
-    // Usa o número cadastrado no perfil da loja (admin → Perfil)
     const whatsappNumber = profile.whatsapp ?? ''
     const url = whatsappNumber
       ? `https://wa.me/${whatsappNumber}?text=${message}`
       : `https://wa.me/?text=${message}`
     window.open(url, '_blank')
 
-    // 3. Salva o pedido no banco da loja com apenas os itens selecionados — fire and forget
+    // Salva o pedido no banco da loja — fire and forget
     ordersService.create(slug, {
       orderNumber,
       customerName: customerInfo.name,
@@ -210,7 +260,7 @@ export default function SacolaPage() {
       couponCode: appliedCoupon?.code ?? undefined,
     })
 
-    // 4. Registra analytics — fire and forget
+    // Registra analytics — fire and forget
     for (const { product, promotionId, promotionName } of selectedItems) {
       analyticsService.recordEvent(slug, {
         productId: product.id,
@@ -232,12 +282,11 @@ export default function SacolaPage() {
       setPhoneInput('')
       setIdentError(null)
       setIdentModalOpen(true)
-      // Foca o campo nome assim que o modal abrir
       setTimeout(() => nameRef.current?.focus(), 50)
     }
   }
 
-  // Confirmação do modal — salva cliente, abre WhatsApp imediatamente, salva no banco em paralelo
+  // Confirmação do modal — salva cliente, abre WhatsApp imediatamente
   function handleIdentConfirm() {
     const name = nameInput.trim()
     const phone = phoneInput.trim()
@@ -246,16 +295,26 @@ export default function SacolaPage() {
     if (phone.length < 8) { setIdentError('Informe um telefone válido.'); return }
 
     const info = { name, phone }
-
-    // 1. Salva no contexto / localStorage
     setCustomer(info)
-
-    // 2. Fecha o modal e abre o WhatsApp imediatamente
     setIdentModalOpen(false)
     goToWhatsApp(info)
 
-    // 3. Salva no banco da loja em paralelo — fire and forget
+    // Salva no banco da loja em paralelo — fire and forget
     customersService.upsert(slug, name, phone)
+  }
+
+  // Carregando
+  if (isLoading) {
+    return (
+      <main className="min-h-screen bg-gray-50">
+        <div className="mx-auto max-w-screen-sm px-4 py-12">
+          <div className="flex flex-col items-center gap-4 py-20 text-center text-gray-400">
+            <div className="h-12 w-12 animate-pulse rounded-full bg-gray-200" />
+            <p className="text-sm text-gray-400">Carregando sacola...</p>
+          </div>
+        </div>
+      </main>
+    )
   }
 
   // Sacola vazia
@@ -298,7 +357,6 @@ export default function SacolaPage() {
               {selectedIds.size} de {totalItems} {totalItems === 1 ? 'item' : 'itens'} selecionado{selectedIds.size !== 1 ? 's' : ''}
             </p>
           </div>
-          {/* Selecionar todos / desmarcar todos + limpar sacola */}
           <div className="ml-auto flex items-center gap-3">
             <button
               onClick={toggleSelectAll}
@@ -326,7 +384,6 @@ export default function SacolaPage() {
                 isSelected ? 'border-gray-100' : 'border-gray-100 opacity-50'
               }`}
             >
-              {/* Checkbox de seleção */}
               <button
                 onClick={() => toggleSelect(product.id)}
                 aria-label={isSelected ? 'Desmarcar item' : 'Selecionar item'}
@@ -338,7 +395,6 @@ export default function SacolaPage() {
                 }
               </button>
 
-              {/* Foto */}
               <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-gray-100">
                 {product.imageUrl ? (
                   <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
@@ -349,7 +405,6 @@ export default function SacolaPage() {
                 )}
               </div>
 
-              {/* Informações */}
               <div className="flex min-w-0 flex-1 flex-col justify-between">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -370,7 +425,6 @@ export default function SacolaPage() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  {/* Preço da linha */}
                   <p className="text-sm font-bold text-gray-900">
                     {formatCurrency(product.price * quantity)}
                     {quantity > 1 && (
@@ -380,7 +434,6 @@ export default function SacolaPage() {
                     )}
                   </p>
 
-                  {/* Controle de quantidade */}
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => updateQuantity(product.id, quantity - 1)}
@@ -411,7 +464,6 @@ export default function SacolaPage() {
           <p className="mb-3 text-sm font-semibold text-gray-700">Cupom de desconto</p>
 
           {appliedCoupon ? (
-            // Cupom aplicado — exibe resumo com botão de remover
             <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-2.5">
               <Tag size={15} className="shrink-0 text-green-600" />
               <div className="flex-1 min-w-0">
@@ -474,7 +526,7 @@ export default function SacolaPage() {
           </div>
         </div>
 
-        {/* Identificação do cliente — exibe quando já está identificado */}
+        {/* Identificação do cliente */}
         {customer && (
           <div className="mb-4 flex items-center gap-2 rounded-2xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
             <User size={15} className="shrink-0 text-gray-400" />
@@ -490,13 +542,12 @@ export default function SacolaPage() {
           </div>
         )}
 
-        {/* Botão enviar pedido pelo WhatsApp — desabilitado se nenhum item selecionado */}
+        {/* Botão enviar pedido pelo WhatsApp */}
         <button
           onClick={handleSendWhatsApp}
           disabled={selectedIds.size === 0}
           className="flex w-full items-center justify-center gap-2 rounded-2xl bg-green-500 py-4 text-base font-bold text-white shadow-sm transition-colors hover:bg-green-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {/* Ícone do WhatsApp em SVG */}
           <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
             <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
           </svg>
@@ -513,7 +564,6 @@ export default function SacolaPage() {
         >
           <div className="w-full max-w-sm overflow-hidden rounded-t-2xl bg-white sm:rounded-2xl">
 
-            {/* Cabeçalho */}
             <div className="flex items-center justify-between border-b px-5 py-4">
               <div>
                 <h2 className="text-base font-bold text-gray-900">Identificação</h2>
@@ -524,7 +574,6 @@ export default function SacolaPage() {
               </button>
             </div>
 
-            {/* Formulário */}
             <div className="flex flex-col gap-4 px-5 py-5">
 
               <div className="flex flex-col gap-1.5">
