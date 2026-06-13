@@ -18,20 +18,18 @@ function suggestSlugFromName(name: string): string {
     .replace(/^-+|-+$/g, '') // remove hífens sobrando nas pontas
 }
 
-// Guarda o token e os dados da loja no navegador — usados pelo painel admin
+// Guarda o token e os dados da loja no navegador — usados pelo painel admin.
+// role e isSuperAdmin não são salvos aqui: o hook useAdminAuth lê direto do
+// payload JWT (assinado pelo servidor) para evitar adulteração via localStorage.
 function saveSession(data: {
   token: string
-  role: string
   emailVerified: boolean
-  isSuperAdmin?: boolean
   store: { slug: string; name: string }
 }) {
   localStorage.setItem('admin_token', data.token)
   localStorage.setItem('admin_store_slug', data.store.slug)
   localStorage.setItem('admin_store_name', data.store.name)
-  localStorage.setItem('admin_role', data.role)
   localStorage.setItem('admin_email_verified', String(data.emailVerified))
-  localStorage.setItem('admin_is_super_admin', String(data.isSuperAdmin ?? false))
 }
 
 export default function AdminLoginPage() {
