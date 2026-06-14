@@ -607,10 +607,11 @@ const HEALTH_CONFIG: Record<ProductHealth, { label: string; dot: string; card: s
   sem_dados: { label: 'Sem dados',         dot: 'bg-gray-200',   card: 'border-gray-100',   badge: 'bg-gray-100 text-gray-400' },
 }
 
-type ProductFilter = 'todos' | 'vendendo' | 'pendente' | 'parado' | 'interesse'
+// Filtros do ranking: cada um ordena por uma métrica diferente
+type ProductFilter = 'ranking' | 'vendendo' | 'whatsapp' | 'sacola' | 'favoritos' | 'vistos'
 
 function ProductFunnelSection({ analytics, onClearFunnel }: { analytics: AnalyticsSummary; onClearFunnel: () => void }) {
-  const [activeFilter, setActiveFilter] = useState<ProductFilter>('todos')
+  const [activeFilter, setActiveFilter] = useState<ProductFilter>('ranking')
   const [showAll, setShowAll] = useState(false)
 
   // Consolida todas as listas em uma única, sem duplicatas
@@ -625,44 +626,84 @@ function ProductFunnelSection({ analytics, onClearFunnel }: { analytics: Analyti
   ]) {
     allProductsMap.set(p.productId, p)
   }
-  const allProducts = Array.from(allProductsMap.values()).sort((a, b) => b.totalPoints - a.totalPoints)
+  const allProducts = Array.from(allProductsMap.values())
 
-  const countBy = (h: ProductHealth) => allProducts.filter((p) => getProductHealth(p) === h).length
+  // Cada filtro ordena pela métrica correspondente e filtra quem tem valor > 0
+  function sortAndFilter(products: ProductMetric[]): ProductMetric[] {
+    switch (activeFilter) {
+      case 'vendendo':
+        return [...products].filter((p) => p.confirmedSales > 0)
+          .sort((a, b) => b.confirmedSales - a.confirmedSales)
+      case 'whatsapp':
+        return [...products].filter((p) => p.whatsappSends > 0)
+          .sort((a, b) => b.whatsappSends - a.whatsappSends)
+      case 'sacola':
+        return [...products].filter((p) => p.cartAdds > 0)
+          .sort((a, b) => b.cartAdds - a.cartAdds)
+      case 'favoritos':
+        return [...products].filter((p) => (p.favorites ?? 0) > 0)
+          .sort((a, b) => (b.favorites ?? 0) - (a.favorites ?? 0))
+      case 'vistos':
+        return [...products].filter((p) => (p.views ?? 0) > 0)
+          .sort((a, b) => (b.views ?? 0) - (a.views ?? 0))
+      default: {
+        // Ranking geral — vendas têm o maior peso, depois WhatsApp, sacola, etc.
+        const score = (p: ProductMetric) =>
+          (p.confirmedSales * 50)
+          + (p.whatsappSends * 10)
+          + (p.cartAdds * 5)
+          + ((p.favorites ?? 0) * 2)
+          + (p.linkCopies)
+          + ((p.views ?? 0))
+        return [...products].sort((a, b) => score(b) - score(a))
+      }
+    }
+  }
 
-  const filters: { key: ProductFilter; label: string; count: number; dot: string }[] = [
-    { key: 'todos',     label: 'Todos',           count: allProducts.length,    dot: 'bg-gray-400' },
-    { key: 'vendendo',  label: 'Vendendo',         count: countBy('vendendo'),   dot: 'bg-green-500' },
-    { key: 'pendente',  label: 'Aguardando',       count: countBy('pendente'),   dot: 'bg-yellow-400' },
-    { key: 'parado',    label: 'Parado na sacola', count: countBy('parado'),     dot: 'bg-orange-400' },
-    { key: 'interesse', label: 'Só interesse',     count: countBy('interesse'),  dot: 'bg-blue-300' },
+  const filtered = sortAndFilter(allProducts)
+
+  // Contagem para cada filtro (quantos produtos têm essa métrica > 0)
+  const countVendendo  = allProducts.filter((p) => p.confirmedSales > 0).length
+  const countWhatsapp  = allProducts.filter((p) => p.whatsappSends > 0).length
+  const countSacola    = allProducts.filter((p) => p.cartAdds > 0).length
+  const countFavoritos = allProducts.filter((p) => (p.favorites ?? 0) > 0).length
+  const countVistos    = allProducts.filter((p) => (p.views ?? 0) > 0).length
+
+  const filters: { key: ProductFilter; label: string; count: number; icon: React.ElementType }[] = [
+    { key: 'ranking',   label: 'Ranking',          count: allProducts.length,  icon: BarChart3 },
+    { key: 'vendendo',  label: 'Mais vendidos',    count: countVendendo,       icon: CheckCircle2 },
+    { key: 'whatsapp',  label: 'WhatsApp',         count: countWhatsapp,       icon: MessageCircle },
+    { key: 'sacola',    label: 'Na sacola',        count: countSacola,         icon: ShoppingBag },
+    { key: 'favoritos', label: 'Favoritos',        count: countFavoritos,      icon: Heart },
+    { key: 'vistos',    label: 'Mais vistos',      count: countVistos,         icon: Eye },
   ]
 
-  const filtered = activeFilter === 'todos'
-    ? allProducts
-    : allProducts.filter((p) => getProductHealth(p) === activeFilter)
-  const displayed = showAll ? filtered : filtered.slice(0, 12)
+  const displayed = showAll ? filtered : filtered.slice(0, 10)
 
   return (
     <>
-      {/* Filtros de saúde */}
+      {/* Filtros de ranking */}
       <div className="flex items-center gap-2 overflow-x-auto border-b px-4 py-3 scrollbar-none">
-        {filters.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => { setActiveFilter(f.key); setShowAll(false) }}
-            className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-              activeFilter === f.key
-                ? 'bg-gray-900 text-white'
-                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-            }`}
-          >
-            <span className={`h-2 w-2 rounded-full ${activeFilter === f.key ? 'bg-white opacity-70' : f.dot}`} />
-            {f.label}
-            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${activeFilter === f.key ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-500'}`}>
-              {f.count}
-            </span>
-          </button>
-        ))}
+        {filters.map((f) => {
+          const FilterIcon = f.icon
+          return (
+            <button
+              key={f.key}
+              onClick={() => { setActiveFilter(f.key); setShowAll(false) }}
+              className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                activeFilter === f.key
+                  ? 'bg-gray-900 text-white'
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              }`}
+            >
+              <FilterIcon size={12} />
+              {f.label}
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${activeFilter === f.key ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                {f.count}
+              </span>
+            </button>
+          )
+        })}
         <button
           onClick={onClearFunnel}
           className="ml-auto shrink-0 text-xs text-red-400 hover:text-red-600"
@@ -675,61 +716,78 @@ function ProductFunnelSection({ analytics, onClearFunnel }: { analytics: Analyti
         <p className="px-5 py-10 text-center text-sm text-gray-400">Nenhum produto nessa situação ainda.</p>
       ) : (
         <>
-          {/* Grade de cartões */}
-          <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
-            {displayed.map((p) => {
+          {/* Ranking de produtos */}
+          <div className="divide-y divide-gray-50">
+            {displayed.map((p, index) => {
               const health = getProductHealth(p)
               const cfg = HEALTH_CONFIG[health]
-              const insight = getHealthInsight(p, health)
-              const whatsappPct = p.cartAdds > 0 ? Math.round((p.whatsappSends / p.cartAdds) * 100) : 0
-              const salesPct   = p.whatsappSends > 0 ? Math.round((p.confirmedSales / p.whatsappSends) * 100) : 0
+
+              // Valor principal que aparece em destaque à direita, conforme o filtro ativo
+              const mainValue =
+                activeFilter === 'vendendo'  ? p.confirmedSales :
+                activeFilter === 'whatsapp'  ? p.whatsappSends :
+                activeFilter === 'sacola'    ? p.cartAdds :
+                activeFilter === 'favoritos' ? (p.favorites ?? 0) :
+                activeFilter === 'vistos'    ? (p.views ?? 0) :
+                (p.views ?? 0) + (p.favorites ?? 0) + p.cartAdds + p.whatsappSends + p.linkCopies
+
+              // Posição no ranking — top 3 recebe cor especial
+              const pos = index + 1
+              const posColor = pos === 1 ? 'text-yellow-500' : pos === 2 ? 'text-gray-400' : pos === 3 ? 'text-amber-700' : 'text-gray-300'
 
               return (
-                <div key={p.productId} className={`flex flex-col gap-3 rounded-xl border bg-white p-4 ${cfg.card}`}>
+                <div key={p.productId} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50">
 
-                  {/* Cabeçalho: nome + badge de saúde */}
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-semibold leading-snug text-gray-900">{p.productName}</p>
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${cfg.badge}`}>
-                      <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
-                      {cfg.label}
-                    </span>
+                  {/* Posição no ranking */}
+                  <span className={`w-5 shrink-0 text-right text-sm font-bold ${posColor}`}>
+                    {pos}
+                  </span>
+
+                  {/* Bolinha de saúde */}
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${cfg.dot}`} title={cfg.label} />
+
+                  {/* Nome + métricas */}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-gray-900">{p.productName}</p>
+
+                    {/* Métricas em linha */}
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
+                      <span title="Visualizações" className={`${(p.views ?? 0) > 0 ? 'text-gray-500' : 'text-gray-300'} ${activeFilter === 'vistos' ? 'font-bold' : ''}`}>
+                        <Eye size={11} className="mr-0.5 inline" />{p.views ?? 0}
+                      </span>
+                      <span title="Favoritos" className={`${(p.favorites ?? 0) > 0 ? 'text-purple-500' : 'text-gray-300'} ${activeFilter === 'favoritos' ? 'font-bold' : ''}`}>
+                        <Heart size={11} className="mr-0.5 inline" />{p.favorites ?? 0}
+                      </span>
+                      <span title="Adicionado à sacola" className={`${p.cartAdds > 0 ? 'text-blue-500' : 'text-gray-300'} ${activeFilter === 'sacola' ? 'font-bold' : ''}`}>
+                        <ShoppingBag size={11} className="mr-0.5 inline" />{p.cartAdds}
+                      </span>
+                      <span title="Enviado pelo WhatsApp" className={`${p.whatsappSends > 0 ? 'text-green-500' : 'text-gray-300'} ${activeFilter === 'whatsapp' ? 'font-bold' : ''}`}>
+                        <MessageCircle size={11} className="mr-0.5 inline" />{p.whatsappSends}
+                      </span>
+                      <span title="Vendas confirmadas" className={`${p.confirmedSales > 0 ? 'text-emerald-600' : 'text-gray-300'} ${activeFilter === 'vendendo' ? 'font-bold' : ''}`}>
+                        <CheckCircle2 size={11} className="mr-0.5 inline" />{p.confirmedSales}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Frase de diagnóstico */}
-                  <p className="text-xs leading-relaxed text-gray-500">{insight}</p>
-
-                  {/* Funil visual: etapas em linha */}
-                  <div className="flex items-center gap-1 text-xs">
-                    <FunnelStep value={p.views ?? 0}       label="Views"     active={(p.views ?? 0) > 0}    color="text-gray-400" />
-                    <FunnelArrow />
-                    <FunnelStep value={p.cartAdds}          label="Sacola"    active={p.cartAdds > 0}         color="text-blue-500" />
-                    <FunnelArrow />
-                    <FunnelStep value={p.whatsappSends}     label="WhatsApp"  active={p.whatsappSends > 0}    color="text-green-500" />
-                    <FunnelArrow />
-                    <FunnelStep value={p.confirmedSales}    label="Vendas"    active={p.confirmedSales > 0}   color="text-emerald-600" bold />
+                  {/* Valor principal em destaque */}
+                  <div className="shrink-0 text-right">
+                    <p className="text-lg font-bold text-gray-900">{mainValue}</p>
+                    <p className="text-[10px] text-gray-400">
+                      {activeFilter === 'vendendo'  ? 'vendas' :
+                       activeFilter === 'whatsapp'  ? 'envios' :
+                       activeFilter === 'sacola'    ? 'sacola' :
+                       activeFilter === 'favoritos' ? 'favoritos' :
+                       activeFilter === 'vistos'    ? 'views' :
+                       'interações'}
+                    </p>
                   </div>
-
-                  {/* Taxa de conversão — só quando há dados relevantes */}
-                  {p.whatsappSends > 0 && (
-                    <div className="flex items-center justify-between border-t pt-2 text-[11px] text-gray-400">
-                      <span>Sacola → WhatsApp: <strong className="text-gray-600">{whatsappPct}%</strong></span>
-                      {p.whatsappSends > 0 && <span>WhatsApp → Venda: <strong className={salesPct > 0 ? 'text-green-600' : 'text-gray-400'}>{salesPct}%</strong></span>}
-                    </div>
-                  )}
-
-                  {/* Aviso de pedidos pendentes */}
-                  {p.pendingOrders > 0 && p.confirmedSales === 0 && (
-                    <div className="rounded-lg bg-yellow-50 px-3 py-2 text-[11px] font-medium text-yellow-700">
-                      {p.pendingOrders} pedido{p.pendingOrders > 1 ? 's' : ''} aguardando confirmação no dashboard
-                    </div>
-                  )}
                 </div>
               )
             })}
           </div>
 
-          {filtered.length > 12 && (
+          {filtered.length > 10 && (
             <button
               onClick={() => setShowAll((v) => !v)}
               className="flex w-full items-center justify-center gap-1 border-t py-3 text-xs font-medium text-gray-400 hover:bg-gray-50 hover:text-gray-700"
