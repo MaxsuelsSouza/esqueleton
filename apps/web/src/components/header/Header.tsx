@@ -9,7 +9,6 @@ import { useState, useEffect } from 'react'
 import { Search, X } from 'lucide-react'
 import { LogoArea } from './LogoArea'
 import { SearchBar } from './SearchBar'
-import { OffersLink } from './OffersLink'
 import { FavoritesButton } from './FavoritesButton'
 import { BagButton } from './BagButton'
 import { CustomerButton } from './CustomerButton'
@@ -54,10 +53,6 @@ export function Header({ logoUrl, storeName }: HeaderProps) {
           >
             {mobileSearchOpen ? <X size={22} /> : <Search size={22} />}
           </button>
-
-          <div className="hidden sm:block">
-            <OffersLink />
-          </div>
 
           <CustomerButton />
 

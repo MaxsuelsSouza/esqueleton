@@ -15,8 +15,10 @@ import { analyticsService } from '@/services/analytics.service'
 import { customersService } from '@/services/customers.service'
 import { ordersService } from '@/services/orders.service'
 import { catalogService } from '@/services/catalog.service'
+import { promotionsService } from '@/services/promotions.service'
 import { useStoreSlug } from '@/hooks/useStoreSlug'
-import type { Product, Coupon } from '@esqueleton/shared'
+import { applyPromotionsToProducts } from '@/utils/promotions'
+import type { Product, Promotion, Coupon } from '@esqueleton/shared'
 
 // Item completo para renderização — combina dados do servidor (Redis) com o produto do banco
 type FullBagItem = {
@@ -24,6 +26,8 @@ type FullBagItem = {
   quantity: number
   promotionId?: string
   promotionName?: string
+  // Cor da borda da promoção — só exibe borda no card quando definida
+  badgeColor?: string
 }
 
 export default function SacolaPage() {
@@ -37,11 +41,12 @@ export default function SacolaPage() {
   const { customer, setCustomer } = useCustomer()
   const { profile } = useStoreProfile()
 
-  // Produtos buscados do banco — mapa por ID para acesso rápido
-  const [productMap, setProductMap] = useState<Map<string, Product>>(new Map())
+  // Produtos buscados do banco com promoções aplicadas — mapa por ID para acesso rápido
+  type ProductWithPromo = { product: Product; promotionId?: string; promotionName?: string; badgeColor?: string }
+  const [productMap, setProductMap] = useState<Map<string, ProductWithPromo>>(new Map())
   const [isLoadingProducts, setIsLoadingProducts] = useState(true)
 
-  // Busca os dados completos dos produtos sempre que os itens da sacola mudam
+  // Busca os dados completos dos produtos e as promoções ativas para aplicar os descontos
   const productIds = useMemo(
     () => cartItems.map((i) => i.productId),
     [cartItems],
@@ -55,11 +60,22 @@ export default function SacolaPage() {
     }
 
     setIsLoadingProducts(true)
-    catalogService.getPublicProductsByIds(slug, productIds)
-      .then((page) => {
-        const map = new Map<string, Product>()
-        for (const p of page.data ?? []) {
-          map.set(p.id, p)
+    Promise.all([
+      catalogService.getPublicProductsByIds(slug, productIds),
+      promotionsService.listPublicPromotions(slug).catch(() => [] as Promotion[]),
+    ])
+      .then(([page, promotions]) => {
+        const products = page.data ?? []
+        // Aplica promoções ativas aos produtos — mesmo cálculo usado no catálogo
+        const promoted = applyPromotionsToProducts(products, promotions)
+        const map = new Map<string, ProductWithPromo>()
+        for (const item of promoted) {
+          map.set(item.product.id, {
+            product: item.product,
+            promotionId: item.promotionId,
+            promotionName: item.promotionName,
+            badgeColor: item.badgeColor,
+          })
         }
         setProductMap(map)
       })
@@ -67,17 +83,18 @@ export default function SacolaPage() {
       .finally(() => setIsLoadingProducts(false))
   }, [slug, productIds.join(',')])
 
-  // Combina itens da sacola (Redis) com dados dos produtos (banco)
+  // Combina itens da sacola (Redis) com dados dos produtos (banco) + promoção ativa
   const items: FullBagItem[] = useMemo(() => {
     const result: FullBagItem[] = []
     for (const ci of cartItems) {
-      const product = productMap.get(ci.productId)
-      if (!product) continue
+      const entry = productMap.get(ci.productId)
+      if (!entry) continue
       result.push({
-        product,
+        product: entry.product,
         quantity: ci.quantity,
-        promotionId: ci.promotionId,
-        promotionName: ci.promotionName,
+        promotionId: entry.promotionId ?? ci.promotionId,
+        promotionName: entry.promotionName ?? ci.promotionName,
+        badgeColor: entry.badgeColor,
       })
     }
     return result
@@ -130,6 +147,13 @@ export default function SacolaPage() {
     (sum, { product, quantity }) => sum + product.price * quantity,
     0,
   )
+
+  // Subtotal com preços originais (sem promoção) — para exibir a economia
+  const selectedOriginalSubtotal = selectedItems.reduce(
+    (sum, { product, quantity }) => sum + (product.originalPrice ?? product.price) * quantity,
+    0,
+  )
+  const promotionSavings = selectedOriginalSubtotal - selectedSubtotal
 
   let selectedDiscount = 0
   if (appliedCoupon) {
@@ -271,6 +295,11 @@ export default function SacolaPage() {
         couponCode: appliedCoupon?.code,
       })
     }
+
+    // Remove os itens enviados da sacola
+    for (const { product } of selectedItems) {
+      removeItem(product.id)
+    }
   }
 
   // Clique no botão principal — se já identificado, vai direto; senão, abre o modal
@@ -375,15 +404,30 @@ export default function SacolaPage() {
 
         {/* Lista de itens */}
         <div className="mb-4 flex flex-col gap-3">
-          {items.map(({ product, quantity }) => {
+          {items.map(({ product, quantity, promotionName, badgeColor }) => {
             const isSelected = selectedIds.has(product.id)
+            const showBorder = !!(promotionName && badgeColor)
             return (
             <div
               key={product.id}
-              className={`flex gap-3 rounded-2xl border bg-white p-3 shadow-sm transition-opacity ${
-                isSelected ? 'border-gray-100' : 'border-gray-100 opacity-50'
+              className={`relative flex gap-3 rounded-2xl bg-white p-3 shadow-sm transition-opacity ${
+                !isSelected ? 'opacity-50' : ''
               }`}
+              style={showBorder
+                ? { border: `2px solid ${badgeColor}` }
+                : { border: '1px solid rgb(243 244 246)' }
+              }
             >
+              {/* Badge da promoção no canto superior direito */}
+              {showBorder && (
+                <span
+                  className="absolute -top-2.5 right-3 z-10 rounded-full px-2.5 py-0.5 text-[10px] font-bold text-white shadow-sm"
+                  style={{ backgroundColor: badgeColor }}
+                >
+                  {promotionName}
+                </span>
+              )}
+
               <button
                 onClick={() => toggleSelect(product.id)}
                 aria-label={isSelected ? 'Desmarcar item' : 'Selecionar item'}
@@ -507,10 +551,22 @@ export default function SacolaPage() {
         {/* Resumo de valores */}
         <div className="mb-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-2">
+            {promotionSavings > 0 && (
+              <div className="flex justify-between text-sm text-gray-400">
+                <span>Subtotal sem promoção</span>
+                <span className="line-through">{formatCurrency(selectedOriginalSubtotal)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-sm text-gray-600">
               <span>Subtotal ({selectedIds.size} {selectedIds.size === 1 ? 'item' : 'itens'})</span>
               <span>{formatCurrency(selectedSubtotal)}</span>
             </div>
+            {promotionSavings > 0 && (
+              <div className="flex justify-between text-sm text-green-600">
+                <span>Economia em promoções</span>
+                <span>-{formatCurrency(promotionSavings)}</span>
+              </div>
+            )}
 
             {selectedDiscount > 0 && (
               <div className="flex justify-between text-sm text-green-600">
@@ -567,7 +623,7 @@ export default function SacolaPage() {
             <div className="flex items-center justify-between border-b px-5 py-4">
               <div>
                 <h2 className="text-base font-bold text-gray-900">Identificação</h2>
-                <p className="text-xs text-gray-500">Para o lojista entrar em contato com você</p>
+                <p className="text-xs text-gray-500">Seus dados serão enviados junto com o pedido</p>
               </div>
               <button onClick={() => setIdentModalOpen(false)} className="text-gray-400 hover:text-gray-700">
                 <X size={18} />
