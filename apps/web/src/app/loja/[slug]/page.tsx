@@ -373,14 +373,14 @@ function ProductGrid({
   items,
   displayMode,
 }: {
-  items: { product: Product; badge?: string; badgeColor?: string; promotionId?: string; promotionName?: string }[]
+  items: { product: Product; badge?: string; badgeColor?: string; promotionId?: string; promotionName?: string; originalPrice?: number; discountPercent?: number }[]
   displayMode: DisplayMode
 }) {
   if (displayMode === 'list') {
     return (
       <div className="flex flex-col gap-3">
-        {items.map(({ product, badge, badgeColor, promotionId, promotionName }) => (
-          <ProductCard key={product.id} product={product} badge={badge} badgeColor={badgeColor} promotionId={promotionId} promotionName={promotionName} displayMode="list" />
+        {items.map(({ product, badge, badgeColor, promotionId, promotionName, originalPrice, discountPercent }) => (
+          <ProductCard key={product.id} product={product} badge={badge} badgeColor={badgeColor} promotionId={promotionId} promotionName={promotionName} originalPrice={originalPrice} discountPercent={discountPercent} displayMode="list" />
         ))}
       </div>
     )
@@ -388,8 +388,8 @@ function ProductGrid({
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
-      {items.map(({ product, badge, badgeColor, promotionId, promotionName }) => (
-        <ProductCard key={product.id} product={product} badge={badge} badgeColor={badgeColor} promotionId={promotionId} promotionName={promotionName} displayMode="grid" />
+      {items.map(({ product, badge, badgeColor, promotionId, promotionName, originalPrice, discountPercent }) => (
+        <ProductCard key={product.id} product={product} badge={badge} badgeColor={badgeColor} promotionId={promotionId} promotionName={promotionName} originalPrice={originalPrice} discountPercent={discountPercent} displayMode="grid" />
       ))}
     </div>
   )

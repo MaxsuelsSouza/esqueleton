@@ -81,8 +81,10 @@ export default function ProductDetailPage() {
 
   const [product, setProduct] = useState<Product | null>(null)
   // Preço original do produto (antes de aplicar promoção) — usado para calcular
-  // o desconto proporcional nas variantes
+  // o desconto proporcional nas variantes e exibir preço riscado
   const [rawPrice, setRawPrice] = useState<number | null>(null)
+  // Percentual de desconto da promoção ativa — exibido como tag (ex: "-20%")
+  const [promoDiscountPercent, setPromoDiscountPercent] = useState<number | undefined>(undefined)
   const [isLoading, setIsLoading] = useState(true)
   const [copied, setCopied] = useState(false)
   const [added, setAdded] = useState(false)
@@ -100,7 +102,14 @@ export default function ProductDetailPage() {
         setRawPrice(found.price)
         // Aplica promoção ativa ao produto, se houver
         const promo = getActivePromotionForProduct(found.id, MOCK_PROMOTIONS)
-        setProduct(promo ? applyPromotionToProduct(found, promo).product : found)
+        if (promo) {
+          const result = applyPromotionToProduct(found, promo)
+          setProduct(result.product)
+          setPromoDiscountPercent(result.discountPercent)
+        } else {
+          setProduct(found)
+          setPromoDiscountPercent(undefined)
+        }
       } else {
         setProduct(null)
       }
@@ -119,8 +128,14 @@ export default function ProductDetailPage() {
         setRawPrice(p.price)
         // Aplica promoção ativa ao produto, se houver
         const promo = getActivePromotionForProduct(p.id, promotions)
-        const finalProduct = promo ? applyPromotionToProduct(p, promo).product : p
-        setProduct(finalProduct)
+        if (promo) {
+          const result = applyPromotionToProduct(p, promo)
+          setProduct(result.product)
+          setPromoDiscountPercent(result.discountPercent)
+        } else {
+          setProduct(p)
+          setPromoDiscountPercent(undefined)
+        }
         // Registra a visualização apenas se este efeito ainda for o atual
         // e se o produto ainda não foi visto hoje (evita contar múltiplas vezes no mesmo dia)
         if (!cancelled && !jaViuHoje(p.id)) {
@@ -182,11 +197,13 @@ export default function ProductDetailPage() {
           const optionGroups = getOptionGroups(activeVariants)
           const selectedVariant = findVariant(activeVariants, selectedOptions)
 
+          // Verifica se há promoção aplicada ao produto (preço original maior que o preço atual)
+          const hasPromo = rawPrice !== null && rawPrice > product.price
+
           // Preço da variante selecionada — quando há promoção, aplica o mesmo desconto
           // proporcional ao preço da variante (ex: promoção de 20% → variant.price * 0.8)
           let displayPrice = product.price
           if (selectedVariant) {
-            const hasPromo = rawPrice !== null && rawPrice > product.price
             if (hasPromo) {
               const discountRate = product.price / rawPrice
               displayPrice = Math.round(selectedVariant.price * discountRate * 100) / 100
@@ -282,9 +299,13 @@ export default function ProductDetailPage() {
                 </div>
 
                 {/* Preço */}
-                {/* Preço */}
                 <div className="rounded-xl bg-white p-4 shadow-sm">
-                  <ProductPrice price={displayPrice} size="lg" />
+                  <ProductPrice
+                    price={displayPrice}
+                    size="lg"
+                    originalPrice={hasPromo ? (selectedVariant ? selectedVariant.price : rawPrice ?? undefined) : undefined}
+                    discountPercent={hasPromo ? promoDiscountPercent : undefined}
+                  />
                 </div>
 
                 {/* Seletor de variantes */}

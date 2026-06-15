@@ -21,12 +21,16 @@ interface ProductCardProps {
   // Promoção ativa — passada para o evento de analytics ao adicionar à sacola
   promotionId?: string
   promotionName?: string
+  // Preço original antes da promoção — exibido riscado ao lado do preço atual
+  originalPrice?: number
+  // Percentual de desconto da promoção — exibido como tag (ex: "-20%")
+  discountPercent?: number
   // Seção em destaque de origem — quando o card é exibido dentro de um destaque
   featuredId?: string
   featuredName?: string
 }
 
-export function ProductCard({ product, displayMode = 'grid', badge, badgeColor, promotionId, promotionName, featuredId, featuredName }: ProductCardProps) {
+export function ProductCard({ product, displayMode = 'grid', badge, badgeColor, promotionId, promotionName, originalPrice, discountPercent, featuredId, featuredName }: ProductCardProps) {
   const { addItem } = useBag()
   const { isFavorited, toggleFavorite } = useFavorites()
   const router = useRouter()
@@ -52,10 +56,10 @@ export function ProductCard({ product, displayMode = 'grid', badge, badgeColor, 
   }
 
   if (displayMode === 'list') {
-    return <ProductCardList product={product} badge={badge} badgeColor={badgeColor} favorited={favorited} onFavorite={() => toggleFavorite(product)} onCardClick={goToDetail} onAddToBag={handleAddToBag} />
+    return <ProductCardList product={product} badge={badge} badgeColor={badgeColor} originalPrice={originalPrice} discountPercent={discountPercent} favorited={favorited} onFavorite={() => toggleFavorite(product)} onCardClick={goToDetail} onAddToBag={handleAddToBag} />
   }
 
-  return <ProductCardGrid product={product} badge={badge} badgeColor={badgeColor} favorited={favorited} onFavorite={() => toggleFavorite(product)} onCardClick={goToDetail} onAddToBag={handleAddToBag} />
+  return <ProductCardGrid product={product} badge={badge} badgeColor={badgeColor} originalPrice={originalPrice} discountPercent={discountPercent} favorited={favorited} onFavorite={() => toggleFavorite(product)} onCardClick={goToDetail} onAddToBag={handleAddToBag} />
 }
 
 // ── Formato grade ───────────────────────────────────────────────────────────
@@ -64,13 +68,15 @@ interface CardProps {
   product: Product
   badge?: string
   badgeColor?: string
+  originalPrice?: number
+  discountPercent?: number
   favorited: boolean
   onFavorite: () => void
   onCardClick: () => void
   onAddToBag: () => void
 }
 
-function ProductCardGrid({ product, badge, badgeColor, favorited, onFavorite, onCardClick, onAddToBag }: CardProps) {
+function ProductCardGrid({ product, badge, badgeColor, originalPrice, discountPercent, favorited, onFavorite, onCardClick, onAddToBag }: CardProps) {
   const hasPromo = !!(badge && badgeColor)
 
   return (
@@ -135,7 +141,7 @@ function ProductCardGrid({ product, badge, badgeColor, favorited, onFavorite, on
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <ProductPrice price={product.price} size="sm" />
+            <ProductPrice price={product.price} size="sm" originalPrice={originalPrice} discountPercent={discountPercent} />
             <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
               <AddToCartButton onClick={onAddToBag} />
               <CopyLinkButton productId={product.id} productName={product.name} />
@@ -150,7 +156,7 @@ function ProductCardGrid({ product, badge, badgeColor, favorited, onFavorite, on
 
 // ── Formato lista ───────────────────────────────────────────────────────────
 
-function ProductCardList({ product, badge, badgeColor, favorited, onFavorite, onCardClick, onAddToBag }: CardProps) {
+function ProductCardList({ product, badge, badgeColor, originalPrice, discountPercent, favorited, onFavorite, onCardClick, onAddToBag }: CardProps) {
   const hasPromo = !!(badge && badgeColor)
 
   return (
@@ -214,7 +220,7 @@ function ProductCardList({ product, badge, badgeColor, favorited, onFavorite, on
           </div>
 
           <div className="flex items-center justify-between gap-3">
-            <ProductPrice price={product.price} size="sm" />
+            <ProductPrice price={product.price} size="sm" originalPrice={originalPrice} discountPercent={discountPercent} />
             <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
               <AddToCartButton onClick={onAddToBag} large />
               <CopyLinkButton productId={product.id} productName={product.name} />

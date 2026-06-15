@@ -32,6 +32,10 @@ type FullBagItem = {
   selectedOptions?: Record<string, string>
   // Preço efetivo do item — usa o preço da variante quando disponível
   effectivePrice: number
+  // Preço original antes da promoção — exibido riscado
+  originalPrice?: number
+  // Percentual de desconto da promoção — exibido como tag (ex: "-20%")
+  discountPercent?: number
 }
 
 // Chave única do item na sacola — mesmo produto com opções diferentes = itens distintos
@@ -55,7 +59,7 @@ export default function SacolaPage() {
   // Produtos buscados do banco com promoções aplicadas — mapa por ID para acesso rápido
   // rawPrice guarda o preço original do produto (antes da promoção) para calcular
   // o desconto proporcional nas variantes
-  type ProductWithPromo = { product: Product; rawPrice: number; promotionId?: string; promotionName?: string; badgeColor?: string }
+  type ProductWithPromo = { product: Product; rawPrice: number; promotionId?: string; promotionName?: string; badgeColor?: string; discountPercent?: number }
   const [productMap, setProductMap] = useState<Map<string, ProductWithPromo>>(new Map())
   const [isLoadingProducts, setIsLoadingProducts] = useState(true)
 
@@ -92,6 +96,7 @@ export default function SacolaPage() {
             promotionId: item.promotionId,
             promotionName: item.promotionName,
             badgeColor: item.badgeColor,
+            discountPercent: item.discountPercent,
           })
         }
         setProductMap(map)
@@ -113,17 +118,20 @@ export default function SacolaPage() {
         ? entry.product.variants?.find((v) => v.id === ci.variantId)
         : undefined
 
-      // Preço efetivo: quando o item tem variante, aplica o mesmo desconto proporcional
-      // da promoção ao preço da variante (ex: promoção de 20% → variant.price * 0.8)
+      // Só considera promoção quando o item foi explicitamente associado a uma
+      const hasPromo = !!entry.promotionId && entry.rawPrice > entry.product.price
       let effectivePrice = entry.product.price
+      let originalPrice: number | undefined
       if (variant) {
-        const hasPromo = entry.rawPrice > entry.product.price
         if (hasPromo) {
           const discountRate = entry.product.price / entry.rawPrice
           effectivePrice = Math.round(variant.price * discountRate * 100) / 100
+          originalPrice = variant.price
         } else {
           effectivePrice = variant.price
         }
+      } else if (hasPromo) {
+        originalPrice = entry.rawPrice
       }
 
       result.push({
@@ -134,6 +142,8 @@ export default function SacolaPage() {
         badgeColor: entry.badgeColor,
         selectedOptions: ci.selectedOptions,
         effectivePrice,
+        originalPrice,
+        discountPercent: hasPromo ? entry.discountPercent : undefined,
       })
     }
     return result
@@ -183,11 +193,23 @@ export default function SacolaPage() {
   // Apenas os itens que o usuário marcou para enviar agora
   const selectedItems = items.filter((i) => selectedKeys.has(itemKey(i)))
 
-  // Recalcula os totais somente sobre os itens selecionados — usa effectivePrice (preço da variante)
+  // Subtotal com preços originais (antes de qualquer promoção)
   const selectedSubtotal = selectedItems.reduce(
-    (sum, { effectivePrice, quantity }) => sum + effectivePrice * quantity,
+    (sum, { effectivePrice, originalPrice, quantity }) =>
+      sum + (originalPrice ?? effectivePrice) * quantity,
     0,
   )
+
+  // Economia das promoções — calculada apenas sobre os itens que têm promoção aplicada
+  const promoItems = selectedItems.filter((i) => i.originalPrice !== undefined && i.originalPrice > i.effectivePrice)
+  const promoDiscount = promoItems.reduce(
+    (sum, { originalPrice, effectivePrice, quantity }) =>
+      sum + (originalPrice! - effectivePrice) * quantity,
+    0,
+  )
+
+  // Subtotal após promoções (usado como base para o cupom)
+  const subtotalAfterPromo = selectedSubtotal - promoDiscount
 
   let selectedDiscount = 0
   if (appliedCoupon) {
@@ -207,7 +229,7 @@ export default function SacolaPage() {
     }
   }
 
-  const selectedTotal = Math.max(0, selectedSubtotal - selectedDiscount)
+  const selectedTotal = Math.max(0, subtotalAfterPromo - selectedDiscount)
 
   // Controle do modal de identificação do cliente
   const [identModalOpen, setIdentModalOpen] = useState(false)
@@ -267,14 +289,20 @@ export default function SacolaPage() {
     lines.push(divider)
     lines.push('')
 
-    if (appliedCoupon) {
-      lines.push(`Subtotal: ${formatCurrency(selectedSubtotal)}`)
+    lines.push(`Subtotal: ${formatCurrency(selectedSubtotal)}`)
+
+    if (promoDiscount > 0) {
+      lines.push(`🏷️ Promoções (${promoItems.length} ${promoItems.length === 1 ? 'item' : 'itens'}): -${formatCurrency(promoDiscount)}`)
+    }
+
+    if (appliedCoupon && selectedDiscount > 0) {
       lines.push(`🎟️ Cupom *${appliedCoupon.code}*: -${formatCurrency(selectedDiscount)}`)
       if (appliedCoupon.description) {
         lines.push(`   _${appliedCoupon.description}_`)
       }
-      lines.push('')
     }
+
+    lines.push('')
 
     lines.push(`💳 *TOTAL: ${formatCurrency(selectedTotal)}*`)
     lines.push('')
@@ -311,7 +339,7 @@ export default function SacolaPage() {
         promotionName: promotionName ?? undefined,
       })),
       subtotal: selectedSubtotal,
-      discount: selectedDiscount,
+      discount: promoDiscount + selectedDiscount,
       total: selectedTotal,
       couponCode: appliedCoupon?.code ?? undefined,
     })
@@ -437,7 +465,7 @@ export default function SacolaPage() {
         {/* Lista de itens */}
         <div className="mb-4 flex flex-col gap-3">
           {items.map((item) => {
-            const { product, quantity, promotionName, badgeColor, selectedOptions, effectivePrice } = item
+            const { product, quantity, promotionName, badgeColor, selectedOptions, effectivePrice, originalPrice, discountPercent } = item
             const key = itemKey(item)
             const isSelected = selectedKeys.has(key)
             const showBorder = !!(promotionName && badgeColor)
@@ -595,9 +623,16 @@ export default function SacolaPage() {
               <span>{formatCurrency(selectedSubtotal)}</span>
             </div>
 
+            {promoDiscount > 0 && (
+              <div className="flex justify-between text-sm text-green-600">
+                <span>Promoções ({promoItems.length} {promoItems.length === 1 ? 'item' : 'itens'})</span>
+                <span>-{formatCurrency(promoDiscount)}</span>
+              </div>
+            )}
+
             {selectedDiscount > 0 && (
               <div className="flex justify-between text-sm text-green-600">
-                <span>Desconto {appliedCoupon ? `(${appliedCoupon.code})` : ''}</span>
+                <span>Cupom ({appliedCoupon?.code})</span>
                 <span>-{formatCurrency(selectedDiscount)}</span>
               </div>
             )}

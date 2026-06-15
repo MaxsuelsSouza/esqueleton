@@ -1,33 +1,49 @@
 'use client'
 
-// Página de favoritos — exibe os produtos salvos pelo cliente
-import { useState, useEffect } from 'react'
+// Página de favoritos — exibe os produtos salvos pelo cliente com promoções aplicadas
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Heart, ArrowLeft } from 'lucide-react'
 import { useFavorites } from '@/contexts/favorites-context'
 import { catalogService } from '@/services/catalog.service'
+import { promotionsService } from '@/services/promotions.service'
+import { applyPromotionsToProducts, type PromotedProduct } from '@/utils/promotions'
 import { ProductCard } from '@/components/catalog/ProductCard'
 import { useStoreSlug } from '@/hooks/useStoreSlug'
-import type { Product } from '@esqueleton/shared'
+import type { Product, Promotion } from '@esqueleton/shared'
 
 export default function FavoritosPage() {
   const router = useRouter()
   const slug = useStoreSlug()
   const { favoriteIds } = useFavorites()
   const [products, setProducts] = useState<Product[]>([])
+  const [promotions, setPromotions] = useState<Promotion[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     if (favoriteIds.length === 0) {
+      setProducts([])
       setIsLoading(false)
       return
     }
 
-    catalogService.getPublicProductsByIds(slug, favoriteIds)
-      .then((page) => setProducts(page.data ?? []))
+    Promise.all([
+      catalogService.getPublicProductsByIds(slug, favoriteIds),
+      promotionsService.listPublicPromotions(slug).catch(() => [] as Promotion[]),
+    ])
+      .then(([page, promos]) => {
+        setProducts(page.data ?? [])
+        setPromotions(promos)
+      })
       .catch(() => setProducts([]))
       .finally(() => setIsLoading(false))
   }, [slug, favoriteIds.length])
+
+  // Aplica promoções ativas aos produtos favoritos
+  const promotedProducts = useMemo(
+    () => applyPromotionsToProducts(products, promotions),
+    [products, promotions],
+  )
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -47,7 +63,7 @@ export default function FavoritosPage() {
             <p className="mt-0.5 text-sm text-gray-500">
               {isLoading
                 ? 'Carregando...'
-                : `${products.length} produto${products.length !== 1 ? 's' : ''} salvo${products.length !== 1 ? 's' : ''}`}
+                : `${promotedProducts.length} produto${promotedProducts.length !== 1 ? 's' : ''} salvo${promotedProducts.length !== 1 ? 's' : ''}`}
             </p>
           </div>
         </div>
@@ -62,16 +78,16 @@ export default function FavoritosPage() {
         )}
 
         {/* Lista de produtos favoritos */}
-        {!isLoading && products.length > 0 && (
+        {!isLoading && promotedProducts.length > 0 && (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-            {products.map((product) => (
-              <ProductCard key={product.id} product={product} displayMode="grid" />
+            {promotedProducts.map(({ product, badge, badgeColor, promotionId, promotionName, originalPrice, discountPercent }) => (
+              <ProductCard key={product.id} product={product} badge={badge} badgeColor={badgeColor} promotionId={promotionId} promotionName={promotionName} originalPrice={originalPrice} discountPercent={discountPercent} displayMode="grid" />
             ))}
           </div>
         )}
 
         {/* Estado vazio — nenhum produto favoritado */}
-        {!isLoading && products.length === 0 && (
+        {!isLoading && promotedProducts.length === 0 && (
           <div className="flex flex-col items-center gap-4 py-24 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
               <Heart size={28} strokeWidth={1.5} className="text-gray-300" />

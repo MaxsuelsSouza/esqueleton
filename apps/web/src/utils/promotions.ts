@@ -26,7 +26,8 @@ export function getActivePromotionForProduct(
   return (
     promotions.find(
       (promo) =>
-        (promo.productIds.length === 0 || promo.productIds.includes(productId)) &&
+        promo.productIds.length > 0 &&
+        promo.productIds.includes(productId) &&
         isPromotionActive(promo),
     ) ?? null
   )
@@ -42,6 +43,10 @@ export interface PromotedProduct {
   // ID e nome da promoção ativa — usados para registrar eventos de analytics
   promotionId?: string
   promotionName?: string
+  // Preço original do produto antes da promoção — usado para exibir riscado
+  originalPrice?: number
+  // Percentual de desconto aplicado — usado para exibir a tag "-20%"
+  discountPercent?: number
 }
 
 // Aplica uma promoção ao produto — modifica preço e define badge conforme o tipo
@@ -58,6 +63,8 @@ export function applyPromotionToProduct(product: Product, promotion: Promotion):
         product: { ...product, price: discounted },
         badge: promotion.name,
         badgeColor,
+        originalPrice: product.price,
+        discountPercent: promotion.discountPercent,
         ...promoMeta,
       }
     }
@@ -65,10 +72,13 @@ export function applyPromotionToProduct(product: Product, promotion: Promotion):
     case 'fixed': {
       if (!promotion.discountValue) break
       const discounted = Math.max(0, Math.round((product.price - promotion.discountValue) * 100) / 100)
+      const percent = Math.round(((product.price - discounted) / product.price) * 100)
       return {
         product: { ...product, price: discounted },
         badge: promotion.name,
         badgeColor,
+        originalPrice: product.price,
+        discountPercent: percent,
         ...promoMeta,
       }
     }
@@ -85,10 +95,13 @@ export function applyPromotionToProduct(product: Product, promotion: Promotion):
     case 'kit': {
       if (!promotion.kitPrice) break
       const pricePerItem = Math.round((promotion.kitPrice / promotion.productIds.length) * 100) / 100
+      const percent = Math.round(((product.price - pricePerItem) / product.price) * 100)
       return {
         product: { ...product, price: pricePerItem },
         badge: 'Kit',
         badgeColor,
+        originalPrice: product.price,
+        discountPercent: percent > 0 ? percent : undefined,
         ...promoMeta,
       }
     }
