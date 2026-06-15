@@ -1,4 +1,6 @@
 import type { Metadata } from 'next'
+import { Suspense } from 'react'
+import { RouteLoadingBar } from '@/components/shared/RouteLoadingBar'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -32,7 +34,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body>
+        <Suspense fallback={null}>
+          <RouteLoadingBar />
+        </Suspense>
+        {children}
+      </body>
     </html>
   )
 }
