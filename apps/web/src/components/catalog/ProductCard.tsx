@@ -135,7 +135,7 @@ function ProductCardGrid({ product, badge, badgeColor, favorited, onFavorite, on
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <ProductPrice price={product.price} originalPrice={product.originalPrice} size="sm" />
+            <ProductPrice price={product.price} size="sm" />
             <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
               <AddToCartButton onClick={onAddToBag} />
               <CopyLinkButton productId={product.id} productName={product.name} />
@@ -214,7 +214,7 @@ function ProductCardList({ product, badge, badgeColor, favorited, onFavorite, on
           </div>
 
           <div className="flex items-center justify-between gap-3">
-            <ProductPrice price={product.price} originalPrice={product.originalPrice} size="sm" />
+            <ProductPrice price={product.price} size="sm" />
             <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
               <AddToCartButton onClick={onAddToBag} large />
               <CopyLinkButton productId={product.id} productName={product.name} />

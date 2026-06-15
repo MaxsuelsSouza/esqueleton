@@ -89,7 +89,6 @@ model Product {
   name            String
   description     String?
   price           Float
-  originalPrice   Float?
   // Foto principal (thumbnail usada na listagem)
   imageUrl        String?
   // Fotos adicionais do produto (galeria na página de detalhe)

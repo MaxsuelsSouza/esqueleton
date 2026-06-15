@@ -12,7 +12,6 @@ export const productSchema = z.object({
   name: shortText(200, 'Nome é obrigatório'),
   description: shortText(2000).nullish().transform(v => v || undefined),
   price: z.number().positive('Preço deve ser maior que zero').max(99999999, 'Preço muito alto'),
-  originalPrice: z.number().positive('Preço original deve ser maior que zero').max(99999999, 'Preço muito alto').nullish().transform(v => v ?? undefined),
   // Aceita URL http/https ou imagem enviada pelo painel (data:image/...;base64) — bloqueia conteúdo malicioso
   imageUrl: imageUrlSchema.or(z.literal('')).or(z.null()).optional().transform(v => v || undefined),
   // Fotos adicionais do produto (galeria) — até 10 imagens

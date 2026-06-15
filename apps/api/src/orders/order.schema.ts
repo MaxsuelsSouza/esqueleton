@@ -10,7 +10,6 @@ const orderItemSchema = z.object({
   unitPrice: z.number().nonnegative().max(99999999),
   lineTotal: z.number().nonnegative().max(99999999),
   promotionName: shortText(120).optional(),
-  originalPrice: z.number().nonnegative().max(99999999).optional(),
 })
 
 export const createOrderSchema = z.object({

@@ -56,7 +56,6 @@ describe('applyPromotionToProduct', () => {
   it('desconto percentual reduz o preço', () => {
     const result = applyPromotionToProduct(makeProduct({ price: 100 }), makePromotion())
     expect(result.product.price).toBe(80)
-    expect(result.product.originalPrice).toBe(100)
     expect(result.badge).toBe('Promoção Teste')
   })
 

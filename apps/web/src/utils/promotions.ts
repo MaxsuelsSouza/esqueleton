@@ -55,7 +55,7 @@ export function applyPromotionToProduct(product: Product, promotion: Promotion):
       if (!promotion.discountPercent) break
       const discounted = Math.round(product.price * (1 - promotion.discountPercent / 100) * 100) / 100
       return {
-        product: { ...product, price: discounted, originalPrice: product.price },
+        product: { ...product, price: discounted },
         badge: promotion.name,
         badgeColor,
         ...promoMeta,
@@ -66,7 +66,7 @@ export function applyPromotionToProduct(product: Product, promotion: Promotion):
       if (!promotion.discountValue) break
       const discounted = Math.max(0, Math.round((product.price - promotion.discountValue) * 100) / 100)
       return {
-        product: { ...product, price: discounted, originalPrice: product.price },
+        product: { ...product, price: discounted },
         badge: promotion.name,
         badgeColor,
         ...promoMeta,
@@ -86,7 +86,7 @@ export function applyPromotionToProduct(product: Product, promotion: Promotion):
       if (!promotion.kitPrice) break
       const pricePerItem = Math.round((promotion.kitPrice / promotion.productIds.length) * 100) / 100
       return {
-        product: { ...product, price: pricePerItem, originalPrice: product.price },
+        product: { ...product, price: pricePerItem },
         badge: 'Kit',
         badgeColor,
         ...promoMeta,

@@ -74,7 +74,6 @@ describe('applyCouponToProduct', () => {
   it('aplica desconto percentual ao preço', () => {
     const result = applyCouponToProduct(makeProduct({ price: 100 }), makeCoupon({ discountPercent: 10 }))
     expect(result?.price).toBe(90)
-    expect(result?.originalPrice).toBe(100)
   })
 
   it('aplica desconto de valor fixo ao preço', () => {

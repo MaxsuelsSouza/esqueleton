@@ -2,7 +2,24 @@
   "permissions": {
     "allow": [
       "Bash(pnpm --filter @esqueleton/api build)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(wsl docker:*)",
+      "Bash(pnpm --filter @esqueleton/api add resend)",
+      "Bash(pnpm --filter @esqueleton/api db:generate)",
+      "Bash(pnpm --filter @esqueleton/api add mercadopago)",
+      "Bash(cmd:*)",
+      "Bash(cmd.exe:*)",
+      "Bash(C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe:*)",
+      "Bash(where pnpm:*)",
+      "Bash(where.exe pnpm:*)",
+      "Read(//c/Program Files/nodejs//**)",
+      "Read(//c/Users/maxsu/AppData/Roaming/npm//**)",
+      "Bash(export PATH=\"/c/Program Files/Git/cmd:$PATH\")",
+      "Bash(git clean:*)",
+      "Bash(pnpm --filter @esqueleton/api lint)",
+      "Bash(pnpm --filter @esqueleton/shared lint)",
+      "Bash(npx tsc:*)",
+      "Bash(npx --filter:*)"
     ]
   }
 }

@@ -68,7 +68,7 @@ export async function analyticsAdminRoutes(app: FastifyInstance) {
     const withCoupon = { cartAdds: 0, whatsappSends: 0 }
     const withoutCoupon = { cartAdds: 0, whatsappSends: 0 }
     const inPromotion = { cartAdds: 0, whatsappSends: 0 }
-    const originalPrice = { cartAdds: 0, whatsappSends: 0 }
+    const withoutPromotion = { cartAdds: 0, whatsappSends: 0 }
 
     // ── Mapa de métricas por produto ─────────────────────────────────────────
 
@@ -179,8 +179,8 @@ export async function analyticsAdminRoutes(app: FastifyInstance) {
         if (isCart)     gp.cartAdds++
         if (isWhatsApp) gp.whatsappSends++
       } else {
-        if (isCart)     originalPrice.cartAdds++
-        if (isWhatsApp) originalPrice.whatsappSends++
+        if (isCart)     withoutPromotion.cartAdds++
+        if (isWhatsApp) withoutPromotion.whatsappSends++
       }
 
       // Métricas por seção em destaque (FEATURED_CLICK e CART_ADD com featuredId)
@@ -322,7 +322,7 @@ export async function analyticsAdminRoutes(app: FastifyInstance) {
       withCoupon,
       withoutCoupon,
       inPromotion,
-      originalPrice,
+      withoutPromotion,
       promotionMetrics,
       couponMetrics,
       featuredMetrics: Array.from(featuredMap.values()).sort((a, b) => b.clicks - a.clicks),

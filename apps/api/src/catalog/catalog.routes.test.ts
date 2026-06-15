@@ -10,7 +10,6 @@ const produto = {
   name: 'Perfume Teste',
   description: null,
   price: 100,
-  originalPrice: null,
   imageUrl: null,
   storeId: LOJA_TESTE.id,
   categories: [{ categoryId: 'cat1' }],

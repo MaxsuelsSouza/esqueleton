@@ -232,7 +232,7 @@ Pages that load data have a `USE_MOCK_DATA` flag at the top — **all currently 
 
 | Type | Description |
 |------|-------------|
-| `Product` | Produto com `brand`, `categoryIds`, `originalPrice`, `variants`, `characteristics` |
+| `Product` | Produto com `brand`, `categoryIds`, `variants`, `characteristics` |
 | `Category` | Categoria com `parentId` — suporta árvore de qualquer profundidade |
 | `Promotion` | Promoção com tipo, desconto, horário e período opcionais |
 | `Coupon` | Cupom com código, desconto, limite de usos e validade |
@@ -276,7 +276,7 @@ The layout uses `useAdminAuth()` hook which reads role/emailVerified from localS
 
 - `Store` — loja (tenant): slug único, name, status (`ACTIVE`/`SUSPENDED`)
 - `User` — email + senha, pertence a uma `Store`. Tem `role` (`OWNER`/`STAFF`), `emailVerified` e `isSuperAdmin` (flag de plataforma, definida manualmente no banco)
-- `Product` — brand, name, description, price, originalPrice, imageUrl
+- `Product` — brand, name, description, price, imageUrl
 - `Category` — self-referential via `parent`/`children` (`CategoryTree` relation)
 - `ProductCategory` — junção many-to-many entre Product e Category
 - `PasswordResetToken` — token de redefinição de senha (1h de validade, uso único). **Sem storeId** — lookup por token é global.

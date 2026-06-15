@@ -14,7 +14,6 @@ const baseProduto = {
   brand: null,
   description: null,
   price: 100,
-  originalPrice: null,
   imageUrl: null,
   categories: [],
   createdAt: new Date(),

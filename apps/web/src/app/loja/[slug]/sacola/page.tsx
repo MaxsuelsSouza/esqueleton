@@ -189,13 +189,6 @@ export default function SacolaPage() {
     0,
   )
 
-  // Subtotal com preços originais (sem promoção) — para exibir a economia
-  const selectedOriginalSubtotal = selectedItems.reduce(
-    (sum, { product, quantity }) => sum + (product.originalPrice ?? product.price) * quantity,
-    0,
-  )
-  const promotionSavings = selectedOriginalSubtotal - selectedSubtotal
-
   let selectedDiscount = 0
   if (appliedCoupon) {
     const eligible = selectedItems.filter(
@@ -261,10 +254,6 @@ export default function SacolaPage() {
       lines.push(`*${index + 1}. ${name}${optionsText}*`)
       lines.push(`   🔢 ${quantity} ${quantity === 1 ? 'unidade' : 'unidades'} × ${formatCurrency(unitPrice)}`)
 
-      if (product.originalPrice && product.originalPrice > product.price) {
-        lines.push(`   De: ~R$ ${product.originalPrice.toFixed(2).replace('.', ',')}~ → Por: ${formatCurrency(unitPrice)}`)
-      }
-
       if (promotionName) {
         lines.push(`   🏷️ Promoção: *${promotionName}*`)
       }
@@ -320,7 +309,6 @@ export default function SacolaPage() {
         unitPrice: effectivePrice,
         lineTotal: effectivePrice * quantity,
         promotionName: promotionName ?? undefined,
-        originalPrice: product.originalPrice ?? undefined,
       })),
       subtotal: selectedSubtotal,
       discount: selectedDiscount,
@@ -602,22 +590,10 @@ export default function SacolaPage() {
         {/* Resumo de valores */}
         <div className="mb-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-2">
-            {promotionSavings > 0 && (
-              <div className="flex justify-between text-sm text-gray-400">
-                <span>Subtotal sem promoção</span>
-                <span className="line-through">{formatCurrency(selectedOriginalSubtotal)}</span>
-              </div>
-            )}
             <div className="flex justify-between text-sm text-gray-600">
               <span>Subtotal ({selectedKeys.size} {selectedKeys.size === 1 ? 'item' : 'itens'})</span>
               <span>{formatCurrency(selectedSubtotal)}</span>
             </div>
-            {promotionSavings > 0 && (
-              <div className="flex justify-between text-sm text-green-600">
-                <span>Economia em promoções</span>
-                <span>-{formatCurrency(promotionSavings)}</span>
-              </div>
-            )}
 
             {selectedDiscount > 0 && (
               <div className="flex justify-between text-sm text-green-600">

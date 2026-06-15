@@ -38,8 +38,6 @@ export interface Product {
   name: string
   description: string | null
   price: number
-  // Preço original antes do desconto — quando informado, indica que o produto está em promoção
-  originalPrice?: number
   // Foto principal (thumbnail)
   imageUrl: string | null
   // Fotos adicionais do produto (galeria na página de detalhe)
@@ -73,11 +71,6 @@ export interface Category {
   parentId: string | null
   // Subcategorias — preenchidas quando os dados chegam em formato de árvore
   children?: Category[]
-}
-
-// Calcula a porcentagem de desconto de um produto em promoção
-export function calcDiscount(price: number, originalPrice: number): number {
-  return Math.round(((originalPrice - price) / originalPrice) * 100)
 }
 
 // Loja (tenant) — cada cliente do SaaS tem a sua, identificada pelo slug na URL pública
@@ -226,7 +219,6 @@ export interface OrderItem {
   unitPrice: number
   lineTotal: number
   promotionName?: string
-  originalPrice?: number
 }
 
 // Status do pedido
@@ -366,7 +358,7 @@ export interface AnalyticsSummary {
   withCoupon: { cartAdds: number; whatsappSends: number }
   withoutCoupon: { cartAdds: number; whatsappSends: number }
   inPromotion: { cartAdds: number; whatsappSends: number }
-  originalPrice: { cartAdds: number; whatsappSends: number }
+  withoutPromotion: { cartAdds: number; whatsappSends: number }
   // Métricas por promoção
   promotionMetrics: PromotionMetric[]
   // Métricas por cupom

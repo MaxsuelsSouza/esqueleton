@@ -49,12 +49,12 @@ export function applyCouponToProduct(product: Product, coupon: Coupon): Product 
 
   if (coupon.discountType === 'percentage' && coupon.discountPercent) {
     const discounted = Math.round(product.price * (1 - coupon.discountPercent / 100) * 100) / 100
-    return { ...product, price: discounted, originalPrice: product.originalPrice ?? product.price }
+    return { ...product, price: discounted }
   }
 
   if (coupon.discountType === 'fixed' && coupon.discountValue) {
     const discounted = Math.max(0, Math.round((product.price - coupon.discountValue) * 100) / 100)
-    return { ...product, price: discounted, originalPrice: product.originalPrice ?? product.price }
+    return { ...product, price: discounted }
   }
 
   return null

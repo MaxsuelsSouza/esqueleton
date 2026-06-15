@@ -38,7 +38,6 @@ type ProductFormData = {
   name: string
   description: string
   price: string
-  originalPrice: string
   imageUrl: string
   images: string[]
   categoryIds: string[]
@@ -51,7 +50,6 @@ const EMPTY_FORM: ProductFormData = {
   name: '',
   description: '',
   price: '',
-  originalPrice: '',
   imageUrl: '',
   images: [],
   categoryIds: [],
@@ -160,9 +158,7 @@ export default function AdminProdutosPage() {
       brand: product.brand ?? '',
       name: product.name,
       description: product.description ?? '',
-      price: '',
-      // Ao editar, mostra o preço de venda atual no campo "Preço"
-      originalPrice: String(product.price),
+      price: String(product.price),
       imageUrl: product.imageUrl ?? '',
       images: product.images ?? [],
       categoryIds: product.categoryIds ?? [],
@@ -183,7 +179,7 @@ export default function AdminProdutosPage() {
       setFormError('O nome do produto é obrigatório.')
       return
     }
-    if (!formData.originalPrice || isNaN(Number(formData.originalPrice))) {
+    if (!formData.price || isNaN(Number(formData.price))) {
       setFormError('Informe um preço válido.')
       return
     }
@@ -191,7 +187,7 @@ export default function AdminProdutosPage() {
     setIsSaving(true)
     setFormError(null)
 
-    const preco = Number(formData.originalPrice)
+    const preco = Number(formData.price)
     // Filtra características com nome e valor preenchidos
     const characteristicsLimpos = formData.characteristics.filter(
       (c) => c.name.trim() && c.value.trim(),
@@ -211,10 +207,7 @@ export default function AdminProdutosPage() {
       brand: formData.brand.trim() || undefined,
       name: formData.name.trim(),
       description: formData.description.trim() || null,
-      // O campo do formulário "Preço" (originalPrice) é usado como o preço de venda (price).
-      // originalPrice não é mais definido pelo formulário — pode ser configurado via promoções.
       price: preco,
-      originalPrice: undefined,
       imageUrl: formData.imageUrl.trim() || null,
       images: formData.images.filter(Boolean),
       categoryIds: formData.categoryIds,
@@ -527,8 +520,8 @@ export default function AdminProdutosPage() {
                 type="number"
                 min="0"
                 step="0.01"
-                value={formData.originalPrice}
-                onChange={(e) => setFormData((f) => ({ ...f, originalPrice: e.target.value }))}
+                value={formData.price}
+                onChange={(e) => setFormData((f) => ({ ...f, price: e.target.value }))}
                 placeholder="0,00"
                 className={inputClass}
               />

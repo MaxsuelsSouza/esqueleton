@@ -23,7 +23,6 @@ const PRODUTO_CRIADO = {
   name: 'Produto Novo',
   description: null,
   price: 10,
-  originalPrice: null,
   imageUrl: null,
   storeId: LOJA_TESTE.id,
   categories: [],

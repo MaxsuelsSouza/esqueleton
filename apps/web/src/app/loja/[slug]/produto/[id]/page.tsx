@@ -284,7 +284,7 @@ export default function ProductDetailPage() {
                 {/* Preço */}
                 {/* Preço */}
                 <div className="rounded-xl bg-white p-4 shadow-sm">
-                  <ProductPrice price={displayPrice} originalPrice={product.originalPrice} size="lg" />
+                  <ProductPrice price={displayPrice} size="lg" />
                 </div>
 
                 {/* Seletor de variantes */}
