@@ -88,17 +88,15 @@ function ProductCardGrid({ product, badge, badgeColor, favorited, onFavorite, on
       )}
 
       <div
-        className="group flex flex-col rounded-2xl bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+        onClick={onCardClick}
+        className="group flex cursor-pointer flex-col rounded-2xl bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
         style={hasPromo
           ? { border: `2px solid ${badgeColor}` }
           : { border: '1px solid rgb(243 244 246)' }
         }
       >
         {/* Imagem */}
-        <div
-          onClick={onCardClick}
-          className="relative aspect-square cursor-pointer overflow-hidden rounded-t-2xl bg-gray-50"
-        >
+        <div className="relative aspect-square overflow-hidden rounded-t-2xl bg-gray-50">
           {product.imageUrl ? (
             <img
               src={product.imageUrl}
@@ -113,7 +111,7 @@ function ProductCardGrid({ product, badge, badgeColor, favorited, onFavorite, on
 
           {/* Botão favoritar */}
           <button
-            onClick={onFavorite}
+            onClick={(e) => { e.stopPropagation(); onFavorite() }}
             aria-label={favorited ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
             className={`absolute right-2 top-2 rounded-full p-1.5 shadow transition-all duration-200
               ${favorited ? 'bg-red-500 text-white' : 'bg-white text-gray-400 hover:text-red-500'}`}
@@ -125,7 +123,7 @@ function ProductCardGrid({ product, badge, badgeColor, favorited, onFavorite, on
         {/* Informações — padding reduzido quando há promoção */}
         <div className={`flex flex-1 flex-col gap-2 ${hasPromo ? 'p-2 sm:p-2.5' : 'p-3 sm:p-4'}`}>
 
-          <div className="flex-1 cursor-pointer" onClick={onCardClick}>
+          <div className="flex-1">
             {product.brand && (
               <p className="text-[10px] font-medium uppercase tracking-widest text-gray-400">
                 {product.brand}
@@ -138,7 +136,7 @@ function ProductCardGrid({ product, badge, badgeColor, favorited, onFavorite, on
 
           <div className="flex flex-col gap-1.5">
             <ProductPrice price={product.price} originalPrice={product.originalPrice} size="sm" />
-            <div className="flex gap-2">
+            <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
               <AddToCartButton onClick={onAddToBag} />
               <CopyLinkButton productId={product.id} productName={product.name} />
             </div>
@@ -169,17 +167,15 @@ function ProductCardList({ product, badge, badgeColor, favorited, onFavorite, on
       )}
 
       <div
-        className="group flex gap-3 rounded-2xl bg-white p-3 shadow-sm transition-all duration-200 hover:shadow-md sm:p-4"
+        onClick={onCardClick}
+        className="group flex cursor-pointer gap-3 rounded-2xl bg-white p-3 shadow-sm transition-all duration-200 hover:shadow-md sm:p-4"
         style={hasPromo
           ? { border: `2px solid ${badgeColor}` }
           : { border: '1px solid rgb(243 244 246)' }
         }
       >
         {/* Imagem */}
-        <div
-          onClick={onCardClick}
-          className="relative h-24 w-24 shrink-0 cursor-pointer overflow-hidden rounded-xl bg-gray-50 sm:h-32 sm:w-32"
-        >
+        <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-gray-50 sm:h-32 sm:w-32">
           {product.imageUrl ? (
             <img
               src={product.imageUrl}
@@ -196,7 +192,7 @@ function ProductCardList({ product, badge, badgeColor, favorited, onFavorite, on
         {/* Informações */}
         <div className="flex min-w-0 flex-1 flex-col justify-between gap-2">
           <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0 cursor-pointer" onClick={onCardClick}>
+            <div className="min-w-0">
               {product.brand && (
                 <p className="text-[10px] font-medium uppercase tracking-widest text-gray-400">
                   {product.brand}
@@ -207,7 +203,7 @@ function ProductCardList({ product, badge, badgeColor, favorited, onFavorite, on
               </h2>
             </div>
             <button
-              onClick={onFavorite}
+              onClick={(e) => { e.stopPropagation(); onFavorite() }}
               aria-label={favorited ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
               className={`shrink-0 rounded-full p-1.5 transition-colors ${
                 favorited ? 'text-red-500' : 'text-gray-300 hover:text-red-400'
@@ -219,7 +215,7 @@ function ProductCardList({ product, badge, badgeColor, favorited, onFavorite, on
 
           <div className="flex items-center justify-between gap-3">
             <ProductPrice price={product.price} originalPrice={product.originalPrice} size="sm" />
-            <div className="flex gap-2">
+            <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
               <AddToCartButton onClick={onAddToBag} large />
               <CopyLinkButton productId={product.id} productName={product.name} />
             </div>

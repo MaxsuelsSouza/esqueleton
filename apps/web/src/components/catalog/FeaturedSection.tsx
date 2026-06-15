@@ -143,6 +143,8 @@ function FeaturedCarousel({
 
   // ── Drag / swipe state ──────────────────────────────────────────────
   const [isDragging, setIsDragging] = useState(false)
+  // Indica que o arraste realmente se moveu (bloqueia cliques nos cards só nesse caso)
+  const [hasDragMoved, setHasDragMoved] = useState(false)
   // Deslocamento em pixels enquanto o dedo/mouse se move
   const [dragOffset, setDragOffset] = useState(0)
   // Posição X e Y onde o arraste começou
@@ -255,7 +257,10 @@ function FeaturedCarousel({
     // Se o gesto é vertical, não interferir — deixa o browser rolar a página
     if (directionLocked.current === 'vertical') return false
 
-    if (Math.abs(deltaX) > DRAG_THRESHOLD) dragMoved.current = true
+    if (Math.abs(deltaX) > DRAG_THRESHOLD) {
+      dragMoved.current = true
+      setHasDragMoved(true)
+    }
     dragOffsetRef.current = deltaX
     setDragOffset(deltaX)
     return directionLocked.current === 'horizontal'
@@ -279,13 +284,16 @@ function FeaturedCarousel({
 
     dragOffsetRef.current = 0
     setDragOffset(0)
+    setHasDragMoved(false)
     directionLocked.current = null
     setIsPaused(false)
     isPausedRef.current = false
   }
 
-  // Mouse
+  // Mouse — não inicia arraste se o clique foi em um botão ou link (permite clicks nos cards)
   function onMouseDown(e: React.MouseEvent) {
+    const target = e.target as HTMLElement
+    if (target.closest('button, a')) return
     e.preventDefault()
     handleDragStart(e.clientX, e.clientY)
   }
@@ -308,6 +316,9 @@ function FeaturedCarousel({
     if (!el) return
 
     function onTouchStart(e: TouchEvent) {
+      // Não inicia arraste se o toque foi em um botão ou link (permite clicks nos cards)
+      const target = e.target as HTMLElement
+      if (target.closest('button, a')) return
       handleDragStart(e.touches[0].clientX, e.touches[0].clientY)
     }
 
@@ -414,9 +425,9 @@ function FeaturedCarousel({
               transition: isDragging
                 ? 'none'
                 : `transform ${TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`,
-              // Impede que os cards sejam selecionados durante o arraste
-              userSelect: isDragging ? 'none' : undefined,
-              pointerEvents: isDragging ? 'none' : undefined,
+              // Impede cliques nos cards apenas quando o arraste realmente se moveu
+              userSelect: hasDragMoved ? 'none' : undefined,
+              pointerEvents: hasDragMoved ? 'none' : undefined,
             }}
           >
             {/* Cada página ocupa 100% da largura visível */}

@@ -93,16 +93,30 @@ export default function NotificacoesPage() {
 
   async function handleMarkRead(id: string) {
     const token = localStorage.getItem('admin_token') ?? ''
-    await notificationsService.markRead(id, token).catch(() => {})
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, status: 'READ' } : n)),
-    )
+    try {
+      await notificationsService.markRead(id, token)
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, status: 'READ' } : n)),
+      )
+      // Avisa o sino de notificações para atualizar o badge
+      window.dispatchEvent(new Event('notifications-read'))
+    } catch {
+      // Recarrega a lista para garantir o estado real do servidor
+      loadNotifications()
+    }
   }
 
   async function handleMarkAllRead() {
     const token = localStorage.getItem('admin_token') ?? ''
-    await notificationsService.markAllRead(token).catch(() => {})
-    setNotifications((prev) => prev.map((n) => ({ ...n, status: 'READ' })))
+    try {
+      await notificationsService.markAllRead(token)
+      setNotifications((prev) => prev.map((n) => ({ ...n, status: 'READ' })))
+      // Avisa o sino de notificações para zerar o badge
+      window.dispatchEvent(new Event('notifications-read'))
+    } catch {
+      // Recarrega a lista para garantir o estado real do servidor
+      loadNotifications()
+    }
   }
 
   async function handleDelete(id: string) {

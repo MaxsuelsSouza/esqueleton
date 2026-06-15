@@ -1,29 +1,47 @@
 'use client'
 
 // Sino de notificações — exibe o total não lido e navega para a página de notificações
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useCallback } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
 import { Bell } from 'lucide-react'
 import { notificationsService } from '@/services/notifications.service'
 
 export function NotificationBell() {
   const router = useRouter()
+  const pathname = usePathname()
   const [unreadCount, setUnreadCount] = useState(0)
+
+  const fetchCount = useCallback(() => {
+    const token = localStorage.getItem('admin_token') ?? ''
+    if (!token) return
+    notificationsService.list(token).then((data) => setUnreadCount(data.unreadCount)).catch(() => {})
+  }, [])
 
   useEffect(() => {
     const token = localStorage.getItem('admin_token') ?? ''
     if (!token) return
-
-    // Carrega o total não lido imediatamente ao montar
-    function fetchCount() {
-      notificationsService.list(token).then((data) => setUnreadCount(data.unreadCount)).catch(() => {})
-    }
 
     fetchCount()
 
     // Atualiza o contador a cada 60 segundos para refletir novos pedidos ou eventos
     const interval = setInterval(fetchCount, 60_000)
     return () => clearInterval(interval)
+  }, [fetchCount])
+
+  // Recarrega o contador quando o admin navega de volta de /admin/notificacoes
+  useEffect(() => {
+    if (pathname !== '/admin/notificacoes') {
+      fetchCount()
+    }
+  }, [pathname, fetchCount])
+
+  // Escuta evento customizado disparado pela página de notificações ao marcar como lidas
+  useEffect(() => {
+    function handleNotificationsRead() {
+      setUnreadCount(0)
+    }
+    window.addEventListener('notifications-read', handleNotificationsRead)
+    return () => window.removeEventListener('notifications-read', handleNotificationsRead)
   }, [])
 
   return (
