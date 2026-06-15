@@ -26,6 +26,30 @@ const StoreProfileContext = createContext<StoreProfileContextValue>({
   setProfile: () => {},
 })
 
+// Lê o logoUrl salvo no localStorage para evitar flash de "Minha Loja" ao recarregar
+function getCachedLogo(slug: string): string | undefined {
+  if (typeof window === 'undefined') return undefined
+  try {
+    return localStorage.getItem(`store_logo_${slug}`) || undefined
+  } catch {
+    return undefined
+  }
+}
+
+// Salva o logoUrl no localStorage para uso imediato na próxima visita
+function cacheLogo(slug: string, logoUrl: string | undefined) {
+  if (typeof window === 'undefined') return
+  try {
+    if (logoUrl) {
+      localStorage.setItem(`store_logo_${slug}`, logoUrl)
+    } else {
+      localStorage.removeItem(`store_logo_${slug}`)
+    }
+  } catch {
+    // localStorage indisponível — segue sem cache
+  }
+}
+
 export function StoreProfileProvider({ children }: { children: React.ReactNode }) {
   // Slug da loja visitada — o perfil público é buscado pela rota /lojas/:slug
   const slug = useStoreSlug()
@@ -34,11 +58,24 @@ export function StoreProfileProvider({ children }: { children: React.ReactNode }
   // sem assinatura ativa); o visitante vê apenas um erro genérico
   const [unavailable, setUnavailable] = useState(false)
 
+  // Aplica o logo do cache imediatamente após a hidratação (evita flash de "Minha Loja")
+  useEffect(() => {
+    if (!slug) return
+    const cachedLogo = getCachedLogo(slug)
+    if (cachedLogo) {
+      setProfile((prev) => ({ ...prev, logoUrl: cachedLogo }))
+    }
+  }, [slug])
+
   useEffect(() => {
     if (!slug) return
     storeProfileService
       .getPublicProfile(slug)
-      .then(setProfile)
+      .then((data) => {
+        setProfile(data)
+        // Atualiza o cache do logo para a próxima visita
+        cacheLogo(slug, data.logoUrl)
+      })
       .catch((error: unknown) => {
         if ((error as { status?: number })?.status === 503) {
           setUnavailable(true)
