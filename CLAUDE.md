@@ -232,7 +232,7 @@ Pages that load data have a `USE_MOCK_DATA` flag at the top — **all currently 
 
 | Type | Description |
 |------|-------------|
-| `Product` | Produto com `brand`, `categoryIds`, `originalPrice` |
+| `Product` | Produto com `brand`, `categoryIds`, `originalPrice`, `variants`, `characteristics` |
 | `Category` | Categoria com `parentId` — suporta árvore de qualquer profundidade |
 | `Promotion` | Promoção com tipo, desconto, horário e período opcionais |
 | `Coupon` | Cupom com código, desconto, limite de usos e validade |

@@ -48,6 +48,7 @@ const EMPTY_FORM: PromotionFormData = {
   description: '',
   color: '#f97316',
   active: true,
+  priority: 0,
 }
 
 // Cores predefinidas para seleção rápida
@@ -135,6 +136,7 @@ export default function AdminPromocoesPage() {
       description: promo.description ?? '',
       color: promo.color ?? '#f97316',
       active: promo.active,
+      priority: promo.priority,
     })
     setHasTimeWindow(!!(promo.startTime || promo.endTime))
     setHasDateRange(!!(promo.startDate || promo.endDate))

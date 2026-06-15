@@ -12,6 +12,7 @@ export const MOCK_PROMOTIONS: Promotion[] = [
     endTime: '20:00',
     description: 'Desconto válido todos os dias no horário do happy hour.',
     active: true,
+    priority: 0,
     createdAt: new Date().toISOString(),
   },
   {
@@ -23,6 +24,7 @@ export const MOCK_PROMOTIONS: Promotion[] = [
     productIds: ['21', '22', '23', '24'],
     description: 'O produto de menor valor sai de graça ao adicionar 3 itens da linha de banho.',
     active: true,
+    priority: 1,
     createdAt: new Date().toISOString(),
   },
   {
@@ -35,6 +37,7 @@ export const MOCK_PROMOTIONS: Promotion[] = [
     endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     description: 'Kit especial com 3 produtos por um preço único. Embalagem presente inclusa.',
     active: true,
+    priority: 2,
     createdAt: new Date().toISOString(),
   },
 ]

@@ -14,6 +14,10 @@ export type CartApiItem = {
   quantity: number
   promotionId?: string
   promotionName?: string
+  // Opções da variante selecionada (ex: { Cor: "Preto", Armazenamento: "1TB" })
+  selectedOptions?: Record<string, string>
+  // ID da variante selecionada — usado para buscar o preço correto na sacola
+  variantId?: string
 }
 
 // Obtém o token de sessão do visitante, criando um novo se necessário.

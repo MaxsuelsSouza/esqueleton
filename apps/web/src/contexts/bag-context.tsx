@@ -20,6 +20,10 @@ type AddItemMeta = {
   // Seção em destaque de onde o produto foi adicionado — para analytics
   featuredId?: string
   featuredName?: string
+  // Opções da variante selecionada (ex: { Cor: "Preto", Armazenamento: "1TB" })
+  selectedOptions?: Record<string, string>
+  // ID da variante selecionada — usado para buscar o preço correto na sacola
+  variantId?: string
 }
 
 interface BagContextValue {
@@ -28,8 +32,8 @@ interface BagContextValue {
   totalItems: number
   isLoading: boolean
   addItem: (product: Product, meta?: AddItemMeta) => void
-  removeItem: (productId: string) => void
-  updateQuantity: (productId: string, quantity: number) => void
+  removeItem: (productId: string, selectedOptions?: Record<string, string>) => void
+  updateQuantity: (productId: string, quantity: number, selectedOptions?: Record<string, string>) => void
   clear: () => void
   // Cupom aplicado na sacola
   appliedCoupon: Coupon | null
@@ -102,13 +106,27 @@ export function BagProvider({ children }: { children: React.ReactNode }) {
     sessionService.setCart(slug, items)
   }, [slug])
 
+  // Compara duas seleções de opções — true se têm as mesmas chaves e valores
+  function sameOptions(a?: Record<string, string>, b?: Record<string, string>) {
+    if (!a && !b) return true
+    if (!a || !b) return false
+    const keysA = Object.keys(a)
+    if (keysA.length !== Object.keys(b).length) return false
+    return keysA.every((k) => a[k] === b[k])
+  }
+
   function addItem(product: Product, meta?: AddItemMeta) {
     setCartItems((prev) => {
-      const existing = prev.find((i) => i.productId === product.id)
+      // Mesmo produto + mesmas opções = incrementa quantidade; opções diferentes = item novo
+      const existing = prev.find(
+        (i) => i.productId === product.id && sameOptions(i.selectedOptions, meta?.selectedOptions),
+      )
       let next: CartApiItem[]
       if (existing) {
         next = prev.map((i) =>
-          i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i,
+          i.productId === product.id && sameOptions(i.selectedOptions, meta?.selectedOptions)
+            ? { ...i, quantity: i.quantity + 1 }
+            : i,
         )
       } else {
         next = [...prev, {
@@ -116,6 +134,8 @@ export function BagProvider({ children }: { children: React.ReactNode }) {
           quantity: 1,
           promotionId: meta?.promotionId,
           promotionName: meta?.promotionName,
+          selectedOptions: meta?.selectedOptions,
+          variantId: meta?.variantId,
         }]
       }
       syncToServer(next)
@@ -134,22 +154,22 @@ export function BagProvider({ children }: { children: React.ReactNode }) {
     })
   }
 
-  function removeItem(productId: string) {
+  function removeItem(productId: string, opts?: Record<string, string>) {
     setCartItems((prev) => {
-      const next = prev.filter((i) => i.productId !== productId)
+      const next = prev.filter((i) => !(i.productId === productId && sameOptions(i.selectedOptions, opts)))
       syncToServer(next)
       return next
     })
   }
 
-  function updateQuantity(productId: string, quantity: number) {
+  function updateQuantity(productId: string, quantity: number, opts?: Record<string, string>) {
     if (quantity <= 0) {
-      removeItem(productId)
+      removeItem(productId, opts)
       return
     }
     setCartItems((prev) => {
       const next = prev.map((i) =>
-        i.productId === productId ? { ...i, quantity } : i,
+        i.productId === productId && sameOptions(i.selectedOptions, opts) ? { ...i, quantity } : i,
       )
       syncToServer(next)
       return next

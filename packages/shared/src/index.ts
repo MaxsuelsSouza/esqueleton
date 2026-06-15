@@ -19,6 +19,18 @@ export interface ProductCharacteristic {
   value: string
 }
 
+// Variante de um produto — combinação de opções com preço e imagem próprios
+// Ex: iPhone Branco 128GB a R$ 5.499
+export interface ProductVariant {
+  id: string
+  // Opções desta variante — ex: { "Cor": "Branco", "Armazenamento": "128GB" }
+  options: Record<string, string>
+  price: number
+  // Imagem específica da variante (ex: foto do produto na cor selecionada)
+  imageUrl?: string | null
+  active: boolean
+}
+
 export interface Product {
   id: string
   // Nome da marca (ex: Dior, Chanel, L'Occitane)
@@ -28,9 +40,14 @@ export interface Product {
   price: number
   // Preço original antes do desconto — quando informado, indica que o produto está em promoção
   originalPrice?: number
+  // Foto principal (thumbnail)
   imageUrl: string | null
+  // Fotos adicionais do produto (galeria na página de detalhe)
+  images?: string[]
   // Características do produto (ex: tamanho, cor, material)
   characteristics?: ProductCharacteristic[]
+  // Variantes do produto (ex: cores e tamanhos diferentes)
+  variants?: ProductVariant[]
   // IDs das categorias às quais o produto pertence (pode ser mais de uma)
   categoryIds?: string[]
   createdAt: string

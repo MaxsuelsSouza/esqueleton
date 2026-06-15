@@ -15,6 +15,8 @@ function makePromotion(overrides: Partial<Promotion> = {}): Promotion {
     discountPercent: 20,
     productIds: ['p1'],
     active: true,
+    priority: 0,
+    createdAt: '2026-01-01',
     ...overrides,
   }
 }
@@ -51,7 +53,7 @@ describe('isPromotionActive', () => {
 })
 
 describe('applyPromotionToProduct', () => {
-  it('desconto percentual reduz o preço e guarda o original', () => {
+  it('desconto percentual reduz o preço', () => {
     const result = applyPromotionToProduct(makeProduct({ price: 100 }), makePromotion())
     expect(result.product.price).toBe(80)
     expect(result.product.originalPrice).toBe(100)

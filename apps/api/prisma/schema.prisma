@@ -19,18 +19,19 @@ model Store {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users         User[]
-  products      Product[]
-  categories    Category[]
-  featured      Featured[]
-  promotions    Promotion[]
-  coupons       Coupon[]
-  profile       StoreProfile?
-  orders        Order[]
-  customers     Customer[]
-  productEvents ProductEvent[]
-  notifications Notification[]
-  subscriptions Subscription[]
+  users           User[]
+  products        Product[]
+  productVariants ProductVariant[]
+  categories      Category[]
+  featured        Featured[]
+  promotions      Promotion[]
+  coupons         Coupon[]
+  profile         StoreProfile?
+  orders          Order[]
+  customers       Customer[]
+  productEvents   ProductEvent[]
+  notifications   Notification[]
+  subscriptions   Subscription[]
 }
 
 model User {
@@ -89,15 +90,39 @@ model Product {
   description     String?
   price           Float
   originalPrice   Float?
+  // Foto principal (thumbnail usada na listagem)
   imageUrl        String?
+  // Fotos adicionais do produto (galeria na página de detalhe)
+  images          String[]
   // Características do produto em JSON — Array de { name, value } (ex: tamanho, cor, material)
   characteristics Json?
   storeId         String
   store           Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
   categories      ProductCategory[]
+  variants        ProductVariant[]
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
+  @@index([storeId])
+}
+
+// Variante de um produto — combinação de opções com preço e imagem próprios
+// Ex: iPhone Branco 128GB a R$ 5.499, iPhone Azul 256GB a R$ 6.299
+model ProductVariant {
+  id            String   @id @default(cuid())
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  // Opções desta variante em JSON — { "Cor": "Branco", "Armazenamento": "128GB" }
+  options       Json
+  price         Float
+  // Imagem específica da variante (ex: foto do produto na cor selecionada)
+  imageUrl      String?
+  active        Boolean  @default(true)
+  storeId       String
+  store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+
+  @@index([productId])
   @@index([storeId])
 }
 

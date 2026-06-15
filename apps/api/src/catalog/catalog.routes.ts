@@ -7,14 +7,38 @@ import { idParamSchema } from '../common/validation'
 
 const PAGE_SIZE = 20
 
-// Transforma o produto do formato Prisma (com relação categories) para o formato do tipo compartilhado (com categoryIds)
-function toProductResponse(product: { categories: { categoryId: string }[]; characteristics?: unknown; [key: string]: unknown }) {
-  const { categories, characteristics, ...rest } = product
+// Campos incluídos nas consultas que retornam produto completo (com variantes)
+const PRODUCT_INCLUDE = {
+  categories: { select: { categoryId: true } },
+  variants: {
+    select: {
+      id: true,
+      options: true,
+      price: true,
+      imageUrl: true,
+      active: true,
+    },
+  },
+} as const
+
+// Transforma o produto do formato Prisma (com relação categories e variants) para o formato do tipo compartilhado
+function toProductResponse(product: {
+  categories: { categoryId: string }[]
+  variants?: { id: string; options: unknown; price: number; imageUrl: string | null; active: boolean }[]
+  characteristics?: unknown
+  images?: string[]
+  [key: string]: unknown
+}) {
+  const { categories, characteristics, variants, images, ...rest } = product
   return {
     ...rest,
     categoryIds: categories.map((c) => c.categoryId),
+    // Fotos adicionais — retorna apenas quando preenchidas
+    ...(Array.isArray(images) && images.length > 0 ? { images } : {}),
     // Características armazenadas como JSON — retorna apenas quando preenchidas
     ...(Array.isArray(characteristics) && characteristics.length > 0 ? { characteristics } : {}),
+    // Variantes — retorna apenas quando existem
+    ...(Array.isArray(variants) && variants.length > 0 ? { variants } : {}),
   }
 }
 
@@ -42,7 +66,7 @@ async function listarProdutos(app: FastifyInstance, storeId: string, query: List
       .slice(0, 100)
     const products = await app.prisma.product.findMany({
       where: { id: { in: ids }, storeId },
-      include: { categories: { select: { categoryId: true } } },
+      include: PRODUCT_INCLUDE,
     })
     return { data: products.map(toProductResponse), total: products.length, page: 1, pageSize: ids.length, totalPages: 1 }
   }
@@ -94,7 +118,7 @@ async function listarProdutos(app: FastifyInstance, storeId: string, query: List
       orderBy,
       skip,
       take: pageSize,
-      include: { categories: { select: { categoryId: true } } },
+      include: PRODUCT_INCLUDE,
     }),
     app.prisma.product.count({ where }),
   ])
@@ -119,7 +143,7 @@ export const catalogPublicRoutes: FastifyPluginAsync = async (app) => {
     const { id } = idParamSchema.parse(request.params)
     const product = await app.prisma.product.findFirst({
       where: { id, storeId: request.store!.id },
-      include: { categories: { select: { categoryId: true } } },
+      include: PRODUCT_INCLUDE,
     })
     if (!product) {
       return reply.status(404).send({ message: 'Produto não encontrado' })
@@ -165,7 +189,7 @@ export const catalogAdminRoutes: FastifyPluginAsync = async (app) => {
     const { id } = idParamSchema.parse(request.params)
     const product = await app.prisma.product.findFirst({
       where: { id, storeId: request.user.storeId },
-      include: { categories: { select: { categoryId: true } } },
+      include: PRODUCT_INCLUDE,
     })
     if (!product) {
       return reply.status(404).send({ message: 'Produto não encontrado' })
@@ -175,7 +199,7 @@ export const catalogAdminRoutes: FastifyPluginAsync = async (app) => {
 
   app.post('/', { preHandler: [app.checkPlanLimit('maxProducts')] }, async (request, reply) => {
     const storeId = request.user.storeId
-    const { categoryIds, ...fields } = productSchema.parse(request.body)
+    const { categoryIds, variants, ...fields } = productSchema.parse(request.body)
 
     // Confere que todas as categorias informadas pertencem a esta loja
     if (categoryIds.length > 0) {
@@ -194,8 +218,17 @@ export const catalogAdminRoutes: FastifyPluginAsync = async (app) => {
         categories: {
           create: categoryIds.map((categoryId) => ({ categoryId })),
         },
+        variants: variants.length > 0 ? {
+          create: variants.map((v) => ({
+            options: v.options,
+            price: v.price,
+            imageUrl: v.imageUrl ?? null,
+            active: v.active,
+            storeId,
+          })),
+        } : undefined,
       },
-      include: { categories: { select: { categoryId: true } } },
+      include: PRODUCT_INCLUDE,
     })
 
     return reply.status(201).send(toProductResponse(product))
@@ -204,7 +237,7 @@ export const catalogAdminRoutes: FastifyPluginAsync = async (app) => {
   app.put('/:id', async (request, reply) => {
     const storeId = request.user.storeId
     const { id } = idParamSchema.parse(request.params)
-    const { categoryIds, ...fields } = productSchema.partial().parse(request.body)
+    const { categoryIds, variants, ...fields } = productSchema.partial().parse(request.body)
 
     // Confere que o produto pertence a esta loja antes de alterar qualquer coisa
     const existente = await app.prisma.product.findFirst({
@@ -233,10 +266,27 @@ export const catalogAdminRoutes: FastifyPluginAsync = async (app) => {
         })
       }
 
+      // Recria as variantes (apaga todas e insere as novas)
+      if (variants !== undefined) {
+        await tx.productVariant.deleteMany({ where: { productId: id, storeId } })
+        if (variants.length > 0) {
+          await tx.productVariant.createMany({
+            data: variants.map((v) => ({
+              productId: id,
+              options: v.options,
+              price: v.price,
+              imageUrl: v.imageUrl ?? null,
+              active: v.active,
+              storeId,
+            })),
+          })
+        }
+      }
+
       await tx.product.updateMany({ where: { id, storeId }, data: fields })
       return tx.product.findFirst({
         where: { id, storeId },
-        include: { categories: { select: { categoryId: true } } },
+        include: PRODUCT_INCLUDE,
       })
     })
 

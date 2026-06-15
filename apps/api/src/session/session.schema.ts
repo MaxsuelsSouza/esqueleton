@@ -20,6 +20,10 @@ export const cartItemSchema = z.object({
   quantity: z.number().int().min(1, 'Quantidade mínima é 1').max(999, 'Quantidade máxima é 999'),
   promotionId: z.string().max(64).optional(),
   promotionName: z.string().max(200).optional(),
+  // Opções da variante selecionada (ex: { Cor: "Preto", Armazenamento: "1TB" })
+  selectedOptions: z.record(z.string().max(100), z.string().max(200)).optional(),
+  // ID da variante selecionada — usado para buscar o preço correto na sacola
+  variantId: z.string().max(64).optional(),
 })
 
 // Corpo do PUT /cart — lista completa de itens

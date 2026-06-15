@@ -28,6 +28,17 @@ type FullBagItem = {
   promotionName?: string
   // Cor da borda da promoção — só exibe borda no card quando definida
   badgeColor?: string
+  // Opções da variante selecionada (ex: { Cor: "Preto", Armazenamento: "1TB" })
+  selectedOptions?: Record<string, string>
+  // Preço efetivo do item — usa o preço da variante quando disponível
+  effectivePrice: number
+}
+
+// Chave única do item na sacola — mesmo produto com opções diferentes = itens distintos
+function itemKey(item: { product: { id: string }; selectedOptions?: Record<string, string> }) {
+  const opts = item.selectedOptions
+  const optsSuffix = opts ? ':' + Object.values(opts).join(',') : ''
+  return item.product.id + optsSuffix
 }
 
 export default function SacolaPage() {
@@ -42,7 +53,9 @@ export default function SacolaPage() {
   const { profile } = useStoreProfile()
 
   // Produtos buscados do banco com promoções aplicadas — mapa por ID para acesso rápido
-  type ProductWithPromo = { product: Product; promotionId?: string; promotionName?: string; badgeColor?: string }
+  // rawPrice guarda o preço original do produto (antes da promoção) para calcular
+  // o desconto proporcional nas variantes
+  type ProductWithPromo = { product: Product; rawPrice: number; promotionId?: string; promotionName?: string; badgeColor?: string }
   const [productMap, setProductMap] = useState<Map<string, ProductWithPromo>>(new Map())
   const [isLoadingProducts, setIsLoadingProducts] = useState(true)
 
@@ -66,12 +79,16 @@ export default function SacolaPage() {
     ])
       .then(([page, promotions]) => {
         const products = page.data ?? []
+        // Guarda o preço original de cada produto antes de aplicar promoções
+        const rawPrices = new Map<string, number>()
+        for (const p of products) rawPrices.set(p.id, p.price)
         // Aplica promoções ativas aos produtos — mesmo cálculo usado no catálogo
         const promoted = applyPromotionsToProducts(products, promotions)
         const map = new Map<string, ProductWithPromo>()
         for (const item of promoted) {
           map.set(item.product.id, {
             product: item.product,
+            rawPrice: rawPrices.get(item.product.id) ?? item.product.price,
             promotionId: item.promotionId,
             promotionName: item.promotionName,
             badgeColor: item.badgeColor,
@@ -83,18 +100,40 @@ export default function SacolaPage() {
       .finally(() => setIsLoadingProducts(false))
   }, [slug, productIds.join(',')])
 
-  // Combina itens da sacola (Redis) com dados dos produtos (banco) + promoção ativa
+  // Combina itens da sacola (Redis) com dados dos produtos (banco) + promoção ativa.
+  // Quando o item tem uma variante selecionada, usa o preço da variante em vez do preço base.
   const items: FullBagItem[] = useMemo(() => {
     const result: FullBagItem[] = []
     for (const ci of cartItems) {
       const entry = productMap.get(ci.productId)
       if (!entry) continue
+
+      // Busca a variante pelo ID armazenado no carrinho
+      const variant = ci.variantId
+        ? entry.product.variants?.find((v) => v.id === ci.variantId)
+        : undefined
+
+      // Preço efetivo: quando o item tem variante, aplica o mesmo desconto proporcional
+      // da promoção ao preço da variante (ex: promoção de 20% → variant.price * 0.8)
+      let effectivePrice = entry.product.price
+      if (variant) {
+        const hasPromo = entry.rawPrice > entry.product.price
+        if (hasPromo) {
+          const discountRate = entry.product.price / entry.rawPrice
+          effectivePrice = Math.round(variant.price * discountRate * 100) / 100
+        } else {
+          effectivePrice = variant.price
+        }
+      }
+
       result.push({
         product: entry.product,
         quantity: ci.quantity,
         promotionId: entry.promotionId ?? ci.promotionId,
         promotionName: entry.promotionName ?? ci.promotionName,
         badgeColor: entry.badgeColor,
+        selectedOptions: ci.selectedOptions,
+        effectivePrice,
       })
     }
     return result
@@ -102,49 +141,51 @@ export default function SacolaPage() {
 
   const isLoading = isBagLoading || isLoadingProducts
 
-  // Itens selecionados para envio — começa com todos marcados
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(
-    () => new Set(items.map((i) => i.product.id)),
+  // Itens selecionados para envio — usa chave única (produto + opções) para distinguir variantes
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(
+    () => new Set(items.map(itemKey)),
   )
 
   // Sincroniza a seleção quando a sacola muda:
-  // remove IDs de produtos que saíram e adiciona os recém-adicionados
+  // remove chaves de itens que saíram e adiciona os recém-adicionados
   useEffect(() => {
-    setSelectedIds((prev) => {
+    setSelectedKeys((prev) => {
       const next = new Set(prev)
-      for (const id of next) {
-        if (!items.find((i) => i.product.id === id)) next.delete(id)
+      const currentKeys = new Set(items.map(itemKey))
+      for (const key of next) {
+        if (!currentKeys.has(key)) next.delete(key)
       }
-      for (const { product } of items) {
-        if (!next.has(product.id)) next.add(product.id)
+      for (const item of items) {
+        const key = itemKey(item)
+        if (!next.has(key)) next.add(key)
       }
       return next
     })
   }, [items])
 
-  function toggleSelect(productId: string) {
-    setSelectedIds((prev) => {
+  function toggleSelect(key: string) {
+    setSelectedKeys((prev) => {
       const next = new Set(prev)
-      if (next.has(productId)) next.delete(productId)
-      else next.add(productId)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
       return next
     })
   }
 
   function toggleSelectAll() {
-    if (selectedIds.size === items.length) {
-      setSelectedIds(new Set())
+    if (selectedKeys.size === items.length) {
+      setSelectedKeys(new Set())
     } else {
-      setSelectedIds(new Set(items.map((i) => i.product.id)))
+      setSelectedKeys(new Set(items.map(itemKey)))
     }
   }
 
   // Apenas os itens que o usuário marcou para enviar agora
-  const selectedItems = items.filter((i) => selectedIds.has(i.product.id))
+  const selectedItems = items.filter((i) => selectedKeys.has(itemKey(i)))
 
-  // Recalcula os totais somente sobre os itens selecionados
+  // Recalcula os totais somente sobre os itens selecionados — usa effectivePrice (preço da variante)
   const selectedSubtotal = selectedItems.reduce(
-    (sum, { product, quantity }) => sum + product.price * quantity,
+    (sum, { effectivePrice, quantity }) => sum + effectivePrice * quantity,
     0,
   )
 
@@ -163,7 +204,7 @@ export default function SacolaPage() {
         appliedCoupon.productIds.includes(product.id),
     )
     const eligibleTotal = eligible.reduce(
-      (sum, { product, quantity }) => sum + product.price * quantity,
+      (sum, { effectivePrice, quantity }) => sum + effectivePrice * quantity,
       0,
     )
     if (appliedCoupon.discountType === 'percentage' && appliedCoupon.discountPercent) {
@@ -210,13 +251,14 @@ export default function SacolaPage() {
     lines.push(`📦 *PRODUTOS*`)
     lines.push(divider)
 
-    selectedItems.forEach(({ product, quantity, promotionName }, index) => {
+    selectedItems.forEach(({ product, quantity, promotionName, selectedOptions, effectivePrice }, index) => {
       const name = product.brand ? `${product.brand} ${product.name}` : product.name
-      const unitPrice = product.price
+      const optionsText = selectedOptions ? ' — ' + Object.values(selectedOptions).join(' · ') : ''
+      const unitPrice = effectivePrice
       const lineTotal = unitPrice * quantity
 
       lines.push('')
-      lines.push(`*${index + 1}. ${name}*`)
+      lines.push(`*${index + 1}. ${name}${optionsText}*`)
       lines.push(`   🔢 ${quantity} ${quantity === 1 ? 'unidade' : 'unidades'} × ${formatCurrency(unitPrice)}`)
 
       if (product.originalPrice && product.originalPrice > product.price) {
@@ -269,12 +311,14 @@ export default function SacolaPage() {
       orderNumber,
       customerName: customerInfo.name,
       customerPhone: customerInfo.phone,
-      items: selectedItems.map(({ product, quantity, promotionName }) => ({
+      items: selectedItems.map(({ product, quantity, promotionName, selectedOptions, effectivePrice }) => ({
         productId: product.id,
-        productName: product.brand ? `${product.brand} ${product.name}` : product.name,
+        productName: product.brand
+          ? `${product.brand} ${product.name}${selectedOptions ? ' — ' + Object.values(selectedOptions).join(' · ') : ''}`
+          : `${product.name}${selectedOptions ? ' — ' + Object.values(selectedOptions).join(' · ') : ''}`,
         quantity,
-        unitPrice: product.price,
-        lineTotal: product.price * quantity,
+        unitPrice: effectivePrice,
+        lineTotal: effectivePrice * quantity,
         promotionName: promotionName ?? undefined,
         originalPrice: product.originalPrice ?? undefined,
       })),
@@ -297,8 +341,8 @@ export default function SacolaPage() {
     }
 
     // Remove os itens enviados da sacola
-    for (const { product } of selectedItems) {
-      removeItem(product.id)
+    for (const { product, selectedOptions } of selectedItems) {
+      removeItem(product.id, selectedOptions)
     }
   }
 
@@ -383,7 +427,7 @@ export default function SacolaPage() {
           <div>
             <h1 className="text-xl font-bold text-gray-900">Sacola</h1>
             <p className="text-sm text-gray-500">
-              {selectedIds.size} de {totalItems} {totalItems === 1 ? 'item' : 'itens'} selecionado{selectedIds.size !== 1 ? 's' : ''}
+              {selectedKeys.size} de {totalItems} {totalItems === 1 ? 'item' : 'itens'} selecionado{selectedKeys.size !== 1 ? 's' : ''}
             </p>
           </div>
           <div className="ml-auto flex items-center gap-3">
@@ -391,7 +435,7 @@ export default function SacolaPage() {
               onClick={toggleSelectAll}
               className="text-xs text-gray-500 hover:text-gray-900"
             >
-              {selectedIds.size === items.length ? 'Desmarcar todos' : 'Selecionar todos'}
+              {selectedKeys.size === items.length ? 'Desmarcar todos' : 'Selecionar todos'}
             </button>
             <button
               onClick={clear}
@@ -404,12 +448,16 @@ export default function SacolaPage() {
 
         {/* Lista de itens */}
         <div className="mb-4 flex flex-col gap-3">
-          {items.map(({ product, quantity, promotionName, badgeColor }) => {
-            const isSelected = selectedIds.has(product.id)
+          {items.map((item) => {
+            const { product, quantity, promotionName, badgeColor, selectedOptions, effectivePrice } = item
+            const key = itemKey(item)
+            const isSelected = selectedKeys.has(key)
             const showBorder = !!(promotionName && badgeColor)
+            // Texto com as opções selecionadas (ex: "Titânio Preto · 1TB")
+            const optionsLabel = selectedOptions ? Object.values(selectedOptions).join(' · ') : ''
             return (
             <div
-              key={product.id}
+              key={key}
               className={`relative flex gap-3 rounded-2xl bg-white p-3 shadow-sm transition-opacity ${
                 !isSelected ? 'opacity-50' : ''
               }`}
@@ -429,7 +477,7 @@ export default function SacolaPage() {
               )}
 
               <button
-                onClick={() => toggleSelect(product.id)}
+                onClick={() => toggleSelect(key)}
                 aria-label={isSelected ? 'Desmarcar item' : 'Selecionar item'}
                 className="shrink-0 self-center text-gray-400 hover:text-gray-700"
               >
@@ -458,9 +506,12 @@ export default function SacolaPage() {
                       </p>
                     )}
                     <p className="truncate text-sm font-semibold text-gray-900">{product.name}</p>
+                    {optionsLabel && (
+                      <p className="text-xs text-gray-500">{optionsLabel}</p>
+                    )}
                   </div>
                   <button
-                    onClick={() => removeItem(product.id)}
+                    onClick={() => removeItem(product.id, selectedOptions)}
                     aria-label="Remover item"
                     className="shrink-0 rounded-lg p-1 text-gray-300 hover:text-red-500"
                   >
@@ -470,17 +521,17 @@ export default function SacolaPage() {
 
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-bold text-gray-900">
-                    {formatCurrency(product.price * quantity)}
+                    {formatCurrency(effectivePrice * quantity)}
                     {quantity > 1 && (
                       <span className="ml-1.5 text-xs font-normal text-gray-400">
-                        ({formatCurrency(product.price)} cada)
+                        ({formatCurrency(effectivePrice)} cada)
                       </span>
                     )}
                   </p>
 
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => updateQuantity(product.id, quantity - 1)}
+                      onClick={() => updateQuantity(product.id, quantity - 1, selectedOptions)}
                       aria-label="Diminuir quantidade"
                       className="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:border-gray-400 hover:text-gray-900"
                     >
@@ -490,7 +541,7 @@ export default function SacolaPage() {
                       {quantity}
                     </span>
                     <button
-                      onClick={() => updateQuantity(product.id, quantity + 1)}
+                      onClick={() => updateQuantity(product.id, quantity + 1, selectedOptions)}
                       aria-label="Aumentar quantidade"
                       className="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:border-gray-400 hover:text-gray-900"
                     >
@@ -558,7 +609,7 @@ export default function SacolaPage() {
               </div>
             )}
             <div className="flex justify-between text-sm text-gray-600">
-              <span>Subtotal ({selectedIds.size} {selectedIds.size === 1 ? 'item' : 'itens'})</span>
+              <span>Subtotal ({selectedKeys.size} {selectedKeys.size === 1 ? 'item' : 'itens'})</span>
               <span>{formatCurrency(selectedSubtotal)}</span>
             </div>
             {promotionSavings > 0 && (
@@ -601,7 +652,7 @@ export default function SacolaPage() {
         {/* Botão enviar pedido pelo WhatsApp */}
         <button
           onClick={handleSendWhatsApp}
-          disabled={selectedIds.size === 0}
+          disabled={selectedKeys.size === 0}
           className="flex w-full items-center justify-center gap-2 rounded-2xl bg-green-500 py-4 text-base font-bold text-white shadow-sm transition-colors hover:bg-green-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
         >
           <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">

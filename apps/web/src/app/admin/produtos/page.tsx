@@ -9,13 +9,28 @@ import { getMockProducts, setMockProducts } from '@/mocks/products-store'
 import { getMockCategories } from '@/mocks/categories-store'
 import { buildCategoryTree } from '@/utils/categories'
 import { compressImage } from '@/utils/image'
-import type { Product, Category, ProductCharacteristic } from '@esqueleton/shared'
+import type { Product, Category, ProductCharacteristic, ProductVariant } from '@esqueleton/shared'
 
 // Troque para false quando a API estiver pronta
 const USE_MOCK_DATA = false
 
 // Quantidade de produtos por página — a listagem busca uma página por vez no servidor
 const PAGE_SIZE = 24
+
+// Dados de uma variante no formulário
+type VariantFormData = {
+  options: Record<string, string>
+  price: string
+  imageUrl: string
+  active: boolean
+}
+
+const EMPTY_VARIANT: VariantFormData = {
+  options: {},
+  price: '',
+  imageUrl: '',
+  active: true,
+}
 
 // Campos editáveis de um produto (sem id e datas que são gerados pela API)
 type ProductFormData = {
@@ -25,8 +40,10 @@ type ProductFormData = {
   price: string
   originalPrice: string
   imageUrl: string
+  images: string[]
   categoryIds: string[]
   characteristics: ProductCharacteristic[]
+  variants: VariantFormData[]
 }
 
 const EMPTY_FORM: ProductFormData = {
@@ -36,8 +53,10 @@ const EMPTY_FORM: ProductFormData = {
   price: '',
   originalPrice: '',
   imageUrl: '',
+  images: [],
   categoryIds: [],
   characteristics: [],
+  variants: [],
 }
 
 export default function AdminProdutosPage() {
@@ -145,8 +164,15 @@ export default function AdminProdutosPage() {
       // Ao editar, mostra o preço de venda atual no campo "Preço"
       originalPrice: String(product.price),
       imageUrl: product.imageUrl ?? '',
+      images: product.images ?? [],
       categoryIds: product.categoryIds ?? [],
       characteristics: product.characteristics ?? [],
+      variants: (product.variants ?? []).map((v) => ({
+        options: v.options,
+        price: String(v.price),
+        imageUrl: v.imageUrl ?? '',
+        active: v.active,
+      })),
     })
     setFormError(null)
     setModalOpen(true)
@@ -171,6 +197,16 @@ export default function AdminProdutosPage() {
       (c) => c.name.trim() && c.value.trim(),
     ).map((c) => ({ name: c.name.trim(), value: c.value.trim() }))
 
+    // Filtra variantes com pelo menos uma opção e preço válido
+    const variantsLimpos = formData.variants
+      .filter((v) => Object.keys(v.options).length > 0 && v.price && !isNaN(Number(v.price)))
+      .map((v) => ({
+        options: v.options,
+        price: Number(v.price),
+        imageUrl: v.imageUrl.trim() || undefined,
+        active: v.active,
+      }))
+
     const payload = {
       brand: formData.brand.trim() || undefined,
       name: formData.name.trim(),
@@ -180,8 +216,10 @@ export default function AdminProdutosPage() {
       price: preco,
       originalPrice: undefined,
       imageUrl: formData.imageUrl.trim() || null,
+      images: formData.images.filter(Boolean),
       categoryIds: formData.categoryIds,
       characteristics: characteristicsLimpos,
+      variants: variantsLimpos,
     }
 
     if (USE_MOCK_DATA) {
@@ -496,10 +534,17 @@ export default function AdminProdutosPage() {
               />
             </FormField>
 
-            <FormField label="Foto do produto" optional>
+            <FormField label="Foto principal" optional>
               <ImageUploader
                 value={formData.imageUrl}
                 onChange={(url) => setFormData((f) => ({ ...f, imageUrl: url }))}
+              />
+            </FormField>
+
+            <FormField label="Fotos adicionais" optional>
+              <MultiImageUploader
+                images={formData.images}
+                onChange={(imgs) => setFormData((f) => ({ ...f, images: imgs }))}
               />
             </FormField>
 
@@ -517,6 +562,13 @@ export default function AdminProdutosPage() {
               <CharacteristicsEditor
                 items={formData.characteristics}
                 onChange={(items) => setFormData((f) => ({ ...f, characteristics: items }))}
+              />
+            </FormField>
+
+            <FormField label="Variantes" optional>
+              <VariantsEditor
+                variants={formData.variants}
+                onChange={(v) => setFormData((f) => ({ ...f, variants: v }))}
               />
             </FormField>
 
@@ -587,6 +639,196 @@ export default function AdminProdutosPage() {
 }
 
 // ── Componentes auxiliares ──────────────────────────────────────────────────
+
+// Upload de múltiplas fotos — grade de miniaturas com botão de adicionar
+function MultiImageUploader({
+  images,
+  onChange,
+}: {
+  images: string[]
+  onChange: (images: string[]) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  async function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
+    const newImages: string[] = []
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) continue
+      try {
+        newImages.push(await compressImage(file))
+      } catch {
+        const reader = new FileReader()
+        await new Promise<void>((resolve) => {
+          reader.onload = () => { newImages.push(reader.result as string); resolve() }
+          reader.readAsDataURL(file)
+        })
+      }
+    }
+    onChange([...images, ...newImages].slice(0, 10))
+    if (inputRef.current) inputRef.current.value = ''
+  }
+
+  function removeImage(index: number) {
+    onChange(images.filter((_, i) => i !== index))
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <input ref={inputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
+      <div className="flex flex-wrap gap-2">
+        {images.map((img, index) => (
+          <div key={index} className="relative h-20 w-20 overflow-hidden rounded-lg border border-gray-200">
+            <img src={img} alt={`Foto ${index + 1}`} className="h-full w-full object-cover" />
+            <button
+              type="button"
+              onClick={() => removeImage(index)}
+              className="absolute right-1 top-1 rounded-full bg-black/60 p-0.5 text-white hover:bg-black"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        ))}
+        {images.length < 10 && (
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="flex h-20 w-20 items-center justify-center rounded-lg border-2 border-dashed border-gray-200 text-gray-400 transition-colors hover:border-gray-400 hover:text-gray-600"
+          >
+            <Plus size={20} />
+          </button>
+        )}
+      </div>
+      {images.length > 0 && (
+        <p className="text-xs text-gray-400">{images.length}/10 fotos</p>
+      )}
+    </div>
+  )
+}
+
+// Editor de variantes do produto — cada variante tem opções (pares nome/valor), preço e imagem
+function VariantsEditor({
+  variants,
+  onChange,
+}: {
+  variants: VariantFormData[]
+  onChange: (variants: VariantFormData[]) => void
+}) {
+  function addVariant() {
+    onChange([...variants, { ...EMPTY_VARIANT, options: {} }])
+  }
+
+  function updateVariant(index: number, partial: Partial<VariantFormData>) {
+    onChange(variants.map((v, i) => i === index ? { ...v, ...partial } : v))
+  }
+
+  function removeVariant(index: number) {
+    onChange(variants.filter((_, i) => i !== index))
+  }
+
+  function addOption(variantIndex: number) {
+    const v = variants[variantIndex]
+    const newKey = ''
+    updateVariant(variantIndex, { options: { ...v.options, [newKey]: '' } })
+  }
+
+  function updateOptionKey(variantIndex: number, oldKey: string, newKey: string) {
+    const v = variants[variantIndex]
+    const entries = Object.entries(v.options).map(([k, val]) =>
+      k === oldKey ? [newKey, val] : [k, val],
+    )
+    updateVariant(variantIndex, { options: Object.fromEntries(entries) })
+  }
+
+  function updateOptionValue(variantIndex: number, key: string, value: string) {
+    const v = variants[variantIndex]
+    updateVariant(variantIndex, { options: { ...v.options, [key]: value } })
+  }
+
+  function removeOption(variantIndex: number, key: string) {
+    const v = variants[variantIndex]
+    const { [key]: _, ...rest } = v.options
+    updateVariant(variantIndex, { options: rest })
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {variants.map((variant, vIdx) => (
+        <div key={vIdx} className="rounded-xl border border-gray-200 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-semibold text-gray-500">Variante {vIdx + 1}</span>
+            <button type="button" onClick={() => removeVariant(vIdx)} className="text-gray-400 hover:text-red-500">
+              <X size={14} />
+            </button>
+          </div>
+
+          {/* Opções da variante */}
+          <div className="mb-2 flex flex-col gap-1.5">
+            {Object.entries(variant.options).map(([key, value], oIdx) => (
+              <div key={oIdx} className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  value={key}
+                  onChange={(e) => updateOptionKey(vIdx, key, e.target.value)}
+                  placeholder="Ex: Cor"
+                  className={`flex-1 ${inputClass} !py-1.5 !text-xs`}
+                />
+                <input
+                  type="text"
+                  value={value}
+                  onChange={(e) => updateOptionValue(vIdx, key, e.target.value)}
+                  placeholder="Ex: Branco"
+                  className={`flex-1 ${inputClass} !py-1.5 !text-xs`}
+                />
+                <button type="button" onClick={() => removeOption(vIdx, key)} className="shrink-0 text-gray-400 hover:text-red-500">
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => addOption(vIdx)}
+              className="flex items-center gap-1 self-start text-xs text-gray-500 hover:text-gray-700"
+            >
+              <Plus size={12} /> Opção
+            </button>
+          </div>
+
+          {/* Preço da variante */}
+          <div className="mb-2">
+            <label className="text-xs text-gray-500">Preço (R$)</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={variant.price}
+              onChange={(e) => updateVariant(vIdx, { price: e.target.value })}
+              placeholder="0,00"
+              className={`${inputClass} !py-1.5 !text-xs`}
+            />
+          </div>
+
+          {/* Imagem da variante */}
+          <div>
+            <label className="text-xs text-gray-500">Imagem da variante (opcional)</label>
+            <ImageUploader
+              value={variant.imageUrl}
+              onChange={(url) => updateVariant(vIdx, { imageUrl: url })}
+            />
+          </div>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={addVariant}
+        className="flex items-center gap-1.5 self-start rounded-lg px-2 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+      >
+        <Plus size={14} />
+        Adicionar variante
+      </button>
+    </div>
+  )
+}
 
 // Editor de características do produto — pares nome/valor com adicionar e remover
 function CharacteristicsEditor({

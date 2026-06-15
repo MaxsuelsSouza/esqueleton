@@ -13,6 +13,7 @@ import type { PrismaClient } from '@prisma/client'
 // "store" fica de fora: é a própria tabela de lojas.
 const MODELOS_DE_LOJA = new Set([
   'product',
+  'productVariant',
   'category',
   'featured',
   'promotion',
