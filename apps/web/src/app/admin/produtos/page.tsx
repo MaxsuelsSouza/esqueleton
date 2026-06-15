@@ -2,14 +2,14 @@
 
 // Página de gestão de produtos — listagem com ações de criar, editar e excluir
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Pencil, Trash2, X, PackageSearch, ImagePlus, Camera, ChevronLeft, ChevronRight, ChevronDown, Search } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, PackageSearch, ImagePlus, Camera, ChevronLeft, ChevronRight, ChevronDown, Search, ListPlus } from 'lucide-react'
 import { catalogService } from '@/services/catalog.service'
 import { categoriesService } from '@/services/categories.service'
 import { getMockProducts, setMockProducts } from '@/mocks/products-store'
 import { getMockCategories } from '@/mocks/categories-store'
 import { buildCategoryTree } from '@/utils/categories'
 import { compressImage } from '@/utils/image'
-import type { Product, Category } from '@esqueleton/shared'
+import type { Product, Category, ProductCharacteristic } from '@esqueleton/shared'
 
 // Troque para false quando a API estiver pronta
 const USE_MOCK_DATA = false
@@ -26,6 +26,7 @@ type ProductFormData = {
   originalPrice: string
   imageUrl: string
   categoryIds: string[]
+  characteristics: ProductCharacteristic[]
 }
 
 const EMPTY_FORM: ProductFormData = {
@@ -36,6 +37,7 @@ const EMPTY_FORM: ProductFormData = {
   originalPrice: '',
   imageUrl: '',
   categoryIds: [],
+  characteristics: [],
 }
 
 export default function AdminProdutosPage() {
@@ -144,6 +146,7 @@ export default function AdminProdutosPage() {
       originalPrice: String(product.price),
       imageUrl: product.imageUrl ?? '',
       categoryIds: product.categoryIds ?? [],
+      characteristics: product.characteristics ?? [],
     })
     setFormError(null)
     setModalOpen(true)
@@ -163,6 +166,11 @@ export default function AdminProdutosPage() {
     setFormError(null)
 
     const preco = Number(formData.originalPrice)
+    // Filtra características com nome e valor preenchidos
+    const characteristicsLimpos = formData.characteristics.filter(
+      (c) => c.name.trim() && c.value.trim(),
+    ).map((c) => ({ name: c.name.trim(), value: c.value.trim() }))
+
     const payload = {
       brand: formData.brand.trim() || undefined,
       name: formData.name.trim(),
@@ -173,6 +181,7 @@ export default function AdminProdutosPage() {
       originalPrice: undefined,
       imageUrl: formData.imageUrl.trim() || null,
       categoryIds: formData.categoryIds,
+      characteristics: characteristicsLimpos,
     }
 
     if (USE_MOCK_DATA) {
@@ -504,6 +513,13 @@ export default function AdminProdutosPage() {
               </FormField>
             )}
 
+            <FormField label="Características" optional>
+              <CharacteristicsEditor
+                items={formData.characteristics}
+                onChange={(items) => setFormData((f) => ({ ...f, characteristics: items }))}
+              />
+            </FormField>
+
             <FormField label="Descrição" optional>
               <textarea
                 value={formData.description}
@@ -571,6 +587,68 @@ export default function AdminProdutosPage() {
 }
 
 // ── Componentes auxiliares ──────────────────────────────────────────────────
+
+// Editor de características do produto — pares nome/valor com adicionar e remover
+function CharacteristicsEditor({
+  items,
+  onChange,
+}: {
+  items: ProductCharacteristic[]
+  onChange: (items: ProductCharacteristic[]) => void
+}) {
+  function addItem() {
+    onChange([...items, { name: '', value: '' }])
+  }
+
+  function updateItem(index: number, field: 'name' | 'value', val: string) {
+    const updated = items.map((item, i) =>
+      i === index ? { ...item, [field]: val } : item,
+    )
+    onChange(updated)
+  }
+
+  function removeItem(index: number) {
+    onChange(items.filter((_, i) => i !== index))
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      {items.map((item, index) => (
+        <div key={index} className="flex items-start gap-2">
+          <input
+            type="text"
+            value={item.name}
+            onChange={(e) => updateItem(index, 'name', e.target.value)}
+            placeholder="Ex: Tamanho"
+            className={`flex-1 ${inputClass}`}
+          />
+          <input
+            type="text"
+            value={item.value}
+            onChange={(e) => updateItem(index, 'value', e.target.value)}
+            placeholder="Ex: 100ml"
+            className={`flex-1 ${inputClass}`}
+          />
+          <button
+            type="button"
+            onClick={() => removeItem(index)}
+            className="mt-2 shrink-0 text-gray-400 hover:text-red-500"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={addItem}
+        className="flex items-center gap-1.5 self-start rounded-lg px-2 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+      >
+        <Plus size={14} />
+        Adicionar característica
+      </button>
+    </div>
+  )
+}
 
 // Seletor de categorias em árvore com checkboxes para o formulário de produto
 function CategoryCheckboxTree({

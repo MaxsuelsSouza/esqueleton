@@ -225,6 +225,21 @@ export default function ProductDetailPage() {
                 </div>
               </div>
 
+              {/* Características */}
+              {product.characteristics && product.characteristics.length > 0 && (
+                <div className="rounded-xl bg-white p-4 shadow-sm">
+                  <h2 className="mb-3 text-sm font-semibold text-gray-900">Características</h2>
+                  <dl className="divide-y divide-gray-100">
+                    {product.characteristics.map((char, index) => (
+                      <div key={index} className="flex justify-between py-2 text-sm">
+                        <dt className="text-gray-500">{char.name}</dt>
+                        <dd className="font-medium text-gray-900">{char.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              )}
+
               {/* Descrição */}
               {product.description && (
                 <p className="leading-relaxed text-gray-500">{product.description}</p>

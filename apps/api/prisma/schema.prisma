@@ -83,18 +83,20 @@ model EmailVerificationToken {
 }
 
 model Product {
-  id            String            @id @default(cuid())
-  brand         String?
-  name          String
-  description   String?
-  price         Float
-  originalPrice Float?
-  imageUrl      String?
-  storeId       String
-  store         Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  categories    ProductCategory[]
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  id              String            @id @default(cuid())
+  brand           String?
+  name            String
+  description     String?
+  price           Float
+  originalPrice   Float?
+  imageUrl        String?
+  // Características do produto em JSON — Array de { name, value } (ex: tamanho, cor, material)
+  characteristics Json?
+  storeId         String
+  store           Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  categories      ProductCategory[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 
   @@index([storeId])
 }

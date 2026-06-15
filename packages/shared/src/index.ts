@@ -13,6 +13,12 @@ export interface PaginatedResponse<T> {
   perPage: number
 }
 
+// Característica do produto — par nome/valor (ex: "Tamanho" → "100ml", "Cor" → "Preto")
+export interface ProductCharacteristic {
+  name: string
+  value: string
+}
+
 export interface Product {
   id: string
   // Nome da marca (ex: Dior, Chanel, L'Occitane)
@@ -23,6 +29,8 @@ export interface Product {
   // Preço original antes do desconto — quando informado, indica que o produto está em promoção
   originalPrice?: number
   imageUrl: string | null
+  // Características do produto (ex: tamanho, cor, material)
+  characteristics?: ProductCharacteristic[]
   // IDs das categorias às quais o produto pertence (pode ser mais de uma)
   categoryIds?: string[]
   createdAt: string

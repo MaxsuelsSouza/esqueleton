@@ -8,9 +8,14 @@ import { idParamSchema } from '../common/validation'
 const PAGE_SIZE = 20
 
 // Transforma o produto do formato Prisma (com relação categories) para o formato do tipo compartilhado (com categoryIds)
-function toProductResponse(product: { categories: { categoryId: string }[]; [key: string]: unknown }) {
-  const { categories, ...rest } = product
-  return { ...rest, categoryIds: categories.map((c) => c.categoryId) }
+function toProductResponse(product: { categories: { categoryId: string }[]; characteristics?: unknown; [key: string]: unknown }) {
+  const { categories, characteristics, ...rest } = product
+  return {
+    ...rest,
+    categoryIds: categories.map((c) => c.categoryId),
+    // Características armazenadas como JSON — retorna apenas quando preenchidas
+    ...(Array.isArray(characteristics) && characteristics.length > 0 ? { characteristics } : {}),
+  }
 }
 
 // Parâmetros aceitos na query string da listagem
