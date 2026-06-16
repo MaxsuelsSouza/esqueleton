@@ -2,30 +2,11 @@
 
 // Página "Esqueci minha senha" — o usuário informa o e-mail e recebe
 // um link para criar uma nova senha.
-import { useState } from 'react'
 import Link from 'next/link'
-import { authService } from '@/services/auth.service'
+import { useEsqueciSenhaPage } from './page.hooks'
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState('')
-  const [sent, setSent] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
-    setIsLoading(true)
-
-    try {
-      await authService.forgotPassword(email.trim())
-      setSent(true)
-    } catch {
-      setError('Erro ao enviar o e-mail. Tente novamente.')
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const { email, setEmail, sent, isLoading, error, handleSubmit } = useEsqueciSenhaPage()
 
   const inputClass =
     'w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none transition placeholder:text-gray-300 focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10'

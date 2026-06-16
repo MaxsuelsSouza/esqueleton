@@ -1,49 +1,12 @@
 'use client'
 
 // Página de favoritos — exibe os produtos salvos pelo cliente com promoções aplicadas
-import { useState, useEffect, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
 import { Heart, ArrowLeft } from 'lucide-react'
-import { useFavorites } from '@/contexts/favorites-context'
-import { catalogService } from '@/services/catalog.service'
-import { promotionsService } from '@/services/promotions.service'
-import { applyPromotionsToProducts, type PromotedProduct } from '@/utils/promotions'
-import { ProductCard } from '@/components/catalog/ProductCard'
-import { useStoreSlug } from '@/hooks/useStoreSlug'
-import type { Product, Promotion } from '@esqueleton/shared'
+import { ProductCard } from '@/modules/catalog/components/ProductCard'
+import { useFavoritosPage } from './page.hooks'
 
 export default function FavoritosPage() {
-  const router = useRouter()
-  const slug = useStoreSlug()
-  const { favoriteIds } = useFavorites()
-  const [products, setProducts] = useState<Product[]>([])
-  const [promotions, setPromotions] = useState<Promotion[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    if (favoriteIds.length === 0) {
-      setProducts([])
-      setIsLoading(false)
-      return
-    }
-
-    Promise.all([
-      catalogService.getPublicProductsByIds(slug, favoriteIds),
-      promotionsService.listPublicPromotions(slug).catch(() => [] as Promotion[]),
-    ])
-      .then(([page, promos]) => {
-        setProducts(page.data ?? [])
-        setPromotions(promos)
-      })
-      .catch(() => setProducts([]))
-      .finally(() => setIsLoading(false))
-  }, [slug, favoriteIds.length])
-
-  // Aplica promoções ativas aos produtos favoritos
-  const promotedProducts = useMemo(
-    () => applyPromotionsToProducts(products, promotions),
-    [products, promotions],
-  )
+  const { router, slug, isLoading, promotedProducts } = useFavoritosPage()
 
   return (
     <main className="min-h-screen bg-gray-50">

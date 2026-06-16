@@ -1,11 +1,10 @@
 'use client'
 
 // Página de configurações da loja — nome, contato, logo e cor do tema
-import { useState, useEffect, useRef } from 'react'
+import { useRef, useState } from 'react'
 import { ImagePlus, Camera, X, Save, Store, Plus, Megaphone } from 'lucide-react'
-import { storeProfileService } from '@/services/store-profile.service'
-import { compressImage } from '@/utils/image'
-import type { StoreProfile } from '@esqueleton/shared'
+import { compressImage } from '@/modules/catalog/utils/image'
+import { usePerfilPage } from './page.hooks'
 
 // Cores predefinidas para o tema
 const THEME_COLORS = [
@@ -19,119 +18,19 @@ const THEME_COLORS = [
   { label: 'Marrom',    value: '#92400e' },
 ]
 
-type FormData = {
-  storeName: string
-  address: string
-  whatsapp: string
-  instagram: string
-  logoUrl: string
-  themeColor: string
-  announcements: string[]
-}
-
-// Valores exibidos enquanto o perfil ainda não carregou da API
-const DEFAULT_PROFILE: StoreProfile = {
-  id: '',
-  storeName: 'Minha Loja',
-  themeColor: '#000000',
-  announcements: [],
-  updatedAt: '',
-}
-
 export default function AdminPerfilPage() {
-  // O perfil é buscado direto da API com o token do admin —
-  // a área admin não usa mais o contexto público da loja
-  const [profile, setProfile] = useState<StoreProfile>(DEFAULT_PROFILE)
-  const [form, setForm] = useState<FormData>({
-    storeName: '',
-    address: '',
-    whatsapp: '',
-    instagram: '',
-    logoUrl: '',
-    themeColor: '#000000',
-    announcements: [],
-  })
-  const [newAnnouncement, setNewAnnouncement] = useState('')
-  const [isSaving, setIsSaving] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
-  const [saveSuccess, setSaveSuccess] = useState(false)
-
-  // Carrega o perfil da loja do administrador (rota protegida — exige token)
-  useEffect(() => {
-    storeProfileService
-      .getProfile(localStorage.getItem('admin_token') ?? '')
-      .then(setProfile)
-      .catch(() => {
-        // Se a API não estiver disponível, mantém os valores padrão silenciosamente
-      })
-  }, [])
-
-  // Preenche o formulário quando o perfil carregar
-  useEffect(() => {
-    setForm({
-      storeName: profile.storeName,
-      address: profile.address ?? '',
-      whatsapp: profile.whatsapp ?? '',
-      instagram: profile.instagram ?? '',
-      logoUrl: profile.logoUrl ?? '',
-      themeColor: profile.themeColor,
-      announcements: profile.announcements ?? [],
-    })
-  }, [profile])
-
-  function set<K extends keyof FormData>(key: K, value: FormData[K]) {
-    setForm((f) => ({ ...f, [key]: value }))
-    // Aplica a cor do tema imediatamente para o usuário ver o resultado em tempo real
-    if (key === 'themeColor') {
-      document.documentElement.style.setProperty('--color-primary', value)
-    }
-  }
-
-  function addAnnouncement() {
-    const text = newAnnouncement.trim()
-    if (!text) return
-    set('announcements', [...form.announcements, text])
-    setNewAnnouncement('')
-  }
-
-  function removeAnnouncement(index: number) {
-    set('announcements', form.announcements.filter((_, i) => i !== index))
-  }
-
-  async function handleSave() {
-    if (!form.storeName.trim()) {
-      setSaveError('O nome da loja é obrigatório.')
-      return
-    }
-
-    setIsSaving(true)
-    setSaveError(null)
-    setSaveSuccess(false)
-
-    const token = localStorage.getItem('admin_token') ?? ''
-    try {
-      const updated = await storeProfileService.updateProfile(
-        {
-          storeName: form.storeName.trim(),
-          address: form.address.trim() || undefined,
-          whatsapp: form.whatsapp.trim() || undefined,
-          instagram: form.instagram.replace('@', '').trim() || undefined,
-          logoUrl: form.logoUrl.trim() || undefined,
-          themeColor: form.themeColor,
-          announcements: form.announcements,
-        },
-        token,
-      )
-      // Atualiza o estado local para refletir os dados salvos imediatamente
-      setProfile(updated)
-      setSaveSuccess(true)
-      setTimeout(() => setSaveSuccess(false), 3000)
-    } catch {
-      setSaveError('Erro ao salvar. Tente novamente.')
-    } finally {
-      setIsSaving(false)
-    }
-  }
+  const {
+    form,
+    set,
+    newAnnouncement,
+    setNewAnnouncement,
+    addAnnouncement,
+    removeAnnouncement,
+    isSaving,
+    saveError,
+    saveSuccess,
+    handleSave,
+  } = usePerfilPage()
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-6">

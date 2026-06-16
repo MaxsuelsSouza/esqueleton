@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
-import { RouteLoadingBar } from '@/components/shared/RouteLoadingBar'
+import { RouteLoadingBar } from '@/shared/components/RouteLoadingBar'
 import './globals.css'
 
 export const metadata: Metadata = {

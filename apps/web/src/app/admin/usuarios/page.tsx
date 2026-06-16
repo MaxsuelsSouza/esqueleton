@@ -2,91 +2,27 @@
 
 // Página de gestão da equipe — apenas o OWNER pode acessar
 // Lista os usuários da loja, permite convidar (criar) e remover membros
-import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
-import { useAdminAuth } from '@/hooks/useAdminAuth'
-import { usersService } from '@/services/users.service'
-import { authService } from '@/services/auth.service'
-import type { User } from '@esqueleton/shared'
 import { Trash2, UserPlus, Shield, Users } from 'lucide-react'
+import { useUsuariosPage } from './page.hooks'
 
 export default function UsuariosPage() {
-  const { token, isOwner, isChecking } = useAdminAuth()
-  const router = useRouter()
-
-  const [users, setUsers] = useState<User[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  // Estado do formulário de convite
-  const [showInvite, setShowInvite] = useState(false)
-  const [inviteEmail, setInviteEmail] = useState('')
-  const [invitePassword, setInvitePassword] = useState('')
-  const [inviting, setInviting] = useState(false)
-  const [inviteError, setInviteError] = useState<string | null>(null)
-
-  // ID do usuário sendo removido — para desabilitar o botão enquanto aguarda
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-
-  const loadUsers = useCallback(async () => {
-    if (!token) return
-    try {
-      const data = await usersService.list(token)
-      setUsers(data)
-    } catch {
-      setError('Não foi possível carregar a equipe.')
-    } finally {
-      setLoading(false)
-    }
-  }, [token])
-
-  useEffect(() => {
-    if (!isChecking && !isOwner) {
-      router.replace('/admin/dashboard')
-      return
-    }
-    if (token) loadUsers()
-  }, [token, isChecking, isOwner, router, loadUsers])
-
-  async function handleInvite(e: React.FormEvent) {
-    e.preventDefault()
-    if (!token) return
-    setInviteError(null)
-    setInviting(true)
-
-    try {
-      await authService.register({ email: inviteEmail, password: invitePassword }, token)
-      setInviteEmail('')
-      setInvitePassword('')
-      setShowInvite(false)
-      await loadUsers()
-    } catch (err: unknown) {
-      const message = (err as { message?: string })?.message ?? ''
-      setInviteError(
-        message.includes('409') || message.includes('cadastrado') || message.includes('uso')
-          ? 'Este e-mail já está em uso.'
-          : message || 'Erro ao convidar. Tente novamente.'
-      )
-    } finally {
-      setInviting(false)
-    }
-  }
-
-  async function handleDelete(userId: string) {
-    if (!token) return
-    if (!confirm('Tem certeza que deseja remover este membro?')) return
-
-    setDeletingId(userId)
-    try {
-      await usersService.delete(userId, token)
-      setUsers((prev) => prev.filter((u) => u.id !== userId))
-    } catch (err: unknown) {
-      const message = (err as { message?: string })?.message ?? ''
-      alert(message || 'Erro ao remover o membro.')
-    } finally {
-      setDeletingId(null)
-    }
-  }
+  const {
+    users,
+    loading,
+    error,
+    isChecking,
+    showInvite,
+    setShowInvite,
+    inviteEmail,
+    setInviteEmail,
+    invitePassword,
+    setInvitePassword,
+    inviting,
+    inviteError,
+    deletingId,
+    handleInvite,
+    handleDelete,
+  } = useUsuariosPage()
 
   if (isChecking || loading) {
     return <div className="flex min-h-[50vh] items-center justify-center" />

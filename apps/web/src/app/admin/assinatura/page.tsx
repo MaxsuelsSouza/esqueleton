@@ -4,12 +4,10 @@
 // do período de teste e leva ao pagamento recorrente no MercadoPago.
 // O cartão é cadastrado no checkout seguro do MercadoPago (nada de cartão aqui);
 // quando o pagamento é aprovado, o webhook ativa a assinatura automaticamente.
-import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { useAdminAuth } from '@/hooks/useAdminAuth'
-import { billingService } from '@/services/billing.service'
-import type { Plan, BillingCurrentResponse } from '@esqueleton/shared'
 import { CheckCircle2, CreditCard, Rocket, ShieldCheck, Clock, AlertTriangle } from 'lucide-react'
+import { useAssinaturaPage } from './page.hooks'
+import type { Plan } from '@esqueleton/shared'
 
 // Converte centavos em texto de preço (ex: 4990 → "R$ 49,90")
 function formatPrice(priceInCents: number): string {
@@ -17,65 +15,23 @@ function formatPrice(priceInCents: number): string {
 }
 
 export default function AssinaturaPage() {
-  const { token, isOwner, isChecking } = useAdminAuth()
-
-  const [billing, setBilling] = useState<BillingCurrentResponse | null>(null)
-  const [plans, setPlans] = useState<Plan[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [subscribingId, setSubscribingId] = useState<string | null>(null)
-  const [pendingMessage, setPendingMessage] = useState(false)
-
-  const loadData = useCallback(async () => {
-    if (!token) return
-    try {
-      const [currentData, plansData] = await Promise.all([
-        billingService.current(token),
-        billingService.listPlans(),
-      ])
-      setBilling(currentData)
-      // O onboarding oferece apenas planos pagos — o modelo é "pagou, usou"
-      setPlans(plansData.filter((plan) => plan.priceInCents > 0))
-    } catch {
-      setError('Não foi possível carregar as informações. Recarregue a página.')
-    } finally {
-      setLoading(false)
-    }
-  }, [token])
-
-  useEffect(() => {
-    if (token) loadData()
-  }, [token, loadData])
-
-  async function handleSubscribe(plan: Plan) {
-    if (!token) return
-    setError(null)
-    setSubscribingId(plan.id)
-    try {
-      const result = await billingService.subscribe(plan.id, token)
-      if (result.checkoutUrl) {
-        // Vai para o checkout seguro do MercadoPago cadastrar o cartão
-        window.location.href = result.checkoutUrl
-        return
-      }
-      // Sem URL de checkout (ambiente sem MercadoPago): assinatura ficou pendente
-      setPendingMessage(true)
-      await loadData()
-    } catch (err: unknown) {
-      setError((err as { message?: string })?.message || 'Erro ao iniciar a assinatura. Tente novamente.')
-    } finally {
-      setSubscribingId(null)
-    }
-  }
+  const {
+    isChecking,
+    isOwner,
+    loading,
+    error,
+    plans,
+    subscribingId,
+    pendingMessage,
+    trial,
+    hasActiveSubscription,
+    isPending,
+    handleSubscribe,
+  } = useAssinaturaPage()
 
   if (isChecking || loading) {
     return <div className="flex min-h-[50vh] items-center justify-center" />
   }
-
-  const subscription = billing?.subscription ?? null
-  const trial = billing?.trial ?? null
-  const hasActiveSubscription = subscription?.status === 'ACTIVE'
-  const isPending = subscription?.status === 'PENDING'
 
   // Assinatura já ativa — nada a fazer aqui
   if (hasActiveSubscription) {

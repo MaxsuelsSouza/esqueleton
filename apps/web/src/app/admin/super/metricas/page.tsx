@@ -1,12 +1,8 @@
 'use client'
 
 // Métricas da plataforma (super-admin) — totais, MRR e assinaturas por plano
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { useAdminAuth } from '@/hooks/useAdminAuth'
-import { superService } from '@/services/super.service'
-import type { PlatformMetrics } from '@esqueleton/shared'
 import { Building2, CheckCircle2, Ban, Users, Wallet } from 'lucide-react'
+import { useSuperMetricasPage } from './page.hooks'
 
 // Converte centavos em texto de preço (ex: 4990 → "R$ 49,90")
 function formatPrice(priceInCents: number): string {
@@ -14,32 +10,11 @@ function formatPrice(priceInCents: number): string {
 }
 
 export default function SuperMetricasPage() {
-  const { token, isSuperAdmin, isChecking } = useAdminAuth()
-  const router = useRouter()
-
-  const [metrics, setMetrics] = useState<PlatformMetrics | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!isChecking && !isSuperAdmin) {
-      router.replace('/admin/dashboard')
-      return
-    }
-    if (!token) return
-    superService
-      .metrics(token)
-      .then(setMetrics)
-      .catch(() => setError('Não foi possível carregar as métricas.'))
-      .finally(() => setLoading(false))
-  }, [token, isChecking, isSuperAdmin, router])
+  const { metrics, loading, error, isChecking, maxCount } = useSuperMetricasPage()
 
   if (isChecking || loading) {
     return <div className="flex min-h-[50vh] items-center justify-center" />
   }
-
-  // Maior contagem entre os planos — usada para dimensionar as barras do gráfico
-  const maxCount = Math.max(1, ...(metrics?.subscriptionsByPlan.map((p) => p.count) ?? [1]))
 
   return (
     <div className="mx-auto max-w-4xl">

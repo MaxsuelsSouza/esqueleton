@@ -1,52 +1,27 @@
 'use client'
 
 // Usuários da plataforma (super-admin) — todos os usuários de todas as lojas
-import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
-import { useAdminAuth } from '@/hooks/useAdminAuth'
-import { superService } from '@/services/super.service'
-import type { SuperUser } from '@esqueleton/shared'
 import { Search, Users, Shield, ShieldCheck } from 'lucide-react'
+import { useSuperUsuariosPage } from './page.hooks'
 
 export default function SuperUsuariosPage() {
-  const { token, isSuperAdmin, isChecking } = useAdminAuth()
-  const router = useRouter()
-
-  const [users, setUsers] = useState<SuperUser[]>([])
-  const [total, setTotal] = useState(0)
-  const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(20)
-  const [search, setSearch] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const loadUsers = useCallback(async () => {
-    if (!token) return
-    try {
-      const result = await superService.listUsers(token, { page, search: search || undefined })
-      setUsers(result.data)
-      setTotal(result.total)
-      setPerPage(result.perPage)
-    } catch {
-      setError('Não foi possível carregar os usuários.')
-    } finally {
-      setLoading(false)
-    }
-  }, [token, page, search])
-
-  useEffect(() => {
-    if (!isChecking && !isSuperAdmin) {
-      router.replace('/admin/dashboard')
-      return
-    }
-    if (token) loadUsers()
-  }, [token, isChecking, isSuperAdmin, router, loadUsers])
+  const {
+    users,
+    total,
+    page,
+    search,
+    loading,
+    error,
+    isChecking,
+    totalPages,
+    handleSearchChange,
+    handlePreviousPage,
+    handleNextPage,
+  } = useSuperUsuariosPage()
 
   if (isChecking || loading) {
     return <div className="flex min-h-[50vh] items-center justify-center" />
   }
-
-  const totalPages = Math.max(1, Math.ceil(total / perPage))
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -64,7 +39,7 @@ export default function SuperUsuariosPage() {
         <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-300" />
         <input
           value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+          onChange={handleSearchChange}
           placeholder="Buscar por e-mail"
           className="w-full rounded-xl border border-gray-200 py-2.5 pl-10 pr-4 text-sm outline-none transition placeholder:text-gray-300 focus:border-gray-900"
         />
@@ -132,7 +107,7 @@ export default function SuperUsuariosPage() {
       {totalPages > 1 && (
         <div className="mt-4 flex items-center justify-center gap-3 text-sm">
           <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            onClick={handlePreviousPage}
             disabled={page <= 1}
             className="rounded-lg border border-gray-200 px-3 py-1.5 text-gray-600 disabled:opacity-40"
           >
@@ -140,7 +115,7 @@ export default function SuperUsuariosPage() {
           </button>
           <span className="text-gray-500">Página {page} de {totalPages}</span>
           <button
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            onClick={handleNextPage}
             disabled={page >= totalPages}
             className="rounded-lg border border-gray-200 px-3 py-1.5 text-gray-600 disabled:opacity-40"
           >

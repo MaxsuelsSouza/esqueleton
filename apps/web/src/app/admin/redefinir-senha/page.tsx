@@ -2,47 +2,21 @@
 
 // Página de redefinição de senha — o usuário chega aqui pelo link do e-mail.
 // Lê o token da URL (?token=xxx) e pede a nova senha.
-import { useState } from 'react'
-import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { authService } from '@/services/auth.service'
+import { useRedefinirSenhaPage } from './page.hooks'
 
 export default function ResetPasswordPage() {
-  const searchParams = useSearchParams()
-  const token = searchParams.get('token') ?? ''
-
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [success, setSuccess] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
-
-    if (password !== confirmPassword) {
-      setError('As senhas não coincidem.')
-      return
-    }
-
-    if (password.length < 8) {
-      setError('A senha deve ter no mínimo 8 caracteres.')
-      return
-    }
-
-    setIsLoading(true)
-
-    try {
-      await authService.resetPassword(token, password)
-      setSuccess(true)
-    } catch (err: unknown) {
-      const message = (err as { message?: string })?.message ?? ''
-      setError(message || 'Erro ao redefinir a senha. Tente novamente.')
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const {
+    token,
+    password,
+    setPassword,
+    confirmPassword,
+    setConfirmPassword,
+    success,
+    isLoading,
+    error,
+    handleSubmit,
+  } = useRedefinirSenhaPage()
 
   const inputClass =
     'w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none transition placeholder:text-gray-300 focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10'
