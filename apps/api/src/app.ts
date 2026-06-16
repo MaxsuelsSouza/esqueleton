@@ -2,36 +2,26 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
-import { ZodError } from 'zod'
-import { createRateLimitRedis } from './common/rate-limit-redis'
-import { prismaPlugin } from './database/prisma.plugin'
-import { jwtAuthPlugin } from './auth/jwt.plugin'
-import { storeContextPlugin } from './store/store-context.plugin'
-import { authRoutes } from './auth/auth.routes'
-import { passwordResetRoutes } from './auth/password-reset.routes'
-import { emailVerificationRoutes } from './auth/email-verification.routes'
-import { userAdminRoutes } from './users/user.routes'
-import { resendPlugin } from './email/resend.plugin'
-import { mercadopagoPlugin } from './billing/mercadopago.plugin'
-import { planLimitsPlugin } from './billing/plan-limits.plugin'
-import { billingPublicRoutes, billingAdminRoutes } from './billing/billing.routes'
-import { webhookRoutes } from './billing/webhook.routes'
-import { superStoresRoutes } from './super/super-stores.routes'
-import { superPlansRoutes } from './super/super-plans.routes'
-import { superUsersRoutes } from './super/super-users.routes'
-import { superMetricsRoutes } from './super/super-metrics.routes'
-import { catalogPublicRoutes, catalogAdminRoutes } from './catalog/catalog.routes'
-import { couponPublicRoutes, couponAdminRoutes } from './coupons/coupon.routes'
-import { promotionPublicRoutes, promotionAdminRoutes } from './promotions/promotion.routes'
-import { featuredPublicRoutes, featuredAdminRoutes } from './featured/featured.routes'
-import { categoryPublicRoutes, categoryAdminRoutes } from './categories/category.routes'
-import { storeProfilePublicRoutes, storeProfileAdminRoutes } from './store-profile/store-profile.routes'
-import { analyticsPublicRoutes, analyticsAdminRoutes } from './analytics/analytics.routes'
-import { customerPublicRoutes, customerAdminRoutes } from './customers/customer.routes'
-import { orderPublicRoutes, orderAdminRoutes } from './orders/order.routes'
-import { notificationRoutes } from './notifications/notification.routes'
-import { sessionPlugin } from './session/session.plugin'
-import { sessionPublicRoutes } from './session/session.routes'
+import { createRateLimitRedis } from './shared/cache/rate-limit-redis'
+import { prismaPlugin } from './shared/database/prisma.plugin'
+import { resendPlugin } from './shared/email/resend.plugin'
+import { registerErrorHandler } from './shared/errors/error-handler'
+import { jwtAuthPlugin } from './http/plugins/jwt.plugin'
+import { storeContextPlugin } from './http/plugins/store-context.plugin'
+import { planLimitsPlugin } from './http/plugins/plan-limits.plugin'
+import { sessionPlugin } from './http/plugins/session.plugin'
+import { mercadopagoPlugin } from './domain/billing/integrations/mercadopago.adapter'
+import { authRoutes, passwordResetRoutes, emailVerificationRoutes } from './http/routes/auth'
+import { catalogPublicRoutes, catalogAdminRoutes, categoryPublicRoutes, categoryAdminRoutes } from './http/routes/catalog'
+import { couponPublicRoutes, couponAdminRoutes, promotionPublicRoutes, promotionAdminRoutes, featuredPublicRoutes, featuredAdminRoutes } from './http/routes/pricing'
+import { orderPublicRoutes, orderAdminRoutes, customerPublicRoutes, customerAdminRoutes } from './http/routes/order'
+import { billingPublicRoutes, billingAdminRoutes } from './http/routes/billing'
+import { webhookRoutes } from './http/routes/webhooks'
+import { analyticsPublicRoutes, analyticsAdminRoutes } from './http/routes/analytics'
+import { notificationRoutes } from './http/routes/notification'
+import { userAdminRoutes, storeProfilePublicRoutes, storeProfileAdminRoutes } from './http/routes/admin'
+import { superStoresRoutes, superPlansRoutes, superUsersRoutes, superMetricsRoutes } from './http/routes/super'
+import { sessionPublicRoutes } from './http/routes/session'
 
 // Nos testes é possível injetar um banco de dados falso — veja prisma.plugin.ts
 type BuildAppOptions = {
@@ -152,17 +142,7 @@ export function buildApp(options: BuildAppOptions = {}) {
 
   app.get('/api/health', async () => ({ status: 'ok' }))
 
-  app.setErrorHandler((error, _request, reply) => {
-    if (error instanceof ZodError) {
-      return reply.status(400).send({ message: 'Dados inválidos', errors: error.errors })
-    }
-    app.log.error(error)
-
-    // Erros internos (500+) não devem expor detalhes do servidor ou do banco de dados
-    const statusCode = error.statusCode ?? 500
-    const message = statusCode >= 500 ? 'Erro interno do servidor' : error.message
-    reply.status(statusCode).send({ message })
-  })
+  registerErrorHandler(app)
 
   return app
 }

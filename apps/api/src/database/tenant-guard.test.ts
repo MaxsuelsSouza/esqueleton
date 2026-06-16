@@ -1,7 +1,7 @@
 // Testes da proteção de loja (tenant guard) — consultas sem storeId são bloqueadas
 import { describe, it, expect, vi } from 'vitest'
 import type { PrismaClient } from '@prisma/client'
-import { comProtecaoDeLoja } from './tenant-guard'
+import { comProtecaoDeLoja } from '../shared/database/tenant-guard'
 
 // Banco falso mínimo: registra as chamadas e devolve respostas vazias
 function criaFake() {

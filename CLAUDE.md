@@ -110,41 +110,80 @@ pnpm --filter @esqueleton/web test
 apps/api/
   src/
     main.ts                      # inicia o servidor (porta 3001)
-    app.ts                       # monta o servidor: registra plugins e rotas
+    app.ts                       # monta o servidor: registra plugins e rotas (~80 linhas, imports via barrels)
     vercel.ts                    # entrada serverless para deploy na Vercel
-    database/
-      prisma.plugin.ts           # conexão com o banco de dados (envolve o cliente com o tenant guard)
-      tenant-guard.ts            # bloqueia consultas a dados de loja sem storeId (multi-tenancy)
-    store/
-      store-context.plugin.ts    # resolve o :slug das rotas públicas → request.store
-    email/
-      resend.plugin.ts           # integração com Resend — decora app.email.send() (no-op sem API key)
-      templates.ts               # templates HTML de e-mail (reset de senha, verificação)
-    auth/
-      jwt.plugin.ts              # verifica token JWT (payload com storeId) e expõe app.authenticate
-      auth.routes.ts             # POST /api/auth/register (cria a loja ou convida staff) e /api/auth/login
-      password-reset.routes.ts   # POST /api/auth/forgot-password e /api/auth/reset-password
-      password-reset.schema.ts   # validações Zod dos dados de redefinição de senha
-      email-verification.routes.ts # POST /api/auth/verify-email e /api/auth/resend-verification
-      role-guard.ts              # requireOwner (403 se não é OWNER) e requireVerifiedEmail (bloqueia após 7 dias)
-    users/
-      user.routes.ts             # GET /api/users e DELETE /api/users/:id (OWNER only)
-    billing/
-      trial.ts                   # período de teste de 7 dias (TRIAL_MS, trialStatus)
-      mercadopago.plugin.ts      # integração com MercadoPago — app.mercadopago (no-op sem access token)
-      plan-limits.plugin.ts      # app.checkPlanLimit (preHandler 403) e app.planLimitStatus (limites do plano)
-      billing.routes.ts          # GET /api/billing/plans (público), /current, /subscribe e /cancel (OWNER)
-      billing.schema.ts          # validações Zod de billing
-      webhook.routes.ts          # POST /api/webhooks/mercadopago — atualiza o status da assinatura
-    super/
-      super-stores.routes.ts     # gestão de lojas da plataforma (listar, suspender, trocar plano)
-      super-plans.routes.ts      # CRUD de planos (planos pagos criam recorrência no MercadoPago)
-      super-users.routes.ts      # lista de todos os usuários da plataforma
-      super-metrics.routes.ts    # totais, MRR e assinaturas por plano
-      super.schema.ts            # validações Zod das rotas super-admin
-    catalog/
-      catalog.routes.ts          # catalogPublicRoutes (/api/lojas/:slug/products) + catalogAdminRoutes (/api/products)
-      catalog.schema.ts          # validações Zod dos dados de produto
+
+    shared/                      # infraestrutura transversal (sem lógica de negócio)
+      database/
+        prisma.plugin.ts         # conexão com o banco (envolve o cliente com o tenant guard)
+        tenant-guard.ts          # bloqueia consultas a dados de loja sem storeId (multi-tenancy)
+      email/
+        resend.plugin.ts         # integração com Resend — app.email.send() (no-op sem API key)
+        templates.ts             # templates HTML de e-mail (reset de senha, verificação)
+      cache/
+        rate-limit-redis.ts      # conexão Redis para rate limiting (lazy-load ioredis)
+      validation/
+        schemas.ts               # validadores Zod reutilizáveis (id, date, slug, phone, imageUrl, etc.)
+      errors/
+        error-handler.ts         # trata ZodError (400) e mascara erros 5xx
+
+    domain/                      # lógica de negócio pura — sem HTTP, sem Fastify
+      identity/
+        services/
+          auth.service.ts        # registerStore (transação loja+perfil+owner), registerStaff
+        guards/
+          role.guard.ts          # requireOwner, requireVerifiedEmail
+          super-admin.guard.ts   # requireSuperAdmin
+      store/
+        services/
+          store-availability.service.ts  # isStoreAvailable (trial de 7 dias ou assinatura ativa)
+      catalog/
+        services/
+          product.service.ts     # PRODUCT_INCLUDE, toProductResponse, listarProdutos (filtros+paginação)
+          category.service.ts    # collectDescendantIds (BFS para exclusão em cascata)
+      pricing/
+        services/
+          coupon.service.ts      # isCouponUsable (ativo, datas, limite de usos)
+      order/
+        services/
+          order.service.ts       # validateOrderArithmetic (função pura)
+      billing/
+        trial.ts                 # TRIAL_DIAS, TRIAL_MS, trialStatus
+        integrations/
+          mercadopago.adapter.ts # plugin MercadoPago — app.mercadopago (no-op sem access token)
+      analytics/
+        services/
+          analytics.service.ts   # computeAnalyticsSummary (~270 linhas de agregação)
+      notification/
+        services/
+          notification.service.ts # checkExpiredEntities (promoções, cupons, destaques expirados)
+      session/
+        store/
+          session-store.ts       # SessionStore interface + Redis/Memory implementations
+
+    http/                        # camada HTTP — rotas, schemas, plugins Fastify
+      plugins/
+        jwt.plugin.ts            # verifica JWT e expõe app.authenticate
+        store-context.plugin.ts  # resolve :slug → request.store (cache 60s)
+        plan-limits.plugin.ts    # app.checkPlanLimit (preHandler 403) e app.planLimitStatus
+        session.plugin.ts        # cria sessionStore (Redis ou memória)
+      schemas/                   # validações Zod de cada feature (14 arquivos)
+      routes/
+        auth/                    # auth.routes, password-reset.routes, email-verification.routes + testes
+        catalog/                 # catalog.routes (público+admin), category.routes + testes
+        pricing/                 # coupon.routes, promotion.routes, featured.routes + testes
+        order/                   # order.routes, customer.routes + testes
+        billing/                 # billing.routes (planos, subscribe, cancel)
+        webhooks/                # mercadopago.routes (webhook HMAC) + teste
+        analytics/               # analytics.routes (público+admin) + teste
+        notification/            # notification.routes (admin only)
+        admin/                   # user.routes (OWNER), store-profile.routes
+        super/                   # stores, plans, users, metrics (super-admin) + teste
+        session/                 # session.routes (sacola/favoritos públicos)
+
+    test/
+      test-helpers.ts            # createPrismaFake, buildTestApp, createTestToken
+      tenant-isolation.test.ts   # testes de isolamento multi-tenant
   prisma/
     schema.prisma                # modelos: Store (tenant), User, Product, Category, ProductCategory, …
 
