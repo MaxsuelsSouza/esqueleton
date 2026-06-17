@@ -234,6 +234,9 @@ model StoreProfile {
   themeColor    String   @default("#000000")
   // Mensagens exibidas na barra acima do cabeçalho em rotação
   announcements String[]
+  // Configuração visual do catálogo público — controla posição e estilo dos componentes.
+  // null = layout padrão (todos os valores default). Estrutura definida em CatalogLayout (shared types).
+  catalogLayout Json?
   updatedAt     DateTime @updatedAt
 }
 

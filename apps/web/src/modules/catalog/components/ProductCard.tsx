@@ -4,7 +4,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ShoppingBag, Heart, Link, Check } from 'lucide-react'
-import type { Product, DisplayMode } from '@esqueleton/shared'
+import type { Product, DisplayMode, ProductCardStyle } from '@esqueleton/shared'
 import { ProductPrice } from './ProductPrice'
 import { useBag } from '@/modules/bag/contexts/bag-context'
 import { useFavorites } from '@/modules/favorites/contexts/favorites-context'
@@ -28,9 +28,11 @@ interface ProductCardProps {
   // Seção em destaque de origem — quando o card é exibido dentro de um destaque
   featuredId?: string
   featuredName?: string
+  // Estilo do cartão: 'default' (com imagem) ou 'compact' (só texto e preço)
+  cardStyle?: ProductCardStyle
 }
 
-export function ProductCard({ product, displayMode = 'grid', badge, badgeColor, promotionId, promotionName, originalPrice, discountPercent, featuredId, featuredName }: ProductCardProps) {
+export function ProductCard({ product, displayMode = 'grid', badge, badgeColor, promotionId, promotionName, originalPrice, discountPercent, featuredId, featuredName, cardStyle = 'default' }: ProductCardProps) {
   const { addItem } = useBag()
   const { isFavorited, toggleFavorite } = useFavorites()
   const router = useRouter()
@@ -53,6 +55,10 @@ export function ProductCard({ product, displayMode = 'grid', badge, badgeColor, 
 
   function handleAddToBag() {
     addItem(product, { promotionId, promotionName, featuredId, featuredName })
+  }
+
+  if (cardStyle === 'compact') {
+    return <ProductCardCompact product={product} badge={badge} badgeColor={badgeColor} originalPrice={originalPrice} discountPercent={discountPercent} favorited={favorited} onFavorite={() => toggleFavorite(product)} onCardClick={goToDetail} onAddToBag={handleAddToBag} />
   }
 
   if (displayMode === 'list') {
@@ -225,6 +231,65 @@ function ProductCardList({ product, badge, badgeColor, originalPrice, discountPe
               <AddToCartButton onClick={onAddToBag} large />
               <CopyLinkButton productId={product.id} productName={product.name} />
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Formato compacto (sem imagem) ───────────────────────────────────────────
+
+function ProductCardCompact({ product, badge, badgeColor, originalPrice, discountPercent, favorited, onFavorite, onCardClick, onAddToBag }: CardProps) {
+  const hasPromo = !!(badge && badgeColor)
+
+  return (
+    <div className="relative" style={hasPromo ? { paddingTop: '13px' } : {}}>
+
+      {hasPromo && (
+        <span
+          className="absolute left-1/2 top-0 z-10 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-[3px] text-[11px] font-bold text-white shadow-sm"
+          style={{ backgroundColor: badgeColor }}
+        >
+          {badge}
+        </span>
+      )}
+
+      <div
+        onClick={onCardClick}
+        className="group flex cursor-pointer flex-col gap-2 rounded-2xl bg-white p-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+        style={hasPromo
+          ? { border: `2px solid ${badgeColor}` }
+          : { border: '1px solid rgb(243 244 246)' }
+        }
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            {product.brand && (
+              <p className="text-[10px] font-medium uppercase tracking-widest text-gray-400">
+                {product.brand}
+              </p>
+            )}
+            <h2 className="text-sm font-semibold leading-snug text-gray-900">
+              {product.name}
+            </h2>
+          </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); onFavorite() }}
+            aria-label={favorited ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+            className={`shrink-0 rounded-full p-1 transition-colors ${
+              favorited ? 'text-red-500' : 'text-gray-300 hover:text-red-400'
+            }`}
+          >
+            <Heart size={14} fill={favorited ? 'currentColor' : 'none'} />
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between gap-2">
+          <ProductPrice price={product.price} size="sm" originalPrice={originalPrice} discountPercent={discountPercent} />
+          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+            <AddToCartButton onClick={onAddToBag} />
+            <CopyLinkButton productId={product.id} productName={product.name} />
           </div>
         </div>
       </div>

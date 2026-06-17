@@ -1,10 +1,12 @@
 'use client'
 
-// Hook que concentra toda a lógica de estado e dados da página de catálogo
-// Nenhuma dependência de JSX — apenas estado, efeitos e callbacks
+// Hook que concentra toda a lógica de estado e dados da página de catálogo.
+// Lê o layout configurado pelo admin (ou o padrão) e expõe os dados
+// que cada componente do grid precisa para renderizar.
 
 import { useState, useEffect, useMemo } from 'react'
 import { useStoreSlug } from '@/shared/hooks/useStoreSlug'
+import { useStoreProfile } from '@/modules/store-profile/contexts/store-profile-context'
 import { catalogService } from '@/modules/catalog/services/catalog.service'
 import { categoriesService } from '@/modules/categories/services/categories.service'
 import { promotionsService } from '@/modules/promotions/services/promotions.service'
@@ -12,6 +14,7 @@ import { featuredService } from '@/modules/featured/services/featured.service'
 import { expandSelectedCategories, buildCategoryTree } from '@/modules/categories/utils/categories'
 import { applyPromotionsToProducts } from '@/modules/promotions/utils/promotions'
 import { getActiveFeatured } from '@/modules/featured/utils/featured'
+import { resolveCatalogLayout, findLayoutItem } from '@/modules/catalog/utils/catalog-layout'
 import type { Product, Category, Promotion, Featured, CatalogFilters as CatalogFiltersType, DisplayMode } from '@esqueleton/shared'
 
 // Estado inicial dos filtros — nenhum filtro aplicado
@@ -25,6 +28,19 @@ const DEFAULT_FILTERS: CatalogFiltersType = {
 
 export function useCatalogoPage() {
   const slug = useStoreSlug()
+  const { profile } = useStoreProfile()
+
+  // Layout do catálogo configurado pelo admin — resolve para o padrão se não houver
+  const layoutItems = useMemo(
+    () => resolveCatalogLayout(profile?.catalogLayout),
+    [profile?.catalogLayout],
+  )
+
+  // Extrai configs dos componentes presentes no layout
+  const searchItem = useMemo(() => findLayoutItem(layoutItems, 'search'), [layoutItems])
+  const productsItem = useMemo(() => findLayoutItem(layoutItems, 'products'), [layoutItems])
+  const displayToggleItem = useMemo(() => findLayoutItem(layoutItems, 'display-toggle'), [layoutItems])
+
   const [products, setProducts] = useState<Product[]>([])
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
@@ -38,7 +54,10 @@ export function useCatalogoPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filters, setFilters] = useState<CatalogFiltersType>(DEFAULT_FILTERS)
-  const [displayMode, setDisplayMode] = useState<DisplayMode>('grid')
+  // Modo de exibição — usa o config do display-toggle se disponível
+  const [displayMode, setDisplayMode] = useState<DisplayMode>(
+    displayToggleItem?.config?.lockedDisplayMode ?? 'grid',
+  )
   // Controla se o painel de filtros está aberto no mobile
   const [filtersOpen, setFiltersOpen] = useState(false)
 
@@ -148,6 +167,10 @@ export function useCatalogoPage() {
     (filters.sortBy !== 'newest' ? 1 : 0)
 
   return {
+    layoutItems,
+    searchItem,
+    productsItem,
+    displayToggleItem,
     filters,
     categories,
     displayMode,

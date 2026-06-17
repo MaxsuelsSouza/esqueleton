@@ -5,7 +5,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { ProductCard } from '@/modules/catalog/components/ProductCard'
 import { useStoreProfile } from '@/modules/store-profile/contexts/store-profile-context'
-import type { Product } from '@esqueleton/shared'
+import type { Product, FeaturedStyle } from '@esqueleton/shared'
 import { Sparkles, ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface FeaturedSectionProps {
@@ -19,6 +19,8 @@ interface FeaturedSectionProps {
   featuredName?: string
   // Exibe em carrossel automático em vez de grade estática
   carousel?: boolean
+  // Variante de layout: 'carousel' (padrão), 'horizontal-strip' (faixa com scroll horizontal)
+  variant?: FeaturedStyle
 }
 
 // Intervalo do avanço automático em milissegundos
@@ -49,11 +51,16 @@ export function FeaturedSection({
   featuredId,
   featuredName,
   carousel = false,
+  variant,
 }: FeaturedSectionProps) {
   const { profile } = useStoreProfile()
   const themeColor = profile.themeColor ?? '#000000'
 
   if (products.length === 0) return null
+
+  // Determina o modo de exibição — variant tem prioridade sobre carousel
+  const useCarousel = variant ? variant === 'carousel' : carousel
+  const useHorizontalStrip = variant === 'horizontal-strip'
 
   return (
     // Fundo usa a cor do tema com 15% de opacidade para criar um tom suave
@@ -76,7 +83,21 @@ export function FeaturedSection({
         </div>
       </div>
 
-      {carousel ? (
+      {useHorizontalStrip ? (
+        /* Faixa horizontal com scroll — uma única fileira de produtos */
+        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
+          {products.map((product) => (
+            <div key={product.id} className="w-40 shrink-0 sm:w-48">
+              <ProductCard
+                product={product}
+                displayMode="grid"
+                featuredId={featuredId}
+                featuredName={featuredName ?? title}
+              />
+            </div>
+          ))}
+        </div>
+      ) : useCarousel ? (
         <FeaturedCarousel
           products={products}
           themeColor={themeColor}

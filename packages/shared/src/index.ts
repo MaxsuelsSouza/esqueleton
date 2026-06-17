@@ -192,6 +192,66 @@ export interface Coupon {
   createdAt: string
 }
 
+// ── Layout do catálogo (page builder) ──────────────────────────────────────
+
+// Tipos de componentes disponíveis no page builder do catálogo
+export type CatalogComponentType =
+  | 'search'          // Barra de busca
+  | 'featured'        // Seção em destaque
+  | 'filters'         // Filtros (categorias, preço, ordenação)
+  | 'products'        // Grade de produtos
+  | 'display-toggle'  // Alternador grade/lista
+  | 'announcements'   // Barra de anúncios
+  | 'text'            // Bloco de texto livre
+
+// Estilo da seção em destaque (usado no componente FeaturedSection)
+export type FeaturedStyle = 'carousel' | 'horizontal-strip'
+
+// Estilo do cartão de produto
+export type ProductCardStyle = 'default' | 'compact'
+
+// Estilo do bloco de texto (4 aparências diferentes)
+export type TextBlockStyle = 'normal' | 'heading' | 'highlight' | 'banner'
+
+// Configurações específicas de cada componente — só os campos relevantes são preenchidos
+export interface CatalogComponentConfig {
+  // Busca: expandida ou compacta (ícone de lupa)
+  searchStyle?: 'full-width' | 'compact'
+  // Destaque: carrossel ou faixa horizontal com scroll
+  featuredStyle?: FeaturedStyle
+  // Produtos: colunas no desktop (2, 3 ou 4)
+  gridColumns?: 2 | 3 | 4
+  // Produtos: estilo do cartão (com imagem ou compacto)
+  cardStyle?: ProductCardStyle
+  // Alternador: modo fixo quando presente sem interação do visitante
+  lockedDisplayMode?: 'grid' | 'list'
+  // Texto: conteúdo do bloco de texto
+  textContent?: string
+  // Texto: estilo visual (normal, heading, highlight, banner)
+  textStyle?: TextBlockStyle
+}
+
+// Posição de um componente no grid do page builder (12 colunas)
+export interface CatalogLayoutItem {
+  // ID único — corresponde ao CatalogComponentType (cada tipo aparece uma vez)
+  i: string
+  // Coluna no grid (0–11)
+  x: number
+  // Linha no grid
+  y: number
+  // Largura em colunas (1–12)
+  w: number
+  // Altura em unidades de grid
+  h: number
+  // Configurações específicas do componente
+  config?: CatalogComponentConfig
+}
+
+// Layout do catálogo salvo no StoreProfile — array de itens posicionados no grid
+export interface CatalogLayout {
+  items: CatalogLayoutItem[]
+}
+
 // Perfil da loja — dados públicos e configurações de aparência
 export interface StoreProfile {
   id: string
@@ -208,6 +268,8 @@ export interface StoreProfile {
   themeColor: string
   // Mensagens exibidas na barra acima do cabeçalho, uma por vez em rotação
   announcements: string[]
+  // Layout visual do catálogo público — null = layout padrão
+  catalogLayout?: CatalogLayout | null
   updatedAt: string
 }
 

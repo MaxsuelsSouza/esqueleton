@@ -4,7 +4,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { Package, Tag, BadgePercent, Ticket, Sparkles, LogOut, Store, LayoutDashboard, Bell, ExternalLink, Users, CreditCard, Building2, Layers, UserCog, BarChart3 } from 'lucide-react'
+import { Package, Tag, BadgePercent, Ticket, Sparkles, LogOut, Store, LayoutDashboard, Bell, ExternalLink, Users, CreditCard, Building2, Layers, UserCog, BarChart3, Palette } from 'lucide-react'
 import { useAdminAuth } from '@/modules/auth/hooks/useAdminAuth'
 import { NotificationBell } from '@/modules/notifications/components/NotificationBell'
 import { PendingOrdersPopup } from '@/shared/components/PendingOrdersPopup'
@@ -21,6 +21,7 @@ const NAV_LINKS = [
   { href: '/admin/cupons',        label: 'Cupons',         icon: Ticket },
   { href: '/admin/notificacoes',  label: 'Notificações',   icon: Bell },
   { href: '/admin/perfil',        label: 'Perfil',         icon: Store },
+  { href: '/admin/aparencia',    label: 'Aparência',      icon: Palette },
   { href: '/admin/plano',         label: 'Plano',          icon: CreditCard },
 ]
 
