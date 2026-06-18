@@ -160,7 +160,10 @@ export default function SacolaPage() {
                 }
               </button>
 
-              <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-gray-100">
+              <button
+                onClick={() => router.push(`/loja/${slug}/produto/${product.id}`)}
+                className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-gray-100"
+              >
                 {product.imageUrl ? (
                   <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
                 ) : (
@@ -168,7 +171,7 @@ export default function SacolaPage() {
                     <ShoppingBag size={24} strokeWidth={1.5} />
                   </div>
                 )}
-              </div>
+              </button>
 
               <div className="flex min-w-0 flex-1 flex-col justify-between">
                 <div className="flex items-start justify-between gap-2">
@@ -178,7 +181,12 @@ export default function SacolaPage() {
                         {product.brand}
                       </p>
                     )}
-                    <p className="truncate text-sm font-semibold text-gray-900">{product.name}</p>
+                    <button
+                      onClick={() => router.push(`/loja/${slug}/produto/${product.id}`)}
+                      className="truncate text-sm font-semibold text-gray-900 text-left hover:underline"
+                    >
+                      {product.name}
+                    </button>
                     {optionsLabel && (
                       <p className="text-xs text-gray-500">{optionsLabel}</p>
                     )}
