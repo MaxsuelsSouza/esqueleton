@@ -161,7 +161,8 @@ export interface Promotion {
   // Texto livre para descrever qualquer regra que não caiba nos campos acima
   description?: string
   // Cor da borda exibida ao redor do card do produto no catálogo (hex, ex: "#f97316")
-  color?: string
+  // null significa que a borda colorida está desativada
+  color?: string | null
   active: boolean
   // Ordem de prioridade — promoção com menor valor tem preferência sobre as demais
   priority: number

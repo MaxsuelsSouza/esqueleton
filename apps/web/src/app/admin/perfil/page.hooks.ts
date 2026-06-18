@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react'
 import { storeProfileService } from '@/modules/store-profile/services/store-profile.service'
 import type { StoreProfile } from '@esqueleton/shared'
+import { buildDiff } from '@/shared/utils/diff'
 
 type FormData = {
   storeName: string
@@ -69,7 +70,7 @@ export function usePerfilPage() {
     setForm((f) => ({ ...f, [key]: value }))
     // Aplica a cor do tema imediatamente para o usuário ver o resultado em tempo real
     if (key === 'themeColor') {
-      document.documentElement.style.setProperty('--color-primary', value)
+      document.documentElement.style.setProperty('--color-primary', value as string)
     }
   }
 
@@ -96,18 +97,18 @@ export function usePerfilPage() {
 
     const token = localStorage.getItem('admin_token') ?? ''
     try {
-      const updated = await storeProfileService.updateProfile(
-        {
-          storeName: form.storeName.trim(),
-          address: form.address.trim() || undefined,
-          whatsapp: form.whatsapp.trim() || undefined,
-          instagram: form.instagram.replace('@', '').trim() || undefined,
-          logoUrl: form.logoUrl.trim() || undefined,
-          themeColor: form.themeColor,
-          announcements: form.announcements,
-        },
-        token,
-      )
+      const payload = {
+        storeName: form.storeName.trim(),
+        address: form.address.trim() || undefined,
+        whatsapp: form.whatsapp.trim() || undefined,
+        instagram: form.instagram.replace('@', '').trim() || undefined,
+        logoUrl: form.logoUrl.trim() || undefined,
+        themeColor: form.themeColor,
+        announcements: form.announcements,
+      }
+      const diff = buildDiff(profile as unknown as Record<string, unknown>, payload)
+      if (Object.keys(diff).length === 0) { setIsSaving(false); return }
+      const updated = await storeProfileService.updateProfile(diff, token)
       // Atualiza o estado local para refletir os dados salvos imediatamente
       setProfile(updated)
       setSaveSuccess(true)

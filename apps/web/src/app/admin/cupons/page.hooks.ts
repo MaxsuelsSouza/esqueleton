@@ -8,6 +8,7 @@ import { categoriesService } from '@/modules/categories/services/categories.serv
 import { getMockCoupons, setMockCoupons } from '@/modules/coupons/mocks/coupons-store'
 import { buildCategoryTree, flattenCategories, expandSelectedCategories } from '@/modules/categories/utils/categories'
 import type { Coupon, ProductOption, Category } from '@esqueleton/shared'
+import { buildDiff } from '@/shared/utils/diff'
 
 const USE_MOCK_DATA = false
 
@@ -167,7 +168,9 @@ export function useCuponsPage() {
     const token = localStorage.getItem('admin_token') ?? ''
     try {
       if (editingCoupon) {
-        await couponsService.updateCoupon(editingCoupon.id, payload, token)
+        const diff = buildDiff(editingCoupon as unknown as Record<string, unknown>, payload)
+        if (Object.keys(diff).length === 0) { setIsSaving(false); setModalOpen(false); return }
+        await couponsService.updateCoupon(editingCoupon.id, diff, token)
       } else {
         await couponsService.createCoupon(payload, token)
       }

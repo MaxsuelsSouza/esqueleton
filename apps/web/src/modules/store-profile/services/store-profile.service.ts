@@ -12,6 +12,6 @@ export const storeProfileService = {
   // Busca o perfil da loja do administrador
   getProfile: (token: string) => apiClient.get<StoreProfile>('/store-profile', token),
 
-  updateProfile: (data: Omit<StoreProfile, 'id' | 'updatedAt'>, token: string) =>
+  updateProfile: (data: Partial<Omit<StoreProfile, 'id' | 'updatedAt'>>, token: string) =>
     apiClient.put<StoreProfile>('/store-profile', data, token),
 }

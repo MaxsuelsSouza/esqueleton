@@ -9,6 +9,7 @@ import { getMockPromotions, setMockPromotions } from '@/modules/promotions/mocks
 import { getMockProducts } from '@/modules/catalog/mocks/products-store'
 import { buildCategoryTree, flattenCategories, expandSelectedCategories } from '@/modules/categories/utils/categories'
 import type { Promotion, ProductOption, Category } from '@esqueleton/shared'
+import { buildDiff } from '@/shared/utils/diff'
 
 const USE_MOCK_DATA = false
 
@@ -153,8 +154,8 @@ export function usePromocoesPage() {
       endTime: hasTimeWindow ? form.endTime : undefined,
       startDate: hasDateRange ? form.startDate : undefined,
       endDate: hasDateRange ? form.endDate : undefined,
-      // Quando o toggle de cor está desligado, envia undefined — sem borda no catálogo
-      color: hasColor ? form.color : undefined,
+      // Quando o toggle de cor está desligado, envia null para limpar no banco
+      color: hasColor ? form.color : null,
     }
 
     if (USE_MOCK_DATA) {
@@ -173,7 +174,9 @@ export function usePromocoesPage() {
     const token = localStorage.getItem('admin_token') ?? ''
     try {
       if (editingPromotion) {
-        await promotionsService.updatePromotion(editingPromotion.id, payload, token)
+        const diff = buildDiff(editingPromotion as unknown as Record<string, unknown>, payload)
+        if (Object.keys(diff).length === 0) { setIsSaving(false); setModalOpen(false); return }
+        await promotionsService.updatePromotion(editingPromotion.id, diff, token)
       } else {
         await promotionsService.createPromotion(payload, token)
       }

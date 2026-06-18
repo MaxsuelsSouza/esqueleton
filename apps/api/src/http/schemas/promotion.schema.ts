@@ -18,7 +18,8 @@ export const promotionSchema = z.object({
   startDate: dateSchema.nullish().transform(v => v || undefined),
   endDate: dateSchema.nullish().transform(v => v || undefined),
   description: shortText(1000).nullish().transform(v => v || undefined),
-  color: hexColorSchema.nullish().transform(v => v || undefined),
+  // null = borda desativada (limpa o campo no banco); string = cor da borda
+  color: hexColorSchema.nullable().optional(),
   active: z.boolean().default(true),
   priority: z.number().int().min(0).default(0),
 })

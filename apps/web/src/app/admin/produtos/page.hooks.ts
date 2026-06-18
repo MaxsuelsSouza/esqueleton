@@ -8,6 +8,7 @@ import { getMockProducts, setMockProducts } from '@/modules/catalog/mocks/produc
 import { getMockCategories } from '@/modules/categories/mocks/categories-store'
 import { buildCategoryTree } from '@/modules/categories/utils/categories'
 import type { Product, Category } from '@esqueleton/shared'
+import { buildDiff } from '@/shared/utils/diff'
 
 // Troque para false quando a API estiver pronta
 const USE_MOCK_DATA = false
@@ -234,7 +235,9 @@ export function useProdutosPage() {
     const token = localStorage.getItem('admin_token') ?? ''
     try {
       if (editingProduct) {
-        await catalogService.updateProduct(editingProduct.id, payload, token)
+        const diff = buildDiff(editingProduct as unknown as Record<string, unknown>, payload)
+        if (Object.keys(diff).length === 0) { setIsSaving(false); setModalOpen(false); return }
+        await catalogService.updateProduct(editingProduct.id, diff as Partial<Product>, token)
       } else {
         await catalogService.createProduct(payload as Omit<Product, 'id' | 'createdAt' | 'updatedAt'>, token)
       }

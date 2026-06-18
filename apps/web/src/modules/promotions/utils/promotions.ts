@@ -26,8 +26,7 @@ export function getActivePromotionForProduct(
   return (
     promotions.find(
       (promo) =>
-        promo.productIds.length > 0 &&
-        promo.productIds.includes(productId) &&
+        (promo.productIds.length === 0 || promo.productIds.includes(productId)) &&
         isPromotionActive(promo),
     ) ?? null
   )
@@ -51,7 +50,7 @@ export interface PromotedProduct {
 
 // Aplica uma promoção ao produto — modifica preço e define badge conforme o tipo
 export function applyPromotionToProduct(product: Product, promotion: Promotion): PromotedProduct {
-  const badgeColor = promotion.color
+  const badgeColor = promotion.color ?? undefined
   // Metadados da promoção passados adiante para registro de analytics
   const promoMeta = { promotionId: promotion.id, promotionName: promotion.name }
 

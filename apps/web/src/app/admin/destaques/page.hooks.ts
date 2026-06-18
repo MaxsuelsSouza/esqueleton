@@ -9,6 +9,7 @@ import { catalogService } from '@/modules/catalog/services/catalog.service'
 import { getMockFeatured, setMockFeatured } from '@/modules/featured/mocks/featured-store'
 import { getMockProducts } from '@/modules/catalog/mocks/products-store'
 import type { Featured, Product, ProductOption } from '@esqueleton/shared'
+import { buildDiff } from '@/shared/utils/diff'
 
 const USE_MOCK_DATA = false
 
@@ -149,7 +150,9 @@ export function useDestaquesPage() {
     const token = localStorage.getItem('admin_token') ?? ''
     try {
       if (editingSection) {
-        await featuredService.updateFeatured(editingSection.id, payload, token)
+        const diff = buildDiff(editingSection as unknown as Record<string, unknown>, payload)
+        if (Object.keys(diff).length === 0) { setIsSaving(false); setModalOpen(false); return }
+        await featuredService.updateFeatured(editingSection.id, diff, token)
       } else {
         await featuredService.createFeatured(payload, token)
       }
