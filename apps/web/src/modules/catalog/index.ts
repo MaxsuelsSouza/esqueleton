@@ -1,5 +1,6 @@
 export { ProductCard } from './components/ProductCard'
 export { ProductPrice } from './components/ProductPrice'
+export { ProductSuggestions } from './components/ProductSuggestions'
 export { CatalogSearch } from './components/CatalogSearch'
 export { CatalogFilters } from './components/CatalogFilters'
 export { DisplayToggle } from './components/DisplayToggle'

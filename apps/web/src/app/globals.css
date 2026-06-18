@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Esconde a scrollbar mantendo o scroll funcional (carrosséis) */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 html,
 body {
   /* Impede scroll horizontal sem criar um novo scroll container (overflow: hidden quebraria o sticky do header) */

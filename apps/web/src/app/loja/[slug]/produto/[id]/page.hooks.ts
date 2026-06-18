@@ -1,7 +1,7 @@
 'use client'
 
 // Hook que concentra toda a lógica de estado e efeitos da página de detalhe do produto
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { catalogService } from '@/modules/catalog/services/catalog.service'
 import { promotionsService } from '@/modules/promotions/services/promotions.service'
@@ -10,9 +10,16 @@ import { MOCK_PROMOTIONS } from '@/modules/promotions/mocks/promotions'
 import { getActivePromotionForProduct, applyPromotionToProduct } from '@/modules/promotions/utils/promotions'
 import { useBag } from '@/modules/bag/contexts/bag-context'
 import { useFavorites } from '@/modules/favorites/contexts/favorites-context'
+import { useCustomer } from '@/modules/customers/contexts/customer-context'
+import { useStoreProfile } from '@/modules/store-profile/contexts/store-profile-context'
+import { customersService } from '@/modules/customers/services/customers.service'
 import { analyticsService } from '@/modules/analytics/services/analytics.service'
 import { useStoreSlug } from '@/shared/hooks/useStoreSlug'
 import type { Product, ProductVariant, Promotion } from '@esqueleton/shared'
+
+// Quantidade mínima de sugestões exibidas — se a categoria não tiver o suficiente,
+// complementa com produtos gerais da loja
+const MIN_SUGGESTIONS = 10
 
 // Troque para false quando a API estiver pronta
 const USE_MOCK_DATA = false
@@ -76,6 +83,8 @@ export function useProdutoDetailPage() {
   const router = useRouter()
   const { addItem } = useBag()
   const { isFavorited, toggleFavorite } = useFavorites()
+  const { customer, setCustomer } = useCustomer()
+  const { profile } = useStoreProfile()
 
   const [product, setProduct] = useState<Product | null>(null)
   // Preço original do produto (antes de aplicar promoção) — usado para calcular
@@ -84,6 +93,9 @@ export function useProdutoDetailPage() {
   // Percentual de desconto da promoção ativa — exibido como tag (ex: "-20%")
   const [promoDiscountPercent, setPromoDiscountPercent] = useState<number | undefined>(undefined)
   const [isLoading, setIsLoading] = useState(true)
+  // Produtos sugeridos (mesma categoria do produto atual)
+  const [suggestions, setSuggestions] = useState<Product[]>([])
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false)
   const [copied, setCopied] = useState(false)
   const [added, setAdded] = useState(false)
 
@@ -151,6 +163,58 @@ export function useProdutoDetailPage() {
     return () => { cancelled = true }
   }, [slug, id])
 
+  // Busca sugestões de produtos da mesma categoria — se não houver o suficiente,
+  // complementa com produtos gerais da loja até atingir o mínimo
+  useEffect(() => {
+    if (!product) {
+      setSuggestions([])
+      return
+    }
+
+    let cancelled = false
+    setSuggestionsLoading(true)
+
+    async function fetchSuggestions() {
+      const exclude = product!.id
+      let results: Product[] = []
+
+      // 1. Busca por categoria (se o produto tiver categorias)
+      if (product!.categoryIds && product!.categoryIds.length > 0) {
+        try {
+          const byCategory = await catalogService.listPublicProducts(slug, {
+            categoryIds: product!.categoryIds.join(','),
+            pageSize: MIN_SUGGESTIONS + 1,
+          })
+          results = byCategory.data.filter((p) => p.id !== exclude)
+        } catch {
+          // ignora erro — tenta complementar com produtos gerais
+        }
+      }
+
+      // 2. Se não atingiu o mínimo, complementa com produtos gerais da loja
+      if (results.length < MIN_SUGGESTIONS) {
+        try {
+          const general = await catalogService.listPublicProducts(slug, {
+            pageSize: MIN_SUGGESTIONS + 1 - results.length,
+          })
+          const existingIds = new Set([exclude, ...results.map((p) => p.id)])
+          const extras = general.data.filter((p) => !existingIds.has(p.id))
+          results = [...results, ...extras]
+        } catch {
+          // mantém o que já tem
+        }
+      }
+
+      if (!cancelled) {
+        setSuggestions(results.slice(0, MIN_SUGGESTIONS))
+        setSuggestionsLoading(false)
+      }
+    }
+
+    fetchSuggestions()
+    return () => { cancelled = true }
+  }, [slug, product?.id, product?.categoryIds?.join(',')])
+
   async function handleCopyLink() {
     await navigator.clipboard.writeText(window.location.href)
 
@@ -213,6 +277,98 @@ export function useProdutoDetailPage() {
     setTimeout(() => setAdded(false), 1500)
   }
 
+  // ── Comprar agora (WhatsApp direto) ──────────────────────────────────────
+
+  // Modal de identificação do cliente
+  const [identModalOpen, setIdentModalOpen] = useState(false)
+  const [nameInput, setNameInput] = useState('')
+  const [phoneInput, setPhoneInput] = useState('')
+  const [identError, setIdentError] = useState<string | null>(null)
+  const nameRef = useRef<HTMLInputElement>(null)
+
+  function formatBRL(value: number) {
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  }
+
+  // Monta a mensagem do produto para o WhatsApp
+  function buildBuyNowMessage(customerInfo: { name: string; phone: string }) {
+    if (!product) return ''
+    const name = product.brand ? `${product.brand} ${product.name}` : product.name
+    const optionsText = Object.keys(selectedOptions).length > 0
+      ? ' — ' + Object.values(selectedOptions).join(' · ')
+      : ''
+    const lines: string[] = []
+    lines.push(`Olá! Tenho interesse neste produto:`)
+    lines.push('')
+    lines.push(`🛍️ *${name}${optionsText}*`)
+    lines.push(`💵 ${formatBRL(displayPrice)}`)
+    if (hasPromo && rawPrice) {
+      lines.push(`🏷️ De ~${formatBRL(selectedVariant ? selectedVariant.price : rawPrice)}~`)
+    }
+    lines.push('')
+    lines.push(`👤 *${customerInfo.name}*`)
+    lines.push(`📞 ${customerInfo.phone}`)
+    return lines.join('\n')
+  }
+
+  // Abre o WhatsApp com a mensagem do produto
+  function goToWhatsAppBuyNow(customerInfo: { name: string; phone: string }) {
+    const message = encodeURIComponent(buildBuyNowMessage(customerInfo))
+    const whatsappNumber = profile.whatsapp ?? ''
+    const url = whatsappNumber
+      ? `https://wa.me/${whatsappNumber}?text=${message}`
+      : `https://wa.me/?text=${message}`
+    window.open(url, '_blank')
+
+    // Registra analytics — fire and forget
+    if (product) {
+      analyticsService.recordEvent(slug, {
+        productId: product.id,
+        productName: product.brand ? `${product.brand} ${product.name}` : product.name,
+        eventType: 'WHATSAPP_SEND',
+      })
+    }
+  }
+
+  // Clique no botão "Comprar agora" — se já identificado, vai direto; senão, abre o modal
+  function handleBuyNow() {
+    if (!product) return
+    if (customer) {
+      goToWhatsAppBuyNow(customer)
+    } else {
+      setNameInput('')
+      setPhoneInput('')
+      setIdentError(null)
+      setIdentModalOpen(true)
+      setTimeout(() => nameRef.current?.focus(), 50)
+    }
+  }
+
+  // Confirmação do modal — salva cliente e abre WhatsApp
+  function handleIdentConfirm() {
+    const name = nameInput.trim()
+    const phone = phoneInput.trim()
+
+    if (!name) { setIdentError('Informe seu nome.'); return }
+    if (phone.length < 8) { setIdentError('Informe um telefone válido.'); return }
+
+    const info = { name, phone }
+    setCustomer(info)
+    setIdentModalOpen(false)
+    goToWhatsAppBuyNow(info)
+
+    // Salva no banco da loja em paralelo — fire and forget
+    customersService.upsert(slug, name, phone)
+  }
+
+  function closeIdentModal() {
+    setIdentModalOpen(false)
+  }
+
+  function handleModalBackdropClick(e: React.MouseEvent) {
+    if (e.target === e.currentTarget) setIdentModalOpen(false)
+  }
+
   return {
     product,
     rawPrice,
@@ -235,5 +391,19 @@ export function useProdutoDetailPage() {
     selectedVariant,
     hasPromo,
     displayPrice,
+    suggestions,
+    suggestionsLoading,
+    // Comprar agora
+    handleBuyNow,
+    identModalOpen,
+    nameInput,
+    setNameInput,
+    phoneInput,
+    setPhoneInput,
+    identError,
+    nameRef,
+    handleIdentConfirm,
+    closeIdentModal,
+    handleModalBackdropClick,
   }
 }
