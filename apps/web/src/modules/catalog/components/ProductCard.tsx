@@ -3,7 +3,7 @@
 // Cartão de produto — dois formatos: grade (vertical) e lista (horizontal)
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ShoppingBag, Heart, Link, Check } from 'lucide-react'
+import { ShoppingBag, Heart, Link, Check, ImageOff } from 'lucide-react'
 import type { Product, DisplayMode } from '@esqueleton/shared'
 import { ProductPrice } from './ProductPrice'
 import { useBag } from '@/modules/bag/contexts/bag-context'
@@ -52,6 +52,11 @@ export function ProductCard({ product, displayMode = 'grid', badge, badgeColor, 
   }
 
   function handleAddToBag() {
+    // Produtos com variantes exigem seleção de opções — redireciona para a página de detalhe
+    if (product.variants && product.variants.length > 0) {
+      router.push(`/loja/${slug}/produto/${product.id}`)
+      return
+    }
     addItem(product, { promotionId, promotionName, featuredId, featuredName })
   }
 
@@ -110,8 +115,9 @@ function ProductCardGrid({ product, badge, badgeColor, originalPrice, discountPe
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-gray-200">
-              <ShoppingBag size={48} strokeWidth={1} />
+            <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-gray-300">
+              <ImageOff size={32} strokeWidth={1} />
+              <span className="text-[10px] text-gray-400">Sem imagem</span>
             </div>
           )}
 
@@ -189,8 +195,9 @@ function ProductCardList({ product, badge, badgeColor, originalPrice, discountPe
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-gray-200">
-              <ShoppingBag size={32} strokeWidth={1} />
+            <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-gray-300">
+              <ImageOff size={24} strokeWidth={1} />
+              <span className="text-[10px] text-gray-400">Sem imagem</span>
             </div>
           )}
         </div>

@@ -262,6 +262,7 @@ export default function AdminProdutosPage() {
                 value={formData.name}
                 onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))}
                 placeholder="Ex: Sauvage EDP"
+                maxLength={200}
                 className={inputClass}
               />
             </FormField>

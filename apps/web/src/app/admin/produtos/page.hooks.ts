@@ -89,13 +89,14 @@ export function useProdutosPage() {
     loadCategories()
   }, [])
 
-  // Recarrega os produtos sempre que a página ou os filtros mudarem.
+  // Recarrega os produtos sempre que a página, os filtros ou o modal mudarem.
   // O pequeno atraso (debounce) evita uma requisição a cada tecla digitada na busca.
+  // Incluir modalOpen garante que a listagem seja restaurada ao fechar o modal.
   useEffect(() => {
     const timer = setTimeout(() => { loadProducts() }, 300)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, search, filterCategory, sortBy])
+  }, [page, search, filterCategory, sortBy, modalOpen])
 
   async function loadCategories() {
     if (USE_MOCK_DATA) {
@@ -178,8 +179,8 @@ export function useProdutosPage() {
       setFormError('O nome do produto é obrigatório.')
       return
     }
-    if (!formData.price || isNaN(Number(formData.price))) {
-      setFormError('Informe um preço válido.')
+    if (!formData.price || isNaN(Number(formData.price)) || Number(formData.price) <= 0) {
+      setFormError('O preço deve ser maior que zero.')
       return
     }
 

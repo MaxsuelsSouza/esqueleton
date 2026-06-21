@@ -129,6 +129,10 @@ export function usePromocoesPage() {
       setFormError('O nome da promoção é obrigatório.')
       return
     }
+    if (form.discountPercent != null && form.discountPercent > 100) {
+      setFormError('O desconto não pode passar de 100%.')
+      return
+    }
 
     setIsSaving(true)
     setFormError(null)
@@ -285,6 +289,7 @@ export function usePromocoesPage() {
     form,
     setForm,
     formError,
+    setFormError,
     isSaving,
     deletingPromotion,
     setDeletingPromotion,

@@ -50,6 +50,7 @@ export default function AdminPromocoesPage() {
     setForm,
     formError,
     isSaving,
+    setFormError,
     deletingPromotion,
     setDeletingPromotion,
     isDeleting,
@@ -152,6 +153,7 @@ export default function AdminPromocoesPage() {
           selectedCategoryIds={selectedCategoryIds}
           setSelectedCategoryIds={setSelectedCategoryIds}
           formError={formError}
+          setFormError={setFormError}
           isEditing={!!editingPromotion}
           isSaving={isSaving}
           onSave={handleSave}
@@ -333,7 +335,7 @@ function PromotionModal({
   products, categoryTree,
   restrictionMode, setRestrictionMode,
   selectedCategoryIds, setSelectedCategoryIds,
-  formError, isEditing, isSaving,
+  formError, setFormError, isEditing, isSaving,
   onSave, onClose,
 }: {
   form: PromotionFormData
@@ -351,6 +353,7 @@ function PromotionModal({
   selectedCategoryIds: string[]
   setSelectedCategoryIds: (ids: string[]) => void
   formError: string | null
+  setFormError: (v: string | null) => void
   isEditing: boolean
   isSaving: boolean
   onSave: () => void
@@ -358,6 +361,7 @@ function PromotionModal({
 }) {
   function set<K extends keyof PromotionFormData>(key: K, value: PromotionFormData[K]) {
     setForm((f) => ({ ...f, [key]: value }))
+    setFormError(null)
   }
 
   return (

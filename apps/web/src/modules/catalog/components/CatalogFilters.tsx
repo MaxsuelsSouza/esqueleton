@@ -74,6 +74,9 @@ export function CatalogFilters({ filters, categories, onFiltersChange, direction
             className="w-20 rounded-lg border border-gray-200 px-2 py-1.5 text-xs outline-none focus:border-gray-400"
           />
         </div>
+        {filters.priceMin != null && filters.priceMax != null && filters.priceMin > filters.priceMax && (
+          <p className="text-[10px] text-red-500">O valor mínimo não pode superar o máximo</p>
+        )}
       </div>
 
       {/* Ordenação */}

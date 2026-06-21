@@ -25,6 +25,7 @@ export default function ProductDetailPage() {
     handleCopyLink,
     handleAddToBag,
     handleSelectOption,
+    variantError,
     galleryImages,
     optionGroups,
     selectedVariant,
@@ -186,6 +187,11 @@ export default function ProductDetailPage() {
                     </div>
                   ))}
                 </div>
+              )}
+
+              {/* Aviso quando faltam opções de variante */}
+              {variantError && (
+                <p className="text-sm text-red-500">{variantError}</p>
               )}
 
               {/* Botões de ação */}

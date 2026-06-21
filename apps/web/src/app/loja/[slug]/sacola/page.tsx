@@ -6,10 +6,12 @@
 // Os itens da sacola ficam no servidor (Redis) com apenas IDs e quantidades —
 // os dados completos dos produtos (nome, preço, imagem) são buscados aqui ao abrir a página.
 
+import { useState } from 'react'
 import { Trash2, Plus, Minus, ShoppingBag, Tag, X, ArrowLeft, User, Phone, CheckSquare, Square } from 'lucide-react'
 import { useSacolaPage, itemKey, formatCurrency } from './page.hooks'
 
 export default function SacolaPage() {
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
   const {
     router,
     slug,
@@ -111,7 +113,7 @@ export default function SacolaPage() {
               {selectedKeys.size === items.length ? 'Desmarcar todos' : 'Selecionar todos'}
             </button>
             <button
-              onClick={clear}
+              onClick={() => setShowClearConfirm(true)}
               className="text-xs text-gray-400 hover:text-red-500"
             >
               Limpar
@@ -213,8 +215,13 @@ export default function SacolaPage() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => updateQuantity(product.id, quantity - 1, selectedOptions)}
+                      disabled={quantity <= 1}
                       aria-label="Diminuir quantidade"
-                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:border-gray-400 hover:text-gray-900"
+                      className={`flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 ${
+                        quantity <= 1
+                          ? 'cursor-not-allowed text-gray-300'
+                          : 'text-gray-500 hover:border-gray-400 hover:text-gray-900'
+                      }`}
                     >
                       <Minus size={13} />
                     </button>
@@ -338,6 +345,34 @@ export default function SacolaPage() {
         </button>
 
       </div>
+
+      {/* Modal de confirmação de limpeza da sacola */}
+      {showClearConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setShowClearConfirm(false)}
+        >
+          <div className="mx-4 w-full max-w-xs overflow-hidden rounded-2xl bg-white" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-5 text-center">
+              <p className="text-sm font-semibold text-gray-900">Deseja remover todos os itens da sacola?</p>
+              <div className="mt-4 flex gap-3">
+                <button
+                  onClick={() => setShowClearConfirm(false)}
+                  className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => { clear(); setShowClearConfirm(false) }}
+                  className="flex-1 rounded-xl bg-red-500 py-2.5 text-sm font-semibold text-white hover:bg-red-600"
+                >
+                  Confirmar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de identificação do cliente */}
       {identModalOpen && (

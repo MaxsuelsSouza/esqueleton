@@ -86,7 +86,7 @@ export function useDashboardPage() {
           activePromotions: promotions.filter((p) => p.active).length,
           activeCoupons: coupons.filter((c) => {
             if (!c.active) return false
-            if (c.maxUses !== undefined && c.usedCount >= c.maxUses) return false
+            if (c.maxUses != null && c.usedCount >= c.maxUses) return false
             if (c.endDate && new Date(c.endDate) < now) return false
             return true
           }).length,
@@ -115,7 +115,7 @@ export function useDashboardPage() {
         activePromotions: promotions.filter((p) => p.active).length,
         activeCoupons: coupons.filter((c) => {
           if (!c.active) return false
-          if (c.maxUses !== undefined && c.usedCount >= c.maxUses) return false
+          if (c.maxUses != null && c.usedCount >= c.maxUses) return false
           if (c.endDate && new Date(c.endDate) < now) return false
           return true
         }).length,

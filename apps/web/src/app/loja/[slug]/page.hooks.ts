@@ -4,6 +4,7 @@
 // Nenhuma dependência de JSX — apenas estado, efeitos e callbacks
 
 import { useState, useEffect, useMemo } from 'react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { useStoreSlug } from '@/shared/hooks/useStoreSlug'
 import { catalogService } from '@/modules/catalog/services/catalog.service'
 import { categoriesService } from '@/modules/categories/services/categories.service'
@@ -25,10 +26,17 @@ const DEFAULT_FILTERS: CatalogFiltersType = {
 
 export function useCatalogoPage() {
   const slug = useStoreSlug()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
   const [products, setProducts] = useState<Product[]>([])
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
-  const [page, setPage] = useState(1)
+  // Lê a página inicial da URL (?page=N), com fallback para 1
+  const [page, setPage] = useState(() => {
+    const p = Number(searchParams.get('page'))
+    return p > 0 ? p : 1
+  })
 
   const [categories, setCategories] = useState<Category[]>([])
   const [promotions, setPromotions] = useState<Promotion[]>([])
@@ -103,9 +111,9 @@ export function useCatalogoPage() {
     [products, promotions],
   )
 
-  // Aplica promoções nos produtos em destaque
+  // Aplica promoções nos produtos em destaque (mantém metadados de badge/desconto)
   const promotedFeatured = useMemo(
-    () => applyPromotionsToProducts(featuredProducts, promotions).map((p) => p.product),
+    () => applyPromotionsToProducts(featuredProducts, promotions),
     [featuredProducts, promotions],
   )
 
@@ -129,6 +137,15 @@ export function useCatalogoPage() {
 
   function handlePageChange(newPage: number) {
     setPage(newPage)
+    // Atualiza a URL com o parâmetro ?page=N para que o link seja compartilhável
+    const params = new URLSearchParams(searchParams.toString())
+    if (newPage > 1) {
+      params.set('page', String(newPage))
+    } else {
+      params.delete('page')
+    }
+    const query = params.toString()
+    router.replace(`${pathname}${query ? `?${query}` : ''}`, { scroll: false })
     // Sobe para o topo da listagem ao trocar de página
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }

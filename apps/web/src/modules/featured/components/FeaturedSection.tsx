@@ -6,10 +6,11 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { ProductCard } from '@/modules/catalog/components/ProductCard'
 import { useStoreProfile } from '@/modules/store-profile/contexts/store-profile-context'
 import type { Product } from '@esqueleton/shared'
+import type { PromotedProduct } from '@/modules/promotions/utils/promotions'
 import { Sparkles, ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface FeaturedSectionProps {
-  products: Product[]
+  products: PromotedProduct[]
   // Título principal da seção
   title?: string
   // Texto da tag exibida no canto direito do cabeçalho
@@ -78,7 +79,7 @@ export function FeaturedSection({
 
       {carousel ? (
         <FeaturedCarousel
-          products={products}
+          items={products}
           themeColor={themeColor}
           featuredId={featuredId}
           featuredName={featuredName ?? title}
@@ -86,10 +87,16 @@ export function FeaturedSection({
       ) : (
         /* Produtos em grade — 2 por linha no mobile, 3 no tablet, 4 no desktop */
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {products.map((product) => (
+          {products.map(({ product, badge, badgeColor, promotionId, promotionName, originalPrice, discountPercent }) => (
             <ProductCard
               key={product.id}
               product={product}
+              badge={badge}
+              badgeColor={badgeColor}
+              promotionId={promotionId}
+              promotionName={promotionName}
+              originalPrice={originalPrice}
+              discountPercent={discountPercent}
               displayMode="grid"
               featuredId={featuredId}
               featuredName={featuredName ?? title}
@@ -107,12 +114,12 @@ export function FeaturedSection({
 // Responsivo: adapta a quantidade de cards por página ao tamanho da tela
 // (2 no mobile, 3 no tablet, 4 no desktop).
 function FeaturedCarousel({
-  products,
+  items,
   themeColor,
   featuredId,
   featuredName,
 }: {
-  products: Product[]
+  items: PromotedProduct[]
   themeColor: string
   featuredId?: string
   featuredName: string
@@ -134,7 +141,7 @@ function FeaturedCarousel({
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  const totalPages = Math.ceil(products.length / itemsPerPage)
+  const totalPages = Math.ceil(items.length / itemsPerPage)
   const [currentPage, setCurrentPage] = useState(0)
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
@@ -360,12 +367,12 @@ function FeaturedCarousel({
 
   // Monta as páginas de produtos de acordo com a quantidade de colunas atual
   const pages = useMemo(() => {
-    const result: Product[][] = []
-    for (let i = 0; i < products.length; i += itemsPerPage) {
-      result.push(products.slice(i, i + itemsPerPage))
+    const result: PromotedProduct[][] = []
+    for (let i = 0; i < items.length; i += itemsPerPage) {
+      result.push(items.slice(i, i + itemsPerPage))
     }
     return result
-  }, [products, itemsPerPage])
+  }, [items, itemsPerPage])
 
   // Deslocamento horizontal: página base + arraste em tempo real
   const containerWidth = trackRef.current?.offsetWidth ?? 0
@@ -379,10 +386,16 @@ function FeaturedCarousel({
   if (totalPages <= 1) {
     return (
       <div className={`grid ${colsClass} gap-3`}>
-        {products.map((product) => (
+        {items.map(({ product, badge, badgeColor, promotionId, promotionName, originalPrice, discountPercent }) => (
           <ProductCard
             key={product.id}
             product={product}
+            badge={badge}
+            badgeColor={badgeColor}
+            promotionId={promotionId}
+            promotionName={promotionName}
+            originalPrice={originalPrice}
+            discountPercent={discountPercent}
             displayMode="grid"
             featuredId={featuredId}
             featuredName={featuredName}
@@ -436,10 +449,16 @@ function FeaturedCarousel({
                 key={pageIndex}
                 className={`grid w-full shrink-0 ${colsClass} gap-2 sm:gap-3`}
               >
-                {pageProducts.map((product) => (
+                {pageProducts.map(({ product, badge, badgeColor, promotionId, promotionName, originalPrice, discountPercent }) => (
                   <ProductCard
                     key={product.id}
                     product={product}
+                    badge={badge}
+                    badgeColor={badgeColor}
+                    promotionId={promotionId}
+                    promotionName={promotionName}
+                    originalPrice={originalPrice}
+                    discountPercent={discountPercent}
                     displayMode="grid"
                     featuredId={featuredId}
                     featuredName={featuredName}

@@ -267,10 +267,25 @@ export function useProdutoDetailPage() {
       return next
     })
     setCurrentImageIndex(0)
+    setVariantError(null)
   }
+
+  // Erro exibido quando o cliente tenta adicionar sem selecionar todas as variantes
+  const [variantError, setVariantError] = useState<string | null>(null)
 
   function handleAddToBag() {
     if (!product) return
+
+    // Se o produto tem variantes, exige que todas as opções estejam selecionadas
+    if (optionGroups.length > 0) {
+      const missing = optionGroups.filter((g) => !selectedOptions[g.name])
+      if (missing.length > 0) {
+        setVariantError(`Selecione: ${missing.map((g) => g.name).join(', ')}`)
+        return
+      }
+    }
+
+    setVariantError(null)
     const hasOptions = Object.keys(selectedOptions).length > 0
     addItem(product, hasOptions ? { selectedOptions, variantId: selectedVariant?.id } : undefined)
     setAdded(true)
@@ -350,7 +365,8 @@ export function useProdutoDetailPage() {
     const phone = phoneInput.trim()
 
     if (!name) { setIdentError('Informe seu nome.'); return }
-    if (phone.length < 8) { setIdentError('Informe um telefone válido.'); return }
+    const digits = phone.replace(/\D/g, '')
+    if (!/^\d{10,11}$/.test(digits)) { setIdentError('Informe um telefone válido com DDD.'); return }
 
     const info = { name, phone }
     setCustomer(info)
@@ -386,6 +402,7 @@ export function useProdutoDetailPage() {
     handleCopyLink,
     handleAddToBag,
     handleSelectOption,
+    variantError,
     galleryImages,
     optionGroups,
     selectedVariant,

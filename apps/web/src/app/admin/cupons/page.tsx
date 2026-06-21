@@ -130,7 +130,7 @@ export default function AdminCuponsPage() {
 
                     {/* Usos */}
                     <td className="hidden px-4 py-3 md:table-cell">
-                      {coupon.maxUses !== undefined ? (
+                      {coupon.maxUses != null ? (
                         <div className="flex flex-col gap-1">
                           <span className={`text-sm ${isExhausted ? 'text-red-500' : 'text-gray-700'}`}>
                             {coupon.usedCount} / {coupon.maxUses}
@@ -210,7 +210,7 @@ export default function AdminCuponsPage() {
               <input
                 type="text"
                 value={form.code}
-                onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))}
+                onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase().replace(/\s/g, '') }))}
                 placeholder="Ex: VERAO20"
                 className={`${inputClass} font-mono tracking-wider uppercase`}
                 maxLength={20}

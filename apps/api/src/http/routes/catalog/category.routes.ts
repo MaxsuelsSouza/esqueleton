@@ -65,6 +65,14 @@ export const categoryAdminRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
+    // Impede categorias com mesmo nome no mesmo nível (pai) da mesma loja
+    const existing = await app.prisma.category.findFirst({
+      where: { storeId, name: data.name, parentId: data.parentId ?? null },
+    })
+    if (existing) {
+      return reply.status(409).send({ message: 'Já existe uma categoria com esse nome' })
+    }
+
     const category = await app.prisma.category.create({ data: { ...data, storeId } })
     return reply.status(201).send(category)
   })
@@ -86,6 +94,18 @@ export const categoryAdminRoutes: FastifyPluginAsync = async (app) => {
       })
       if (!parent) {
         return reply.status(404).send({ message: 'Categoria pai não encontrada' })
+      }
+    }
+
+    // Impede renomear para um nome que já existe no mesmo nível (pai) da mesma loja
+    if (data.name) {
+      const current = await app.prisma.category.findFirst({ where: { id, storeId } })
+      const parentId = data.parentId !== undefined ? data.parentId : current?.parentId ?? null
+      const existing = await app.prisma.category.findFirst({
+        where: { storeId, name: data.name, parentId, id: { not: id } },
+      })
+      if (existing) {
+        return reply.status(409).send({ message: 'Já existe uma categoria com esse nome' })
       }
     }
 

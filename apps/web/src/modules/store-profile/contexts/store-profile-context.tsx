@@ -57,6 +57,8 @@ export function StoreProfileProvider({ children }: { children: React.ReactNode }
   // true quando a API responde 503 — loja fora do ar (período de teste vencido
   // sem assinatura ativa); o visitante vê apenas um erro genérico
   const [unavailable, setUnavailable] = useState(false)
+  // true quando a API responde 404 — slug não existe no banco
+  const [notFound, setNotFound] = useState(false)
 
   // Aplica o logo do cache imediatamente após a hidratação (evita flash de "Minha Loja")
   useEffect(() => {
@@ -77,8 +79,11 @@ export function StoreProfileProvider({ children }: { children: React.ReactNode }
         cacheLogo(slug, data.logoUrl)
       })
       .catch((error: unknown) => {
-        if ((error as { status?: number })?.status === 503) {
+        const status = (error as { status?: number })?.status
+        if (status === 503) {
           setUnavailable(true)
+        } else if (status === 404) {
+          setNotFound(true)
         }
         // Outras falhas mantêm os valores padrão silenciosamente
       })
@@ -88,6 +93,17 @@ export function StoreProfileProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     document.documentElement.style.setProperty('--color-primary', profile.themeColor)
   }, [profile.themeColor])
+
+  // Slug inexistente — mostra página 404 amigável
+  if (notFound) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-white px-6 text-center">
+        <p className="text-4xl">🔍</p>
+        <h1 className="text-lg font-semibold text-gray-900">Loja não encontrada</h1>
+        <p className="text-sm text-gray-500">Verifique o endereço e tente novamente.</p>
+      </div>
+    )
+  }
 
   // Loja indisponível: nada do site aparece, apenas o erro genérico —
   // de propósito, sem revelar que é uma pendência do lojista
