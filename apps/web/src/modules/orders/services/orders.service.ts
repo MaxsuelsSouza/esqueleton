@@ -25,9 +25,10 @@ export const ordersService = {
     }
   },
 
-  // Lista todos os pedidos — requer token de admin
-  async listAll(token: string): Promise<Order[]> {
-    const res = await fetch(`${API_URL}/api/orders`, {
+  // Lista todos os pedidos — requer token de admin. Filtra por status quando informado.
+  async listAll(token: string, status?: OrderStatus): Promise<Order[]> {
+    const query = status ? `?status=${encodeURIComponent(status)}` : ''
+    const res = await fetch(`${API_URL}/api/orders${query}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (!res.ok) throw new Error('Erro ao carregar pedidos.')

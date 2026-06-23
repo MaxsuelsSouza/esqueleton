@@ -4,7 +4,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { Package, Tag, BadgePercent, Ticket, Sparkles, LogOut, Store, LayoutDashboard, Bell, ExternalLink, Users, CreditCard, Building2, Layers, UserCog, BarChart3 } from 'lucide-react'
+import { Package, Tag, BadgePercent, Ticket, Sparkles, LogOut, Store, LayoutDashboard, Bell, ExternalLink, Users, CreditCard, Building2, Layers, UserCog, BarChart3, ShoppingBag } from 'lucide-react'
 import { useAdminAuth } from '@/modules/auth/hooks/useAdminAuth'
 import { NotificationBell } from '@/modules/notifications/components/NotificationBell'
 import { PendingOrdersPopup } from '@/shared/components/PendingOrdersPopup'
@@ -14,6 +14,7 @@ import type { BillingCurrentResponse } from '@esqueleton/shared'
 // Links do menu lateral — visíveis para todos os papéis
 const NAV_LINKS = [
   { href: '/admin/dashboard',     label: 'Dashboard',      icon: LayoutDashboard },
+  { href: '/admin/pedidos',       label: 'Pedidos',        icon: ShoppingBag },
   { href: '/admin/produtos',      label: 'Produtos',       icon: Package },
   { href: '/admin/categorias',    label: 'Categorias',     icon: Tag },
   { href: '/admin/destaques',     label: 'Destaques',      icon: Sparkles },
