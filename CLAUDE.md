@@ -348,8 +348,22 @@ Copy `.env.example` to `.env` in each app before running.
 8. Create components under `apps/web/src/components/<feature>/` and public pages under `apps/web/src/app/loja/[slug]/`
 9. If the feature has admin management, add a page under `apps/web/src/app/admin/<feature>/page.tsx` and register the nav link in `apps/web/src/app/admin/layout.tsx`
 
+## Subdomínio por loja
+
+Lojas podem ser acessadas via subdomínio: `meu-slug.plataforma.com` em vez de `plataforma.com/loja/meu-slug`. O path `/loja/{slug}` continua funcionando como fallback.
+
+**Como funciona:** o middleware Next.js (`apps/web/src/middleware.ts`) intercepta cada request, extrai o subdomínio do `Host` header e faz `NextResponse.rewrite()` para `/loja/{slug}{pathname}`. O rewrite é interno — o usuário continua vendo a URL com subdomínio. Toda a stack downstream (`useStoreSlug`, services, API) funciona sem mudanças porque o path reescrito contém o segmento `[slug]`.
+
+**Variável de ambiente:** `NEXT_PUBLIC_ROOT_DOMAIN` define o domínio raiz da plataforma (ex: `esqueleton.com.br`). Sem ela, o middleware tenta inferir automaticamente. Em dev local, subdomínios não funcionam por padrão — use `/loja/{slug}`. Para testar, configure `NEXT_PUBLIC_ROOT_DOMAIN=localhost:3000` e acesse `meu-slug.localhost:3000` (Chrome resolve `*.localhost` nativamente).
+
+**Subdomínios reservados** (não representam lojas): `www`, `admin`, `api`, `app`, `mail`, `cdn`, `staging`, `dev`, `beta`, entre outros — definidos em `SUBDOMAINS_RESERVADOS` no middleware.
+
+**Rotas ignoradas** pelo middleware: `/_next/*`, `/admin/*`, `/favicon.ico`, `/robots.txt`, `/sitemap.xml` e URLs que já começam com `/loja/`.
+
+**Deploy (Vercel):** para habilitar subdomínios em produção, adicionar um wildcard domain `*.plataforma.com` no projeto Vercel do web (Settings → Domains). O DNS deve ter um registro `*.plataforma.com` apontando para Vercel (CNAME).
+
 ## Deployment
 
-- **Web (Vercel):** Deploy `apps/web` as a standard Next.js project. Set `NEXT_PUBLIC_API_URL` to the deployed API URL.
+- **Web (Vercel):** Deploy `apps/web` as a standard Next.js project. Set `NEXT_PUBLIC_API_URL` to the deployed API URL. Para subdomínios, adicionar `*.plataforma.com` como wildcard domain e setar `NEXT_PUBLIC_ROOT_DOMAIN=plataforma.com`.
 - **API (Vercel):** Deploy `apps/api` as a separate Vercel project. `vercel.json` routes all requests to `src/vercel.ts` via `@vercel/node`. Set `DATABASE_URL`, `CORS_ORIGIN`, `JWT_SECRET` and `REDIS_URL` (shared rate-limit counters — e.g. Upstash) as environment variables.
 - **API (VPS):** Run `pnpm build` then `pnpm start`. The `docker-compose.yml` at the root is for local Postgres only.
