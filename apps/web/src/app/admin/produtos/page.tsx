@@ -2,7 +2,7 @@
 
 // Página de gestão de produtos — listagem com ações de criar, editar e excluir
 import { useState, useRef } from 'react'
-import { Plus, Pencil, Trash2, X, PackageSearch, ImagePlus, Camera, ChevronLeft, ChevronRight, ChevronDown, Search, ListPlus } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, PackageSearch, ImagePlus, Camera, ChevronLeft, ChevronRight, ChevronDown, Search, ListPlus, Eye, EyeOff } from 'lucide-react'
 import { compressImage } from '@/modules/catalog/utils/image'
 import type { Product, Category, ProductCharacteristic, ProductVariant } from '@esqueleton/shared'
 import { useProdutosPage } from './page.hooks'
@@ -45,6 +45,8 @@ export default function AdminProdutosPage() {
     setDeletingProduct,
     isDeleting,
     handleDelete,
+    togglingId,
+    handleToggleAvailability,
   } = useProdutosPage()
 
   return (
@@ -185,12 +187,13 @@ export default function AdminProdutosPage() {
               <tr className="border-b bg-gray-50 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">
                 <th className="w-12 px-4 py-3" />
                 <th className="px-4 py-3">Produto</th>
+                <th className="hidden w-24 px-4 py-3 text-center sm:table-cell">Disponível</th>
                 <th className="w-24 px-4 py-3 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {pageProducts.map((product) => (
-                <tr key={product.id} className="transition-colors hover:bg-gray-50">
+                <tr key={product.id} className={`transition-colors hover:bg-gray-50 ${!product.isAvailable ? 'opacity-50' : ''}`}>
 
                   {/* Foto */}
                   <td className="pl-4 py-3 w-12">
@@ -213,11 +216,47 @@ export default function AdminProdutosPage() {
                       </p>
                     )}
                     <p className="font-medium text-gray-900">{product.name}</p>
+                    {/* Indicador mobile de indisponível (a coluna toggle fica oculta no mobile) */}
+                    {!product.isAvailable && (
+                      <p className="mt-0.5 text-[10px] font-medium text-red-500 sm:hidden">Indisponível</p>
+                    )}
+                  </td>
+
+                  {/* Toggle de disponibilidade — oculto no mobile */}
+                  <td className="hidden px-4 py-3 text-center sm:table-cell">
+                    <button
+                      onClick={() => handleToggleAvailability(product)}
+                      disabled={togglingId === product.id}
+                      aria-label={product.isAvailable ? 'Marcar como indisponível' : 'Marcar como disponível'}
+                      title={product.isAvailable ? 'Visível no catálogo' : 'Oculto do catálogo'}
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${
+                        product.isAvailable ? 'bg-green-500' : 'bg-gray-300'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
+                          product.isAvailable ? 'translate-x-4' : 'translate-x-0.5'
+                        }`}
+                      />
+                    </button>
                   </td>
 
                   {/* Botões de ação */}
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
+                      {/* Toggle no mobile (inline com as ações) */}
+                      <button
+                        onClick={() => handleToggleAvailability(product)}
+                        disabled={togglingId === product.id}
+                        aria-label={product.isAvailable ? 'Marcar como indisponível' : 'Marcar como disponível'}
+                        className={`rounded-lg p-1.5 transition-colors sm:hidden ${
+                          product.isAvailable
+                            ? 'text-green-500 hover:bg-green-50'
+                            : 'text-gray-400 hover:bg-gray-100'
+                        } disabled:opacity-50`}
+                      >
+                        {product.isAvailable ? <Eye size={15} /> : <EyeOff size={15} />}
+                      </button>
                       <button
                         onClick={() => openEditModal(product)}
                         aria-label="Editar produto"

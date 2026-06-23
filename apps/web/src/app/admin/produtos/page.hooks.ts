@@ -78,6 +78,9 @@ export function useProdutosPage() {
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  // ID do produto sendo alternado entre disponível/indisponível (loading individual)
+  const [togglingId, setTogglingId] = useState<string | null>(null)
+
   // Filtros da listagem (aplicados client-side)
   const [search, setSearch] = useState('')
   const [filterCategory, setFilterCategory] = useState('')
@@ -275,6 +278,23 @@ export function useProdutosPage() {
     }
   }
 
+  // Alterna a disponibilidade do produto (visível/oculto no catálogo público)
+  async function handleToggleAvailability(product: Product) {
+    const token = localStorage.getItem('admin_token') ?? ''
+    setTogglingId(product.id)
+    try {
+      await catalogService.updateProduct(product.id, { isAvailable: !product.isAvailable }, token)
+      // Atualiza localmente sem recarregar a página inteira
+      setProducts((prev) =>
+        prev.map((p) => p.id === product.id ? { ...p, isAvailable: !product.isAvailable } : p),
+      )
+    } catch {
+      setError('Erro ao alterar a disponibilidade do produto.')
+    } finally {
+      setTogglingId(null)
+    }
+  }
+
   // A busca, a categoria e a ordenação são aplicadas no servidor
   const pageProducts = products
 
@@ -340,5 +360,9 @@ export function useProdutosPage() {
     setDeletingProduct,
     isDeleting,
     handleDelete,
+
+    // Toggle de disponibilidade
+    togglingId,
+    handleToggleAvailability,
   }
 }
