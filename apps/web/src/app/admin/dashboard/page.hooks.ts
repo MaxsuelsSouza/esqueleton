@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { storeProfileService } from '@/modules/store-profile/services/store-profile.service'
 import { catalogService } from '@/modules/catalog/services/catalog.service'
 import { categoriesService } from '@/modules/categories/services/categories.service'
 import { promotionsService } from '@/modules/promotions/services/promotions.service'
@@ -37,6 +38,13 @@ export function useDashboardPage() {
   const [isLoadingStats, setIsLoadingStats] = useState(true)
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true)
 
+  // Onboarding — checklist do primeiro acesso
+  type OnboardingStatus = { whatsapp: boolean; logo: boolean; hasProducts: boolean }
+  const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null)
+  const [onboardingDismissed, setOnboardingDismissed] = useState(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('onboarding_dismissed') === 'true' : false,
+  )
+
   // Aba ativa na seção de analytics
   const [analyticsTab, setAnalyticsTab] = useState<'produtos' | 'promocoes' | 'cupons' | 'destaques' | 'pedidos'>('produtos')
 
@@ -50,6 +58,7 @@ export function useDashboardPage() {
   useEffect(() => {
     loadStats()
     loadAnalytics()
+    loadOnboardingStatus()
   }, [])
 
   // Quando vindo de uma notificação com ?pedido=XXXXXX, preenche e busca automaticamente
@@ -68,6 +77,22 @@ export function useDashboardPage() {
       })
     }, 100)
   }, [searchParams])
+
+  async function loadOnboardingStatus() {
+    if (onboardingDismissed) return
+    try {
+      const token = localStorage.getItem('admin_token') ?? ''
+      const status = await storeProfileService.getOnboardingStatus(token)
+      setOnboardingStatus(status)
+    } catch {
+      // Silencioso — o checklist simplesmente não aparece
+    }
+  }
+
+  function dismissOnboarding() {
+    localStorage.setItem('onboarding_dismissed', 'true')
+    setOnboardingDismissed(true)
+  }
 
   async function loadStats() {
     setIsLoadingStats(true)
@@ -217,5 +242,9 @@ export function useDashboardPage() {
     clearFunnel,
     searchOrder,
     updateOrderStatus,
+    // Onboarding
+    onboardingStatus,
+    onboardingDismissed,
+    dismissOnboarding,
   }
 }

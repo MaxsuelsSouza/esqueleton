@@ -38,6 +38,22 @@ export const storeProfileAdminRoutes: FastifyPluginAsync = async (app) => {
     })
   })
 
+  // Retorna o progresso do onboarding — usado pelo Dashboard para exibir o checklist inicial
+  app.get('/onboarding-status', async (request) => {
+    const storeId = request.user.storeId
+
+    const [profile, productCount] = await Promise.all([
+      app.prisma.storeProfile.findUnique({ where: { storeId } }),
+      app.prisma.product.count({ where: { storeId } }),
+    ])
+
+    return {
+      whatsapp: Boolean(profile?.whatsapp),
+      logo: Boolean(profile?.logoUrl),
+      hasProducts: productCount > 0,
+    }
+  })
+
   // Atualiza o perfil da loja
   // Apenas o OWNER pode editar o perfil da loja
   app.put('/', { preHandler: [requireOwner] }, async (request) => {

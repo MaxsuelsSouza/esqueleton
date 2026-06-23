@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import type { Product, AnalyticsSummary, ProductMetric, PromotionMetric, CouponMetric, FeaturedMetric, Order } from '@esqueleton/shared'
 import { useDashboardPage } from './page.hooks'
+import { OnboardingChecklist } from '@/modules/onboarding'
 import { ordersService } from '@/modules/orders/services/orders.service'
 
 export default function AdminDashboardPage() {
@@ -32,6 +33,9 @@ export default function AdminDashboardPage() {
     clearFunnel,
     searchOrder,
     updateOrderStatus,
+    onboardingStatus,
+    onboardingDismissed,
+    dismissOnboarding,
   } = useDashboardPage()
 
   return (
@@ -42,6 +46,15 @@ export default function AdminDashboardPage() {
         <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">Dashboard</h1>
         <p className="mt-0.5 text-sm text-gray-500">Visão geral da sua loja</p>
       </div>
+
+      {/* Onboarding — checklist do primeiro acesso */}
+      {onboardingStatus && !onboardingDismissed && (
+        <OnboardingChecklist
+          status={onboardingStatus}
+          storeSlug={typeof window !== 'undefined' ? localStorage.getItem('admin_store_slug') ?? '' : ''}
+          onDismiss={dismissOnboarding}
+        />
+      )}
 
       {/* Cards de resumo */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
