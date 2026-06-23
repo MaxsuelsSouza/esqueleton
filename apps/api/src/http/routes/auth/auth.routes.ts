@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify'
 import crypto from 'crypto'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
-import { shortText, slugSchema } from '../../../shared/validation/schemas'
+import { shortText, slugSchema, phoneSchema } from '../../../shared/validation/schemas'
 import { requireOwner } from '../../../domain/identity/guards/role.guard'
 import { emailVerificationEmail } from '../../../shared/email/templates'
 import { registerStore, registerStaff } from '../../../domain/identity/services/auth.service'
@@ -20,6 +20,7 @@ const registerStoreSchema = z.object({
   password: passwordSchema,
   storeName: shortText(80, 'Nome da loja é obrigatório'),
   storeSlug: slugSchema,
+  whatsapp: phoneSchema.describe('WhatsApp é obrigatório para receber pedidos'),
 })
 
 // Cadastro de mais um usuário em uma loja que já existe (feito por um admin autenticado)
@@ -86,7 +87,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       }
 
       // ── Modo 1: cadastro público — cria a loja e o primeiro usuário ──
-      const { email, password, storeName, storeSlug } = registerStoreSchema.parse(request.body)
+      const { email, password, storeName, storeSlug, whatsapp } = registerStoreSchema.parse(request.body)
 
       const [existingUser, existingStore] = await Promise.all([
         app.prisma.user.findUnique({ where: { email } }),
@@ -107,6 +108,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         hashedPassword: hashed,
         storeName,
         storeSlug,
+        whatsapp,
       })
 
       // Envia o e-mail de verificação (fora da transação — se falhar, a loja já foi criada)

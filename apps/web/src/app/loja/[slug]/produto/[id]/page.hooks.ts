@@ -328,11 +328,14 @@ export function useProdutoDetailPage() {
 
   // Abre o WhatsApp com a mensagem do produto
   function goToWhatsAppBuyNow(customerInfo: { name: string; phone: string }) {
-    const message = encodeURIComponent(buildBuyNowMessage(customerInfo))
     const whatsappNumber = profile.whatsapp ?? ''
-    const url = whatsappNumber
-      ? `https://wa.me/${whatsappNumber}?text=${message}`
-      : `https://wa.me/?text=${message}`
+    if (!whatsappNumber) {
+      alert('Esta loja ainda não configurou o WhatsApp.')
+      return
+    }
+
+    const message = encodeURIComponent(buildBuyNowMessage(customerInfo))
+    const url = `https://wa.me/${whatsappNumber}?text=${message}`
     window.open(url, '_blank')
 
     // Registra analytics — fire and forget

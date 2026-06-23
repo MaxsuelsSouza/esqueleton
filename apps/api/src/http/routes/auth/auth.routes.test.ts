@@ -35,6 +35,7 @@ describe('POST /api/auth/register (cadastro público de loja)', () => {
         password: 'senha-segura-123',
         storeName: 'Perfumaria Ana',
         storeSlug: 'perfumaria-ana',
+        whatsapp: '5511999999999',
       },
     })
 
@@ -78,6 +79,7 @@ describe('POST /api/auth/register (cadastro público de loja)', () => {
         password: 'senha-segura-123',
         storeName: 'Loja Admin',
         storeSlug: 'admin',
+        whatsapp: '5511999999999',
       },
     })
 
@@ -101,6 +103,7 @@ describe('POST /api/auth/register (cadastro público de loja)', () => {
         password: 'senha-segura-123',
         storeName: 'Loja Teste',
         storeSlug: 'loja-teste',
+        whatsapp: '5511999999999',
       },
     })
 
@@ -165,6 +168,7 @@ describe('POST /api/auth/register (cadastro público de loja)', () => {
         password: '1234567',
         storeName: 'Loja',
         storeSlug: 'loja-da-ana',
+        whatsapp: '5511999999999',
       },
     })
 

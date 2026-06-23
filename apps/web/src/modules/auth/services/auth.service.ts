@@ -13,6 +13,7 @@ interface RegisterStoreInput {
   password: string
   storeName: string
   storeSlug: string
+  whatsapp: string
 }
 
 // Resposta do cadastro de loja nova — inclui o slug e o nome da loja criada

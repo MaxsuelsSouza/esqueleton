@@ -14,6 +14,8 @@ export default function AdminLoginPage() {
     setPassword,
     storeName,
     storeSlug,
+    whatsapp,
+    setWhatsapp,
     error,
     isLoading,
     handleStoreNameChange,
@@ -80,6 +82,22 @@ export default function AdminLoginPage() {
                 {storeSlug && (
                   <p className="text-xs text-gray-400">Sua loja ficará em /loja/{storeSlug}</p>
                 )}
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="whatsapp" className="text-sm font-medium text-gray-700">
+                  WhatsApp
+                </label>
+                <input
+                  id="whatsapp"
+                  type="tel"
+                  value={whatsapp}
+                  onChange={(e) => setWhatsapp(e.target.value)}
+                  placeholder="(11) 99999-9999"
+                  required
+                  className={inputClass}
+                />
+                <p className="text-xs text-gray-400">Seus clientes enviam pedidos por este número</p>
               </div>
             </>
           )}

@@ -37,6 +37,7 @@ export function useLoginPage() {
   const [password, setPassword] = useState('')
   const [storeName, setStoreName] = useState('')
   const [storeSlug, setStoreSlug] = useState('')
+  const [whatsapp, setWhatsapp] = useState('')
   // Marca se o usuário editou o endereço manualmente — aí paramos de sugerir automaticamente
   const [slugEditedManually, setSlugEditedManually] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -72,12 +73,17 @@ export function useLoginPage() {
           setError('Informe o endereço da sua loja.')
           return
         }
+        if (!whatsapp.trim()) {
+          setError('Informe o WhatsApp para receber pedidos.')
+          return
+        }
         // Cria a loja nova com o primeiro usuário
         await authService.registerStore({
           email,
           password,
           storeName: storeName.trim(),
           storeSlug: storeSlug.trim(),
+          whatsapp: whatsapp.trim().replace(/\D/g, ''),
         })
       }
 
@@ -112,6 +118,8 @@ export function useLoginPage() {
     setPassword,
     storeName,
     storeSlug,
+    whatsapp,
+    setWhatsapp,
     error,
     isLoading,
     handleStoreNameChange,

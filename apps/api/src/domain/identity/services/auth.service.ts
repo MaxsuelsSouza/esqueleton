@@ -7,6 +7,7 @@ type RegisterStoreParams = {
   hashedPassword: string
   storeName: string
   storeSlug: string
+  whatsapp: string
 }
 
 type RegisterStoreResult = {
@@ -25,7 +26,7 @@ export async function registerStore(
       data: { slug: params.storeSlug, name: params.storeName },
     })
     await tx.storeProfile.create({
-      data: { storeId: store.id, storeName: params.storeName },
+      data: { storeId: store.id, storeName: params.storeName, whatsapp: params.whatsapp },
     })
     const user = await tx.user.create({
       data: {

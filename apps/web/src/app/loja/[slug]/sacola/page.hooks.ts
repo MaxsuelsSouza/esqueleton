@@ -311,13 +311,16 @@ export function useSacolaPage() {
 
   // Efetivamente abre o WhatsApp, salva o pedido e dispara analytics — tudo em paralelo
   function goToWhatsApp(customerInfo: { name: string; phone: string }) {
+    const whatsappNumber = profile.whatsapp ?? ''
+    if (!whatsappNumber) {
+      alert('Esta loja ainda não configurou o WhatsApp.')
+      return
+    }
+
     const orderNumber = String(Date.now()).slice(-6)
 
     const message = encodeURIComponent(buildWhatsAppMessage(customerInfo, orderNumber))
-    const whatsappNumber = profile.whatsapp ?? ''
-    const url = whatsappNumber
-      ? `https://wa.me/${whatsappNumber}?text=${message}`
-      : `https://wa.me/?text=${message}`
+    const url = `https://wa.me/${whatsappNumber}?text=${message}`
     window.open(url, '_blank')
 
     // Salva o pedido no banco da loja — fire and forget
