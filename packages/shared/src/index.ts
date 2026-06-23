@@ -48,6 +48,8 @@ export interface Product {
   variants?: ProductVariant[]
   // IDs das categorias às quais o produto pertence (pode ser mais de uma)
   categoryIds?: string[]
+  // Indica se o produto está disponível no catálogo público
+  isAvailable: boolean
   createdAt: string
   updatedAt: string
 }

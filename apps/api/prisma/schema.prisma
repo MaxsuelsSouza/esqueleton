@@ -95,6 +95,8 @@ model Product {
   images          String[]
   // Características do produto em JSON — Array de { name, value } (ex: tamanho, cor, material)
   characteristics Json?
+  // Indica se o produto está disponível para exibição no catálogo público
+  isAvailable     Boolean           @default(true)
   storeId         String
   store           Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
   categories      ProductCategory[]

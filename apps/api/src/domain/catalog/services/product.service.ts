@@ -52,7 +52,7 @@ export type ListQuery = {
 
 // Listagem paginada com filtros — usada tanto pelo catálogo público quanto pelo admin.
 // O storeId garante que apenas os produtos daquela loja apareçam.
-export async function listarProdutos(prisma: PrismaClient, storeId: string, query: ListQuery) {
+export async function listarProdutos(prisma: PrismaClient, storeId: string, query: ListQuery, options?: { publicOnly?: boolean }) {
   // Busca por IDs específicos — ignora paginação e filtros
   // Limitado a 100 IDs e apenas no formato válido, para evitar consultas montadas por terceiros
   if (query.ids) {
@@ -61,7 +61,7 @@ export async function listarProdutos(prisma: PrismaClient, storeId: string, quer
       .filter((id) => /^[A-Za-z0-9_-]{1,64}$/.test(id))
       .slice(0, 100)
     const products = await prisma.product.findMany({
-      where: { id: { in: ids }, storeId },
+      where: { id: { in: ids }, storeId, ...(options?.publicOnly ? { isAvailable: true } : {}) },
       include: PRODUCT_INCLUDE,
     })
     return { data: products.map(toProductResponse), total: products.length, page: 1, pageSize: ids.length, totalPages: 1 }
@@ -73,7 +73,7 @@ export async function listarProdutos(prisma: PrismaClient, storeId: string, quer
   const skip = (page - 1) * pageSize
 
   // Monta o filtro do Prisma conforme os parâmetros recebidos — sempre limitado à loja
-  const where: Record<string, unknown> = { storeId }
+  const where: Record<string, unknown> = { storeId, ...(options?.publicOnly ? { isAvailable: true } : {}) }
 
   // Texto de busca limitado a 200 caracteres — evita consultas pesadas com textos gigantes
   const search = query.search?.trim().slice(0, 200)

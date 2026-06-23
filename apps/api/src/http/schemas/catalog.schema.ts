@@ -18,6 +18,8 @@ export const productSchema = z.object({
   images: z.array(imageUrlSchema).max(10, 'Máximo de 10 fotos adicionais').default([]),
   // IDs das categorias às quais o produto pertence — formato validado para impedir valores arbitrários
   categoryIds: idListSchema.default([]),
+  // Indica se o produto está disponível no catálogo público (toggle do admin)
+  isAvailable: z.boolean().default(true),
   // Características do produto — lista de pares nome/valor, limitada a 50 itens
   characteristics: z.array(characteristicSchema).max(50, 'Máximo de 50 características').default([]).transform(v => v.length > 0 ? v : undefined),
   // Variantes do produto — cada uma com opções, preço e imagem opcional

@@ -9,14 +9,14 @@ import { listarProdutos, toProductResponse, PRODUCT_INCLUDE, type ListQuery } fr
 // ── Rotas públicas — a loja vem do slug na URL ─────────────────────
 export const catalogPublicRoutes: FastifyPluginAsync = async (app) => {
   app.get('/', async (request) => {
-    return listarProdutos(app.prisma,request.store!.id, request.query as ListQuery)
+    return listarProdutos(app.prisma, request.store!.id, request.query as ListQuery, { publicOnly: true })
   })
 
   app.get('/:id', async (request, reply) => {
     // Valida o formato do ID recebido na URL antes de consultar o banco
     const { id } = idParamSchema.parse(request.params)
     const product = await app.prisma.product.findFirst({
-      where: { id, storeId: request.store!.id },
+      where: { id, storeId: request.store!.id, isAvailable: true },
       include: PRODUCT_INCLUDE,
     })
     if (!product) {
