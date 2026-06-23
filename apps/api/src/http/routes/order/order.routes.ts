@@ -3,7 +3,8 @@
 //   - orderAdminRoutes: gestão pelo painel, a loja vem do token JWT
 import type { FastifyInstance } from 'fastify'
 import { createOrderSchema, updateOrderStatusSchema } from '../../schemas/order.schema'
-import { validateOrderArithmetic } from '../../../domain/order/services/order.service'
+import { validateOrderArithmetic, validateOrderPrices } from '../../../domain/order/services/order.service'
+import { isCouponUsable } from '../../../domain/pricing/services/coupon.service'
 
 // ── Rota pública — a loja vem do slug na URL ───────────────────────
 export async function orderPublicRoutes(app: FastifyInstance) {
@@ -22,6 +23,37 @@ export async function orderPublicRoutes(app: FastifyInstance) {
     // montadas fora do site (tolerância de 1 centavo para arredondamentos)
     if (!validateOrderArithmetic(data)) {
       return reply.status(400).send({ message: 'Os valores do pedido não conferem.' })
+    }
+
+    // Confere o preço de cada item contra o banco — impede que alguém altere
+    // o unitPrice no request para pagar menos do que o produto realmente custa
+    const productIds = [...new Set(data.items.map((item) => item.productId))]
+
+    const [products, promotions, coupon] = await Promise.all([
+      app.prisma.product.findMany({
+        where: { id: { in: productIds }, storeId, isAvailable: true },
+        include: {
+          variants: { select: { id: true, price: true, active: true } },
+        },
+      }),
+      app.prisma.promotion.findMany({
+        where: { storeId, active: true },
+        orderBy: { priority: 'asc' },
+      }),
+      data.couponCode
+        ? app.prisma.coupon.findUnique({
+            where: { storeId_code: { storeId, code: data.couponCode.toUpperCase() } },
+          })
+        : null,
+    ])
+
+    // Se o cupom foi informado mas não existe ou não pode ser usado, ignora-o na validação
+    // (o incremento de usedCount no final também já é fire-and-forget)
+    const couponValido = coupon && isCouponUsable(coupon).valid ? coupon : null
+
+    const priceCheck = validateOrderPrices(data.items, products, promotions, couponValido)
+    if (!priceCheck.valid) {
+      return reply.status(400).send({ message: priceCheck.message })
     }
 
     const order = await app.prisma.order.create({

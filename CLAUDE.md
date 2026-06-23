@@ -90,7 +90,7 @@ pnpm --filter @esqueleton/web test
 - Image fields (`Product.imageUrl`, `StoreProfile.logoUrl`) use `imageUrlSchema`: accepts an `http(s)://` URL **or** a `data:image/...;base64,...` upload (the admin uploader produces base64), capped at ~3 MB. It blocks `javascript:` and non-image data URIs. Fastify `bodyLimit` is raised to 5 MB so base64 images aren't rejected as 1 MB-over. Images are stored inline (no external file storage yet) — migrating to S3/Cloudinary/Vercel Blob is a known follow-up.
 - Error handler hides internals: 5xx responses always return `"Erro interno do servidor"`.
 - Public `GET /api/lojas/:slug/promotions` and `.../featured` return only `active: true` records of that store; the admin lists (`GET /api/promotions`, `GET /api/featured`) require JWT and return everything from the token's store.
-- `POST /api/lojas/:slug/orders` verifies the order arithmetic server-side (lineTotal = unitPrice × quantity, subtotal = sum, total = subtotal − discount) and increments the coupon's `usedCount` scoped to the store — this is what enforces `maxUses`.
+- `POST /api/lojas/:slug/orders` verifies the order arithmetic server-side (lineTotal = unitPrice × quantity, subtotal = sum, total = subtotal − discount), validates each item's `unitPrice` against the database product price (accounting for active promotions and coupons, with 1-centavo tolerance), and increments the coupon's `usedCount` scoped to the store — this is what enforces `maxUses`.
 - `trustProxy: true` is set so rate limiting sees the real client IP behind Vercel/nginx.
 - Failed logins are logged with `app.log.warn` (email + IP).
 - API tests inject a fake Prisma client via `buildApp({ prisma })` — see `apps/api/src/test/test-helpers.ts`. No real database needed.
@@ -101,7 +101,7 @@ pnpm --filter @esqueleton/web test
 - No server-side token revocation — logout only clears the browser; tokens stay valid until expiry (1 day).
 - Roles are enforced server-side (`requireOwner`) but the web hides UI elements by reading `role` from localStorage — a savvy user could access `/admin/usuarios` directly, but the API would reject the request.
 - `orderNumber` is generated client-side (unique-constrained; collision makes the fire-and-forget create fail silently).
-- Item `unitPrice` comes from the client — only the arithmetic is verified, prices are not recomputed from the database (admin confirms each order manually via WhatsApp).
+- Item `unitPrice` is validated server-side against the database product price, accounting for active promotions and coupons (1-centavo tolerance for rounding). Orders with manipulated prices are rejected with 400.
 - Rate limiting without `REDIS_URL` is in-memory: per serverless instance on Vercel. With Redis configured, login brute force (per-IP and per-email) is blocked across instances; other routes remain per-IP only.
 
 ## Architecture

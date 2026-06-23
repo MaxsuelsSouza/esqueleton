@@ -26,6 +26,25 @@ const pedidoSalvo = {
   updatedAt: new Date(),
 }
 
+// Produto no banco com preço R$100 — bate com o unitPrice do pedidoValido
+const produtoBanco = {
+  id: 'p1',
+  name: 'Perfume Teste',
+  price: 100,
+  storeId: LOJA_TESTE.id,
+  isAvailable: true,
+  variants: [],
+}
+
+// Monta os models mínimos para a criação de pedido funcionar (produto + promoção)
+function orderModels(extras: Record<string, Record<string, (...args: unknown[]) => unknown>> = {}) {
+  return {
+    product: { findMany: vi.fn(async () => [produtoBanco]), ...extras.product },
+    promotion: { findMany: vi.fn(async () => []), ...extras.promotion },
+    ...extras,
+  }
+}
+
 describe('POST /api/lojas/:slug/orders (criação pública)', () => {
   let app: TestApp
 
@@ -36,10 +55,10 @@ describe('POST /api/lojas/:slug/orders (criação pública)', () => {
   it('cria um pedido com dados válidos na loja do slug', async () => {
     const create = vi.fn(async () => pedidoSalvo)
     app = await buildTestApp(
-      createPrismaFake({
+      createPrismaFake(orderModels({
         order: { create },
         notification: { create: vi.fn(async () => ({})) },
-      })
+      }))
     )
 
     const response = await app.inject({
@@ -49,14 +68,13 @@ describe('POST /api/lojas/:slug/orders (criação pública)', () => {
     })
 
     expect(response.statusCode).toBe(201)
-    // O pedido nasce na loja do slug
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ storeId: LOJA_TESTE.id }) })
     )
   })
 
   it('rejeita número de pedido com caracteres inválidos', async () => {
-    app = await buildTestApp(createPrismaFake({}))
+    app = await buildTestApp(createPrismaFake(orderModels()))
 
     const response = await app.inject({
       method: 'POST',
@@ -68,7 +86,7 @@ describe('POST /api/lojas/:slug/orders (criação pública)', () => {
   })
 
   it('rejeita telefone com texto arbitrário', async () => {
-    app = await buildTestApp(createPrismaFake({}))
+    app = await buildTestApp(createPrismaFake(orderModels()))
 
     const response = await app.inject({
       method: 'POST',
@@ -80,7 +98,7 @@ describe('POST /api/lojas/:slug/orders (criação pública)', () => {
   })
 
   it('rejeita pedido com totais manipulados (item de R$100 com total de R$1)', async () => {
-    app = await buildTestApp(createPrismaFake({}))
+    app = await buildTestApp(createPrismaFake(orderModels()))
 
     const response = await app.inject({
       method: 'POST',
@@ -93,7 +111,7 @@ describe('POST /api/lojas/:slug/orders (criação pública)', () => {
   })
 
   it('rejeita desconto maior que o subtotal', async () => {
-    app = await buildTestApp(createPrismaFake({}))
+    app = await buildTestApp(createPrismaFake(orderModels()))
 
     const response = await app.inject({
       method: 'POST',
@@ -106,23 +124,50 @@ describe('POST /api/lojas/:slug/orders (criação pública)', () => {
 
   it('registra o uso do cupom no servidor ao criar o pedido', async () => {
     const updateCoupon = vi.fn(async () => ({ count: 1 }))
+    const couponData = {
+      id: 'c1',
+      code: 'DESCONTO10',
+      discountType: 'fixed',
+      discountValue: 10,
+      discountPercent: null,
+      productIds: [],
+      active: true,
+      startDate: null,
+      endDate: null,
+      maxUses: null,
+      usedCount: 0,
+      storeId: LOJA_TESTE.id,
+    }
     app = await buildTestApp(
-      createPrismaFake({
+      createPrismaFake(orderModels({
         order: { create: vi.fn(async () => ({ ...pedidoSalvo, couponCode: 'DESCONTO10' })) },
         notification: { create: vi.fn(async () => ({})) },
-        coupon: { updateMany: updateCoupon },
-      })
+        coupon: {
+          findUnique: vi.fn(async () => couponData),
+          updateMany: updateCoupon,
+        },
+      }))
     )
+
+    // unitPrice = 90 (R$100 - R$10 do cupom fixo)
+    const pedidoComCupom = {
+      ...pedidoValido,
+      items: [
+        { productId: 'p1', productName: 'Perfume Teste', quantity: 1, unitPrice: 90, lineTotal: 90 },
+      ],
+      subtotal: 90,
+      couponCode: 'DESCONTO10',
+      discount: 0,
+      total: 90,
+    }
 
     const response = await app.inject({
       method: 'POST',
       url: '/api/lojas/loja-teste/orders',
-      payload: { ...pedidoValido, couponCode: 'DESCONTO10', discount: 10, total: 90 },
+      payload: pedidoComCupom,
     })
 
     expect(response.statusCode).toBe(201)
-    // O contador de usos sobe no servidor — é assim que o maxUses é respeitado.
-    // O filtro inclui a loja: cupom de mesmo código em outra loja não é afetado.
     expect(updateCoupon).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { storeId: LOJA_TESTE.id, code: 'DESCONTO10' },
@@ -132,7 +177,7 @@ describe('POST /api/lojas/:slug/orders (criação pública)', () => {
   })
 
   it('rejeita pedido sem itens', async () => {
-    app = await buildTestApp(createPrismaFake({}))
+    app = await buildTestApp(createPrismaFake(orderModels()))
 
     const response = await app.inject({
       method: 'POST',
@@ -141,6 +186,251 @@ describe('POST /api/lojas/:slug/orders (criação pública)', () => {
     })
 
     expect(response.statusCode).toBe(400)
+  })
+})
+
+describe('POST /api/lojas/:slug/orders (validação de preço contra o banco)', () => {
+  let app: TestApp
+
+  afterEach(async () => {
+    await app?.close()
+  })
+
+  it('rejeita pedido com unitPrice manipulado (menor que o preço real)', async () => {
+    app = await buildTestApp(createPrismaFake(orderModels()))
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/lojas/loja-teste/orders',
+      payload: {
+        ...pedidoValido,
+        items: [
+          { productId: 'p1', productName: 'Perfume Teste', quantity: 1, unitPrice: 10, lineTotal: 10 },
+        ],
+        subtotal: 10,
+        total: 10,
+      },
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(response.json().message).toBe('O preço de um ou mais produtos mudou. Atualize sua sacola.')
+  })
+
+  it('rejeita pedido com unitPrice manipulado (maior que o preço real)', async () => {
+    app = await buildTestApp(createPrismaFake(orderModels()))
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/lojas/loja-teste/orders',
+      payload: {
+        ...pedidoValido,
+        items: [
+          { productId: 'p1', productName: 'Perfume Teste', quantity: 1, unitPrice: 500, lineTotal: 500 },
+        ],
+        subtotal: 500,
+        total: 500,
+      },
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(response.json().message).toBe('O preço de um ou mais produtos mudou. Atualize sua sacola.')
+  })
+
+  it('rejeita pedido com produto inexistente no banco', async () => {
+    app = await buildTestApp(
+      createPrismaFake(orderModels({
+        product: { findMany: vi.fn(async () => []) },
+      }))
+    )
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/lojas/loja-teste/orders',
+      payload: pedidoValido,
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(response.json().message).toBe('Um ou mais produtos do pedido não foram encontrados. Atualize sua sacola.')
+  })
+
+  it('aceita pedido com preço de variante ativa', async () => {
+    const produtoComVariante = {
+      ...produtoBanco,
+      variants: [
+        { id: 'v1', price: 150, active: true },
+        { id: 'v2', price: 200, active: false },
+      ],
+    }
+
+    app = await buildTestApp(
+      createPrismaFake(orderModels({
+        product: { findMany: vi.fn(async () => [produtoComVariante]) },
+        order: { create: vi.fn(async () => pedidoSalvo) },
+        notification: { create: vi.fn(async () => ({})) },
+      }))
+    )
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/lojas/loja-teste/orders',
+      payload: {
+        ...pedidoValido,
+        items: [
+          { productId: 'p1', productName: 'Perfume Teste', quantity: 1, unitPrice: 150, lineTotal: 150 },
+        ],
+        subtotal: 150,
+        total: 150,
+      },
+    })
+
+    expect(response.statusCode).toBe(201)
+  })
+
+  it('rejeita pedido com preço de variante inativa', async () => {
+    const produtoComVariante = {
+      ...produtoBanco,
+      variants: [
+        { id: 'v1', price: 150, active: true },
+        { id: 'v2', price: 200, active: false },
+      ],
+    }
+
+    app = await buildTestApp(
+      createPrismaFake(orderModels({
+        product: { findMany: vi.fn(async () => [produtoComVariante]) },
+      }))
+    )
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/lojas/loja-teste/orders',
+      payload: {
+        ...pedidoValido,
+        items: [
+          { productId: 'p1', productName: 'Perfume Teste', quantity: 1, unitPrice: 200, lineTotal: 200 },
+        ],
+        subtotal: 200,
+        total: 200,
+      },
+    })
+
+    expect(response.statusCode).toBe(400)
+  })
+
+  it('aceita pedido com preço promocional (desconto percentual)', async () => {
+    const promoAtiva = {
+      id: 'promo1',
+      name: '20% OFF',
+      type: 'percentage',
+      discountPercent: 20,
+      discountValue: null,
+      kitPrice: null,
+      productIds: ['p1'],
+      startDate: null,
+      endDate: null,
+      startTime: null,
+      endTime: null,
+      active: true,
+      priority: 0,
+      storeId: LOJA_TESTE.id,
+    }
+
+    app = await buildTestApp(
+      createPrismaFake(orderModels({
+        promotion: { findMany: vi.fn(async () => [promoAtiva]) },
+        order: { create: vi.fn(async () => pedidoSalvo) },
+        notification: { create: vi.fn(async () => ({})) },
+      }))
+    )
+
+    // R$100 com 20% de desconto = R$80
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/lojas/loja-teste/orders',
+      payload: {
+        ...pedidoValido,
+        items: [
+          { productId: 'p1', productName: 'Perfume Teste', quantity: 1, unitPrice: 80, lineTotal: 80 },
+        ],
+        subtotal: 80,
+        total: 80,
+      },
+    })
+
+    expect(response.statusCode).toBe(201)
+  })
+
+  it('aceita pedido com preço de cupom percentual', async () => {
+    const couponData = {
+      id: 'c1',
+      code: 'CUPOM20',
+      discountType: 'percentage',
+      discountPercent: 20,
+      discountValue: null,
+      productIds: [],
+      active: true,
+      startDate: null,
+      endDate: null,
+      maxUses: null,
+      usedCount: 0,
+      storeId: LOJA_TESTE.id,
+    }
+
+    app = await buildTestApp(
+      createPrismaFake(orderModels({
+        coupon: {
+          findUnique: vi.fn(async () => couponData),
+          updateMany: vi.fn(async () => ({ count: 1 })),
+        },
+        order: { create: vi.fn(async () => pedidoSalvo) },
+        notification: { create: vi.fn(async () => ({})) },
+      }))
+    )
+
+    // R$100 com cupom de 20% = R$80
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/lojas/loja-teste/orders',
+      payload: {
+        ...pedidoValido,
+        items: [
+          { productId: 'p1', productName: 'Perfume Teste', quantity: 1, unitPrice: 80, lineTotal: 80 },
+        ],
+        subtotal: 80,
+        couponCode: 'CUPOM20',
+        discount: 0,
+        total: 80,
+      },
+    })
+
+    expect(response.statusCode).toBe(201)
+  })
+
+  it('aceita diferença de 1 centavo (arredondamento)', async () => {
+    const produtoArredondamento = { ...produtoBanco, price: 99.99 }
+
+    app = await buildTestApp(
+      createPrismaFake(orderModels({
+        product: { findMany: vi.fn(async () => [produtoArredondamento]) },
+        order: { create: vi.fn(async () => pedidoSalvo) },
+        notification: { create: vi.fn(async () => ({})) },
+      }))
+    )
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/lojas/loja-teste/orders',
+      payload: {
+        ...pedidoValido,
+        items: [
+          { productId: 'p1', productName: 'Perfume Teste', quantity: 1, unitPrice: 99.98, lineTotal: 99.98 },
+        ],
+        subtotal: 99.98,
+        total: 99.98,
+      },
+    })
+
+    expect(response.statusCode).toBe(201)
   })
 })
 
@@ -179,7 +469,6 @@ describe('rotas de gestão de pedidos', () => {
     })
 
     expect(response.statusCode).toBe(200)
-    // O valor inválido não chega à consulta — busca apenas pela loja, sem filtro de status
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { storeId: LOJA_TESTE.id } })
     )
@@ -197,7 +486,6 @@ describe('rotas de gestão de pedidos', () => {
     })
 
     expect(response.statusCode).toBe(200)
-    // Pedido de outra loja com o mesmo número nunca é retornado
     expect(findUnique).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { storeId_orderNumber: { storeId: LOJA_TESTE.id, orderNumber: '123456' } },
@@ -225,7 +513,6 @@ describe('rotas de gestão de pedidos', () => {
     })
 
     expect(response.statusCode).toBe(200)
-    // A atualização é sempre restrita à loja do token
     expect(updateOrder).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ storeId: LOJA_TESTE.id }),
