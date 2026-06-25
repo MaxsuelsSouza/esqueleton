@@ -18,6 +18,105 @@ const THEME_COLORS = [
   { label: 'Marrom',    value: '#92400e' },
 ]
 
+// Etapas do guia de configuração do WhatsApp Business
+const WHATSAPP_GUIDE_STEPS: {
+  number: number
+  title: string
+  images: { src: string; alt: string }[]
+  instructions: string[]
+  link: string
+  linkLabel: string
+  field?: 'metaCatalogId' | 'metaAccessToken' | 'metaWabaId'
+}[] = [
+  {
+    number: 1,
+    title: 'Criar portfólio no Meta Business',
+    images: [
+      { src: '/images/whatsapp-guide/step-1-criar-conta.png', alt: 'Tela do Meta Business Suite' },
+    ],
+    instructions: [
+      'Acesse business.facebook.com e faça login com seu Facebook.',
+      'Se ainda não tiver um portfólio empresarial, clique em "Criar portfólio empresarial".',
+      'Preencha o nome da sua empresa e confirme seu e-mail.',
+      'Se já possui um portfólio, prossiga para o próximo passo.',
+    ],
+    link: 'https://business.facebook.com',
+    linkLabel: 'Abrir Meta Business Suite',
+  },
+  {
+    number: 2,
+    title: 'Criar catálogo de produtos',
+    images: [
+      { src: '/images/whatsapp-guide/step-2-criar-catalogo.png', alt: 'Commerce Manager — criar catálogo e encontrar o ID' },
+    ],
+    instructions: [
+      'No link abaixo, acesse o Gerenciador de Comércio (Commerce Manager).',
+      'Se ainda não tiver um catálogo, clique no botão "+" ao lado de "Catálogos" para criar um novo.',
+      'Na seção "Catálogos", seu catálogo aparecerá listado com o nome e o "ID do catálogo" logo abaixo.',
+      'Copie o número do ID do catálogo e cole no campo abaixo.',
+    ],
+    link: 'https://business.facebook.com/commerce',
+    linkLabel: 'Abrir Gerenciador de Comércio',
+    field: 'metaCatalogId',
+  },
+  {
+    number: 3,
+    title: 'Registrar-se como desenvolvedor e criar app',
+    images: [
+      { src: '/images/whatsapp-guide/step-3-criar-app.png', alt: 'Registro no Meta for Developers e criação do app' },
+    ],
+    instructions: [
+      'Acesse developers.facebook.com e clique em "Começar" (canto superior direito).',
+      'Complete o cadastro: verifique seu número de celular com o código SMS enviado pela Meta.',
+      'Após verificar, preencha as informações de contato e finalize o registro.',
+      'Já registrado, vá em "Meus apps" → "Criar app".',
+      'Dê um nome ao app (ex: "Minha Loja") e vincule ao seu portfólio empresarial.',
+      'Sem este app, o passo seguinte ficará bloqueado.',
+    ],
+    link: 'https://developers.facebook.com',
+    linkLabel: 'Abrir Meta for Developers',
+  },
+  {
+    number: 4,
+    title: 'Gerar token de acesso',
+    images: [
+      { src: '/images/whatsapp-guide/step-4a-criar-usuario.png', alt: 'Criar usuário do sistema no Meta Business' },
+      { src: '/images/whatsapp-guide/step-4b-gerar-token.png', alt: 'Selecionar permissões catalog_management e whatsapp_business_management' },
+      { src: '/images/whatsapp-guide/step-4c-copiar-token.png', alt: 'Copiar o token gerado' },
+    ],
+    instructions: [
+      'No link abaixo, vá em Configurações → Usuários → Usuários do sistema.',
+      'Clique em "Adicionar" (o botão só funciona se o app do passo 3 já existir no portfólio).',
+      'Crie um usuário do tipo "Admin".',
+      'Clique no usuário criado e depois em "Gerar token".',
+      'Selecione o app que você criou no passo anterior.',
+      'Marque as permissões: catalog_management e whatsapp_business_management.',
+      'Clique em "Gerar token" e copie imediatamente — o token não será exibido novamente!',
+    ],
+    link: 'https://business.facebook.com/settings/system-users',
+    linkLabel: 'Abrir Usuários do Sistema',
+    field: 'metaAccessToken',
+  },
+  {
+    number: 5,
+    title: 'Vincular conta WhatsApp (opcional)',
+    images: [
+      { src: '/images/whatsapp-guide/step-5-waba-id.png', alt: 'Configurações — vincular conta do WhatsApp Business' },
+    ],
+    instructions: [
+      'No link abaixo, vá em Configurações → Contas → Contas do WhatsApp.',
+      'Clique em "+ Adicionar" para vincular sua conta WhatsApp Business.',
+      'A Meta enviará um código de verificação para o app WhatsApp Business no seu celular.',
+      'Digite o código e clique em "Continuar".',
+      'Após vincular, copie o ID da conta que aparecerá na listagem.',
+      'Se você não usa o WhatsApp Business, pode pular esta etapa sem problemas.',
+    ],
+    link: 'https://business.facebook.com/settings/whatsapp-business-accounts',
+    linkLabel: 'Abrir Contas do WhatsApp',
+    field: 'metaWabaId',
+  },
+]
+
 export default function AdminPerfilPage() {
   const {
     form,
@@ -30,6 +129,8 @@ export default function AdminPerfilPage() {
     saveError,
     saveSuccess,
     handleSave,
+    guideStep,
+    setGuideStep,
     whatsappStatus,
     isTesting,
     testResult,
@@ -294,121 +395,209 @@ export default function AdminPerfilPage() {
           <div className="overflow-hidden">
             <div className="flex flex-col gap-4 border-t border-gray-100 p-4">
 
-              {/* Campos de configuração */}
-              <FormField label="Token de acesso" hint="Token permanente (System User) da Meta Graph API">
-                <input
-                  type="password"
-                  value={form.metaAccessToken}
-                  onChange={(e) => set('metaAccessToken', e.target.value)}
-                  placeholder="EAA..."
-                  className={inputClass}
-                />
-              </FormField>
+              {/* ── Guia passo-a-passo ── */}
+              <div className="flex flex-col gap-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                  Guia de configuração
+                </p>
 
-              <FormField label="ID do catálogo" hint="Encontre no Commerce Manager da Meta">
-                <input
-                  type="text"
-                  value={form.metaCatalogId}
-                  onChange={(e) => set('metaCatalogId', e.target.value)}
-                  placeholder="Ex: 1234567890"
-                  className={inputClass}
-                />
-              </FormField>
+                {/* Indicadores de etapa */}
+                <div className="flex items-center gap-1">
+                  {WHATSAPP_GUIDE_STEPS.map((step) => (
+                    <button
+                      key={step.number}
+                      type="button"
+                      onClick={() => setGuideStep(step.number)}
+                      className={`flex h-8 flex-1 items-center justify-center rounded-lg text-xs font-semibold transition-colors ${
+                        guideStep === step.number
+                          ? 'bg-green-600 text-white'
+                          : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                      }`}
+                    >
+                      {step.number}
+                    </button>
+                  ))}
+                </div>
 
-              <FormField label="ID da conta WhatsApp Business (WABA)" optional hint="Disponível no Meta Business Manager">
-                <input
-                  type="text"
-                  value={form.metaWabaId}
-                  onChange={(e) => set('metaWabaId', e.target.value)}
-                  placeholder="Ex: 1234567890"
-                  className={inputClass}
-                />
-              </FormField>
+                {/* Conteúdo da etapa ativa */}
+                {WHATSAPP_GUIDE_STEPS.filter((s) => s.number === guideStep).map((step) => (
+                  <div key={step.number} className="flex flex-col gap-3">
+                    <p className="text-sm font-semibold text-gray-700">
+                      Passo {step.number} de {WHATSAPP_GUIDE_STEPS.length}: {step.title}
+                    </p>
 
-              {/* Botões de ação */}
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={handleTestWhatsApp}
-                  disabled={isTesting || !form.metaAccessToken || !form.metaCatalogId}
-                  className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-40"
-                >
-                  {isTesting ? (
-                    <RefreshCw size={14} className="animate-spin" />
-                  ) : (
-                    <CheckCircle2 size={14} />
-                  )}
-                  {isTesting ? 'Testando...' : 'Testar conexão'}
-                </button>
+                    {/* Imagens ilustrativas */}
+                    <div className="flex flex-col gap-2">
+                      {step.images.map((img, i) => (
+                        <img
+                          key={i}
+                          src={img.src}
+                          alt={img.alt}
+                          loading="lazy"
+                          className="w-full rounded-xl border border-gray-200"
+                        />
+                      ))}
+                    </div>
 
-                <button
-                  type="button"
-                  onClick={handleSyncWhatsApp}
-                  disabled={isSyncing || !form.metaAccessToken || !form.metaCatalogId}
-                  className="flex items-center gap-1.5 rounded-xl bg-green-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:opacity-40"
-                >
-                  {isSyncing ? (
-                    <RefreshCw size={14} className="animate-spin" />
-                  ) : (
-                    <RefreshCw size={14} />
-                  )}
-                  {isSyncing ? 'Sincronizando...' : 'Sincronizar todos'}
-                </button>
+                    {/* Instruções */}
+                    <ol className="flex flex-col gap-1.5 pl-4">
+                      {step.instructions.map((instruction, i) => (
+                        <li key={i} className="list-decimal text-sm text-gray-600">
+                          {instruction}
+                        </li>
+                      ))}
+                    </ol>
+
+                    {/* Link direto */}
+                    <a
+                      href={step.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 rounded-xl border border-green-200 bg-green-50 px-3 py-2.5 text-sm font-medium text-green-700 transition-colors hover:bg-green-100"
+                    >
+                      <ExternalLink size={14} />
+                      {step.linkLabel}
+                    </a>
+
+                    {/* Campo relacionado à etapa (quando aplicável) */}
+                    {step.field === 'metaCatalogId' && (
+                      <FormField label="ID do catálogo" hint="Cole aqui o número que você copiou acima">
+                        <input
+                          type="text"
+                          value={form.metaCatalogId}
+                          onChange={(e) => set('metaCatalogId', e.target.value)}
+                          placeholder="Ex: 1234567890"
+                          className={inputClass}
+                        />
+                      </FormField>
+                    )}
+                    {step.field === 'metaAccessToken' && (
+                      <FormField label="Token de acesso" hint="Cole aqui o token que você acabou de copiar">
+                        <input
+                          type="password"
+                          value={form.metaAccessToken}
+                          onChange={(e) => set('metaAccessToken', e.target.value)}
+                          placeholder="EAA..."
+                          className={inputClass}
+                        />
+                      </FormField>
+                    )}
+                    {step.field === 'metaWabaId' && (
+                      <FormField label="ID da conta WhatsApp Business" optional hint="Cole aqui o ID (pule se não tiver)">
+                        <input
+                          type="text"
+                          value={form.metaWabaId}
+                          onChange={(e) => set('metaWabaId', e.target.value)}
+                          placeholder="Ex: 9876543210"
+                          className={inputClass}
+                        />
+                      </FormField>
+                    )}
+
+                    {/* Navegação entre etapas */}
+                    <div className="flex justify-between">
+                      <button
+                        type="button"
+                        onClick={() => setGuideStep(guideStep - 1)}
+                        disabled={guideStep === 1}
+                        className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 disabled:invisible"
+                      >
+                        <ChevronDown size={14} className="rotate-90" />
+                        Anterior
+                      </button>
+                      {guideStep < WHATSAPP_GUIDE_STEPS.length ? (
+                        <button
+                          type="button"
+                          onClick={() => setGuideStep(guideStep + 1)}
+                          className="flex items-center gap-1 rounded-xl bg-gray-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+                        >
+                          Próximo
+                          <ChevronDown size={14} className="-rotate-90" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleTestWhatsApp}
+                          disabled={isTesting || !form.metaAccessToken || !form.metaCatalogId}
+                          className="flex items-center gap-1.5 rounded-xl bg-green-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:opacity-40"
+                        >
+                          {isTesting ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                          {isTesting ? 'Testando...' : 'Testar conexão'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
 
-              {/* Resultado do teste */}
-              {testResult && (
-                <div className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm ${testResult.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
-                  {testResult.ok ? (
-                    <><CheckCircle2 size={16} /> Conexão estabelecida com sucesso!</>
-                  ) : (
-                    <><XCircle size={16} /> {testResult.error ?? 'Falha na conexão'}</>
-                  )}
-                </div>
-              )}
+              {/* ── Ações e status (abaixo do guia) ── */}
+              <div className="flex flex-col gap-3 border-t border-gray-100 pt-4">
+                {/* Botões de ação */}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleTestWhatsApp}
+                    disabled={isTesting || !form.metaAccessToken || !form.metaCatalogId}
+                    className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-40"
+                  >
+                    {isTesting ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                    {isTesting ? 'Testando...' : 'Testar conexão'}
+                  </button>
 
-              {/* Resultado da sincronização */}
-              {syncResult && (
-                <div className="flex flex-col gap-1.5 rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                  <p className="font-medium">Sincronização concluída</p>
-                  <p>{syncResult.synced} de {syncResult.total} produtos sincronizados</p>
-                  {syncResult.skipped > 0 && (
-                    <p className="flex items-center gap-1 text-amber-600">
-                      <AlertTriangle size={14} />
-                      {syncResult.skipped} produtos ignorados (imagem em base64)
-                    </p>
-                  )}
-                  {syncResult.failed > 0 && (
-                    <p className="text-red-600">{syncResult.failed} falharam</p>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleSyncWhatsApp}
+                    disabled={isSyncing || !form.metaAccessToken || !form.metaCatalogId}
+                    className="flex items-center gap-1.5 rounded-xl bg-green-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:opacity-40"
+                  >
+                    {isSyncing ? <RefreshCw size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                    {isSyncing ? 'Sincronizando...' : 'Sincronizar todos'}
+                  </button>
                 </div>
-              )}
 
-              {/* Status da conexão */}
-              {whatsappStatus && (
-                <div className={`flex items-center gap-2 rounded-xl border px-4 py-3 text-sm ${whatsappStatus.connected ? 'border-green-200 bg-green-50 text-green-700' : 'border-gray-200 bg-gray-50 text-gray-500'}`}>
-                  <div className={`h-2 w-2 rounded-full ${whatsappStatus.connected ? 'bg-green-500' : 'bg-gray-400'}`} />
-                  {whatsappStatus.connected ? (
-                    <span>{whatsappStatus.syncedProducts} produtos no catálogo do WhatsApp</span>
-                  ) : (
-                    <span>{whatsappStatus.error ?? 'Desconectado'}</span>
-                  )}
-                  {whatsappStatus.skippedProducts > 0 && (
-                    <span className="text-xs text-amber-600">({whatsappStatus.skippedProducts} sem URL de imagem)</span>
-                  )}
-                </div>
-              )}
+                {/* Resultado do teste */}
+                {testResult && (
+                  <div className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm ${testResult.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
+                    {testResult.ok ? (
+                      <><CheckCircle2 size={16} /> Conexão estabelecida com sucesso!</>
+                    ) : (
+                      <><XCircle size={16} /> {testResult.error ?? 'Falha na conexão'}</>
+                    )}
+                  </div>
+                )}
 
-              {/* Link para tutorial */}
-              <a
-                href="https://business.facebook.com/settings/system-users"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-xs text-gray-400 transition-colors hover:text-gray-600"
-              >
-                <ExternalLink size={12} />
-                Como obter o token e o ID do catálogo
-              </a>
+                {/* Resultado da sincronização */}
+                {syncResult && (
+                  <div className="flex flex-col gap-1.5 rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                    <p className="font-medium">Sincronização concluída</p>
+                    <p>{syncResult.synced} de {syncResult.total} produtos sincronizados</p>
+                    {syncResult.skipped > 0 && (
+                      <p className="flex items-center gap-1 text-amber-600">
+                        <AlertTriangle size={14} />
+                        {syncResult.skipped} produtos ignorados (imagem em base64)
+                      </p>
+                    )}
+                    {syncResult.failed > 0 && (
+                      <p className="text-red-600">{syncResult.failed} falharam</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Status da conexão */}
+                {whatsappStatus && (
+                  <div className={`flex items-center gap-2 rounded-xl border px-4 py-3 text-sm ${whatsappStatus.connected ? 'border-green-200 bg-green-50 text-green-700' : 'border-gray-200 bg-gray-50 text-gray-500'}`}>
+                    <div className={`h-2 w-2 rounded-full ${whatsappStatus.connected ? 'bg-green-500' : 'bg-gray-400'}`} />
+                    {whatsappStatus.connected ? (
+                      <span>{whatsappStatus.syncedProducts} produtos no catálogo do WhatsApp</span>
+                    ) : (
+                      <span>{whatsappStatus.error ?? 'Desconectado'}</span>
+                    )}
+                    {whatsappStatus.skippedProducts > 0 && (
+                      <span className="text-xs text-amber-600">({whatsappStatus.skippedProducts} sem URL de imagem)</span>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -64,6 +64,7 @@ export function usePerfilPage() {
   }, [])
 
   // ── Estado da integração WhatsApp ──
+  const [guideStep, setGuideStep] = useState(1)
   const [whatsappStatus, setWhatsappStatus] = useState<WhatsAppCatalogStatus | null>(null)
   const [isTesting, setIsTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null)
@@ -206,6 +207,8 @@ export function usePerfilPage() {
     saveSuccess,
     handleSave,
     // WhatsApp
+    guideStep,
+    setGuideStep,
     whatsappStatus,
     isTesting,
     testResult,
