@@ -17,6 +17,7 @@ export const userAdminRoutes: FastifyPluginAsync = async (app) => {
       select: {
         id: true,
         email: true,
+        name: true,
         role: true,
         emailVerified: true,
         createdAt: true,

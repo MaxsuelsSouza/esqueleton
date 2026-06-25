@@ -92,6 +92,8 @@ export type UserRole = 'OWNER' | 'STAFF'
 export interface User {
   id: string
   email: string
+  // Nome opcional — identifica quem é o membro (ex: "João da logística")
+  name?: string | null
   // Papel do usuário dentro da loja
   role: UserRole
   // true = e-mail verificado | false = pendente
@@ -495,6 +497,7 @@ export interface SuperStoreDetail {
 export interface SuperUser {
   id: string
   email: string
+  name?: string | null
   role: UserRole
   emailVerified: boolean
   isSuperAdmin: boolean

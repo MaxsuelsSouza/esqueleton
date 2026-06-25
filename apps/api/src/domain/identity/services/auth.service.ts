@@ -45,20 +45,22 @@ type RegisterStaffParams = {
   email: string
   hashedPassword: string
   storeId: string
+  name?: string
 }
 
 // Cria um novo membro da equipe (STAFF) em uma loja existente
 export async function registerStaff(
   prisma: PrismaClient,
   params: RegisterStaffParams,
-): Promise<{ id: string; email: string; role: string; storeId: string; createdAt: Date }> {
+): Promise<{ id: string; email: string; name: string | null; role: string; storeId: string; createdAt: Date }> {
   return prisma.user.create({
     data: {
       email: params.email,
       password: params.hashedPassword,
       storeId: params.storeId,
       role: 'STAFF',
+      name: params.name,
     },
-    select: { id: true, email: true, role: true, storeId: true, createdAt: true },
+    select: { id: true, email: true, name: true, role: true, storeId: true, createdAt: true },
   })
 }

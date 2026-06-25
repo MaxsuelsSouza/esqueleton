@@ -151,7 +151,12 @@ function StoreGroupCard({
               ) : (
                 <Shield size={15} className="shrink-0 text-blue-500" />
               )}
-              <span className="truncate font-medium text-gray-900">{owner.email}</span>
+              <div className="truncate">
+                <span className="font-medium text-gray-900">{owner.name || owner.email}</span>
+                {owner.name && (
+                  <span className="ml-1.5 text-xs text-gray-400">{owner.email}</span>
+                )}
+              </div>
               <RoleBadge user={owner} />
               <EmailBadge verified={owner.emailVerified} />
             </>
@@ -189,7 +194,12 @@ function StoreGroupCard({
               <span className="h-5 w-5 shrink-0" />
               <div className="flex flex-1 items-center gap-3 min-w-0 pl-0.5">
                 <User size={14} className="shrink-0 text-gray-300" />
-                <span className="truncate text-sm text-gray-700">{member.email}</span>
+                <span className="truncate text-sm text-gray-700">
+                  {member.name || member.email}
+                  {member.name && (
+                    <span className="ml-1.5 text-xs text-gray-400">{member.email}</span>
+                  )}
+                </span>
                 <RoleBadge user={member} />
                 <EmailBadge verified={member.emailVerified} />
               </div>

@@ -27,6 +27,8 @@ const registerStoreSchema = z.object({
 const registerUserSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
+  // Nome opcional — identifica quem é o membro (ex: "João da logística")
+  name: shortText(120).nullish().transform(v => v || undefined),
 })
 
 const loginSchema = z.object({
@@ -69,7 +71,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
           })
         }
 
-        const { email, password } = registerUserSchema.parse(request.body)
+        const { email, password, name } = registerUserSchema.parse(request.body)
 
         const existing = await app.prisma.user.findUnique({ where: { email } })
         if (existing) {
@@ -81,6 +83,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
           email,
           hashedPassword: hashed,
           storeId: request.user.storeId,
+          name,
         })
 
         return reply.status(201).send(user)

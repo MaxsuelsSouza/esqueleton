@@ -18,6 +18,7 @@ export function useUsuariosPage() {
 
   // Estado do formulário de convite
   const [showInvite, setShowInvite] = useState(false)
+  const [inviteName, setInviteName] = useState('')
   const [inviteEmail, setInviteEmail] = useState('')
   const [invitePassword, setInvitePassword] = useState('')
   const [inviting, setInviting] = useState(false)
@@ -53,7 +54,11 @@ export function useUsuariosPage() {
     setInviting(true)
 
     try {
-      await authService.register({ email: inviteEmail, password: invitePassword }, token)
+      await authService.register(
+        { email: inviteEmail, password: invitePassword, name: inviteName.trim() || undefined },
+        token,
+      )
+      setInviteName('')
       setInviteEmail('')
       setInvitePassword('')
       setShowInvite(false)
@@ -93,6 +98,8 @@ export function useUsuariosPage() {
     isChecking,
     showInvite,
     setShowInvite,
+    inviteName,
+    setInviteName,
     inviteEmail,
     setInviteEmail,
     invitePassword,

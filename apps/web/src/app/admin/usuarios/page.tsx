@@ -13,6 +13,8 @@ export default function UsuariosPage() {
     isChecking,
     showInvite,
     setShowInvite,
+    inviteName,
+    setInviteName,
     inviteEmail,
     setInviteEmail,
     invitePassword,
@@ -52,31 +54,41 @@ export default function UsuariosPage() {
       {showInvite && (
         <form onSubmit={handleInvite} className="mb-6 rounded-2xl border border-gray-100 bg-white p-5">
           <p className="mb-4 text-sm font-medium text-gray-700">Convidar novo membro</p>
-          <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="flex flex-col gap-3">
             <input
-              type="email"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-              placeholder="E-mail do membro"
-              required
+              type="text"
+              value={inviteName}
+              onChange={(e) => setInviteName(e.target.value)}
+              placeholder="Nome do membro (opcional)"
+              maxLength={120}
               className={inputClass}
             />
-            <input
-              type="password"
-              value={invitePassword}
-              onChange={(e) => setInvitePassword(e.target.value)}
-              placeholder="Senha temporária"
-              required
-              minLength={8}
-              className={inputClass}
-            />
-            <button
-              type="submit"
-              disabled={inviting}
-              className="shrink-0 rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-gray-700 disabled:opacity-50"
-            >
-              {inviting ? '...' : 'Enviar'}
-            </button>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <input
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="E-mail do membro"
+                required
+                className={inputClass}
+              />
+              <input
+                type="password"
+                value={invitePassword}
+                onChange={(e) => setInvitePassword(e.target.value)}
+                placeholder="Senha temporária"
+                required
+                minLength={8}
+                className={inputClass}
+              />
+              <button
+                type="submit"
+                disabled={inviting}
+                className="shrink-0 rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-gray-700 disabled:opacity-50"
+              >
+                {inviting ? '...' : 'Enviar'}
+              </button>
+            </div>
           </div>
           {inviteError && (
             <p className="mt-3 rounded-lg bg-red-50 px-3.5 py-2.5 text-sm text-red-500">{inviteError}</p>
@@ -107,8 +119,11 @@ export default function UsuariosPage() {
                     <Shield size={16} />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{user.email}</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {user.name || user.email}
+                    </p>
                     <p className="text-xs text-gray-400">
+                      {user.name && <>{user.email} · </>}
                       {user.role === 'OWNER' ? 'Proprietário' : 'Equipe'}
                       {user.emailVerified === false && ' · E-mail não verificado'}
                     </p>

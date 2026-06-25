@@ -5,6 +5,7 @@ import type { User, LoginResponse } from '@esqueleton/shared'
 interface Credentials {
   email: string
   password: string
+  name?: string
 }
 
 // Dados para criar uma loja nova junto com o primeiro usuário (cadastro público)

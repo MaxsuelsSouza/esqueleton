@@ -41,6 +41,8 @@ model User {
   id            String   @id @default(cuid())
   email         String   @unique
   password      String
+  // Nome opcional — identifica quem é o membro da equipe (ex: "João da logística")
+  name          String?
   // OWNER = criou a loja, controle total | STAFF = convidado, acesso limitado
   role          String   @default("STAFF")
   // true = e-mail verificado | false = pendente de verificação

@@ -26,6 +26,7 @@ export const superUsersRoutes: FastifyPluginAsync = async (app) => {
         select: {
           id: true,
           email: true,
+          name: true,
           role: true,
           emailVerified: true,
           isSuperAdmin: true,
