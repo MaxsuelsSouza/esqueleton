@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "postinstall": "prisma generate",
     "dev": "node scripts/com-perfil.mjs tsx watch src/main.ts",
     "build": "tsup src/main.ts --format cjs",
     "build:vercel": "prisma generate && tsup src/vercel.ts --format cjs --out-dir dist",

@@ -1,7 +1,5 @@
 {
   "version": 2,
-  "installCommand": "cd ../.. && pnpm install && pnpm --filter @esqueleton/api db:generate",
-  "buildCommand": "echo 'build ok'",
   "functions": {
     "src/vercel.ts": {
       "includeFiles": ["prisma/schema.prisma"]
