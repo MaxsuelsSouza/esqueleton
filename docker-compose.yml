@@ -45,7 +45,21 @@ services:
     volumes:
       - postgres_data_loja2:/var/lib/postgresql/data
 
+  # Banco do perfil "whatsapp" — só sobe com: pnpm dev --whatsapp
+  postgres-whatsapp:
+    image: postgres:16
+    profiles: ["whatsapp"]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: esqueleton_whatsapp
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_data_whatsapp:/var/lib/postgresql/data
+
 volumes:
   postgres_data:
   postgres_data_loja1:
   postgres_data_loja2:
+  postgres_data_whatsapp:

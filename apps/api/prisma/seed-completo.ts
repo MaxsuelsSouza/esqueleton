@@ -157,24 +157,35 @@ const PRODUTOS: ProdutoDef[] = [
 ]
 
 async function main() {
-  // Busca a loja existente
-  const store = await prisma.store.findFirst()
+  // Busca a loja Electric Store pelo nome
+  const store = await prisma.store.findFirst({ where: { name: 'Electric Store' } })
   if (!store) {
-    console.error('Nenhuma loja encontrada. Crie uma loja primeiro via /admin/login → "Criar minha loja".')
+    console.error('Loja "Electric Store" não encontrada. Crie a loja primeiro via /admin/login → "Criar minha loja".')
     process.exit(1)
   }
   console.log(`\nUsando loja: ${store.name} (${store.slug})\n`)
 
-  // Recria o usuário admin se não existir
-  const existingUser = await prisma.user.findUnique({ where: { email: 'maxsuelsouza@gmail.com' } })
+  // Atualiza o usuário para super admin com e-mail verificado
+  const existingUser = await prisma.user.findUnique({ where: { email: 'maxsuelsouza238@gmail.com' } })
   if (!existingUser) {
     const hash = await bcrypt.hash('12345678', 10)
     await prisma.user.create({
-      data: { email: 'maxsuelsouza@gmail.com', password: hash, storeId: store.id },
+      data: {
+        email: 'maxsuelsouza238@gmail.com',
+        password: hash,
+        role: 'OWNER',
+        emailVerified: true,
+        isSuperAdmin: true,
+        storeId: store.id,
+      },
     })
-    console.log('✔ Usuário maxsuelsouza@gmail.com criado (senha: 12345678)\n')
+    console.log('✔ Usuário maxsuelsouza238@gmail.com criado (OWNER, super admin, e-mail verificado)\n')
   } else {
-    console.log('✔ Usuário maxsuelsouza@gmail.com já existe\n')
+    await prisma.user.update({
+      where: { email: 'maxsuelsouza238@gmail.com' },
+      data: { isSuperAdmin: true, emailVerified: true, role: 'OWNER' },
+    })
+    console.log('✔ Usuário maxsuelsouza238@gmail.com atualizado (OWNER, super admin, e-mail verificado)\n')
   }
 
   // ── Categorias ─────────────────────────────────────────────────
