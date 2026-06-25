@@ -3,6 +3,7 @@
 // Bottom sheet para selecionar variantes do produto antes de adicionar à sacola.
 // Exibe foto, nome, preço e opções de variante — sobe até metade da tela no mobile.
 import { useState, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { X, ShoppingBag, ImageOff } from 'lucide-react'
 import type { Product } from '@esqueleton/shared'
 import { ProductPrice } from './ProductPrice'
@@ -102,7 +103,9 @@ export function VariantPickerModal({
     onAdd(selectedOptions, selectedVariant.id)
   }
 
-  return (
+  // Renderiza via portal no body para escapar de containers com transform/overflow
+  // que quebram o position: fixed (ex: carrossel da seção em destaque)
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center">
       {/* Backdrop escuro */}
       <div
@@ -218,6 +221,7 @@ export function VariantPickerModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
