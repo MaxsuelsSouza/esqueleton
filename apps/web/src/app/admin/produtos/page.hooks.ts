@@ -221,7 +221,7 @@ export function useProdutosPage() {
     if (USE_MOCK_DATA) {
       if (editingProduct) {
         setMockProducts(getMockProducts().map((p) =>
-          p.id === editingProduct.id ? { ...p, ...payload, updatedAt: new Date().toISOString() } : p,
+          p.id === editingProduct.id ? { ...p, ...payload, updatedAt: new Date().toISOString() } as Product : p,
         ))
       } else {
         const now = new Date().toISOString()
