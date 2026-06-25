@@ -1,19 +1,13 @@
 {
   "version": 2,
   "installCommand": "cd ../.. && pnpm install && pnpm --filter @esqueleton/api db:generate",
-  "builds": [
-    {
-      "src": "src/vercel.ts",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": ["prisma/schema.prisma"]
-      }
+  "buildCommand": "echo 'build ok'",
+  "functions": {
+    "src/vercel.ts": {
+      "includeFiles": ["prisma/schema.prisma"]
     }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "src/vercel.ts"
-    }
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/src/vercel.ts" }
   ]
 }
