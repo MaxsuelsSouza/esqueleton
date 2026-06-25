@@ -1,11 +1,20 @@
 'use client'
 
 // Hook com toda a lógica de estado da página de usuários da plataforma (super-admin)
-import { useState, useEffect, useCallback } from 'react'
+// Agrupa os usuários por loja, mostrando o proprietário como cabeçalho expansível
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAdminAuth } from '@/modules/auth/hooks/useAdminAuth'
 import { superService } from '@/modules/super/services/super.service'
 import type { SuperUser } from '@esqueleton/shared'
+
+// Loja com o proprietário e membros da equipe agrupados
+export type StoreGroup = {
+  storeSlug: string
+  storeName: string
+  owner: SuperUser | null
+  staff: SuperUser[]
+}
 
 export function useSuperUsuariosPage() {
   const { token, isSuperAdmin, isChecking } = useAdminAuth()
@@ -18,6 +27,9 @@ export function useSuperUsuariosPage() {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Lojas expandidas — o slug identifica cada grupo
+  const [expandedSlugs, setExpandedSlugs] = useState<Set<string>>(new Set())
 
   const loadUsers = useCallback(async () => {
     if (!token) return
@@ -41,6 +53,53 @@ export function useSuperUsuariosPage() {
     if (token) loadUsers()
   }, [token, isChecking, isSuperAdmin, router, loadUsers])
 
+  // Agrupa os usuários por loja — OWNER vira cabeçalho, STAFF fica dentro
+  const storeGroups = useMemo((): StoreGroup[] => {
+    const map = new Map<string, StoreGroup>()
+
+    for (const user of users) {
+      const slug = user.store.slug
+      if (!map.has(slug)) {
+        map.set(slug, {
+          storeSlug: slug,
+          storeName: user.store.name,
+          owner: null,
+          staff: [],
+        })
+      }
+      const group = map.get(slug)!
+      if (user.role === 'OWNER') {
+        group.owner = user
+      } else {
+        group.staff.push(user)
+      }
+    }
+
+    // Ordena: lojas com OWNER primeiro, depois por nome
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.owner && !b.owner) return -1
+      if (!a.owner && b.owner) return 1
+      return a.storeName.localeCompare(b.storeName)
+    })
+  }, [users])
+
+  function toggleExpand(slug: string) {
+    setExpandedSlugs((prev) => {
+      const next = new Set(prev)
+      if (next.has(slug)) next.delete(slug)
+      else next.add(slug)
+      return next
+    })
+  }
+
+  function expandAll() {
+    setExpandedSlugs(new Set(storeGroups.filter((g) => g.staff.length > 0).map((g) => g.storeSlug)))
+  }
+
+  function collapseAll() {
+    setExpandedSlugs(new Set())
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / perPage))
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,7 +111,7 @@ export function useSuperUsuariosPage() {
   const handleNextPage = () => setPage((p) => Math.min(totalPages, p + 1))
 
   return {
-    users,
+    storeGroups,
     total,
     page,
     search,
@@ -60,6 +119,10 @@ export function useSuperUsuariosPage() {
     error,
     isChecking,
     totalPages,
+    expandedSlugs,
+    toggleExpand,
+    expandAll,
+    collapseAll,
     handleSearchChange,
     handlePreviousPage,
     handleNextPage,

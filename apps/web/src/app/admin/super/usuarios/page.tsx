@@ -1,12 +1,15 @@
 'use client'
 
-// Usuários da plataforma (super-admin) — todos os usuários de todas as lojas
-import { Search, Users, Shield, ShieldCheck } from 'lucide-react'
+// Usuários da plataforma (super-admin) — visualização em cadeia por loja
+// Cada loja mostra o proprietário como cabeçalho, expandível para ver a equipe
+import { Search, Users, Shield, ShieldCheck, ChevronRight, ChevronDown, User } from 'lucide-react'
 import { useSuperUsuariosPage } from './page.hooks'
+import type { StoreGroup } from './page.hooks'
+import type { SuperUser } from '@esqueleton/shared'
 
 export default function SuperUsuariosPage() {
   const {
-    users,
+    storeGroups,
     total,
     page,
     search,
@@ -14,6 +17,10 @@ export default function SuperUsuariosPage() {
     error,
     isChecking,
     totalPages,
+    expandedSlugs,
+    toggleExpand,
+    expandAll,
+    collapseAll,
     handleSearchChange,
     handlePreviousPage,
     handleNextPage,
@@ -22,6 +29,8 @@ export default function SuperUsuariosPage() {
   if (isChecking || loading) {
     return <div className="flex min-h-[50vh] items-center justify-center" />
   }
+
+  const hasAnyStaff = storeGroups.some((g) => g.staff.length > 0)
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -34,72 +43,43 @@ export default function SuperUsuariosPage() {
         <p className="mb-4 rounded-lg bg-red-50 px-3.5 py-2.5 text-sm text-red-500">{error}</p>
       )}
 
-      {/* Busca por e-mail */}
-      <div className="relative mb-4">
-        <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-300" />
-        <input
-          value={search}
-          onChange={handleSearchChange}
-          placeholder="Buscar por e-mail"
-          className="w-full rounded-xl border border-gray-200 py-2.5 pl-10 pr-4 text-sm outline-none transition placeholder:text-gray-300 focus:border-gray-900"
-        />
+      {/* Busca e ações */}
+      <div className="mb-4 flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-300" />
+          <input
+            value={search}
+            onChange={handleSearchChange}
+            placeholder="Buscar por e-mail"
+            className="w-full rounded-xl border border-gray-200 py-2.5 pl-10 pr-4 text-sm outline-none transition placeholder:text-gray-300 focus:border-gray-900"
+          />
+        </div>
+        {hasAnyStaff && (
+          <button
+            onClick={expandedSlugs.size > 0 ? collapseAll : expandAll}
+            className="shrink-0 rounded-xl border border-gray-200 px-3 py-2.5 text-xs font-medium text-gray-500 transition hover:bg-gray-50"
+          >
+            {expandedSlugs.size > 0 ? 'Recolher tudo' : 'Expandir tudo'}
+          </button>
+        )}
       </div>
 
-      {/* Tabela de usuários */}
-      <div className="overflow-x-auto rounded-2xl border border-gray-100 bg-white">
-        {users.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 py-12 text-gray-400">
+      {/* Lista agrupada por loja */}
+      <div className="space-y-2">
+        {storeGroups.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-gray-100 bg-white py-12 text-gray-400">
             <Users size={32} />
             <p className="text-sm">Nenhum usuário encontrado.</p>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-gray-50 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">
-                <th className="px-4 py-3">Usuário</th>
-                <th className="px-4 py-3">Loja</th>
-                <th className="px-4 py-3">Papel</th>
-                <th className="px-4 py-3">E-mail verificado</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {users.map((user) => (
-                <tr key={user.id} className="transition-colors hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      {/* Escudo cheio para super-admins da plataforma */}
-                      {user.isSuperAdmin ? (
-                        <ShieldCheck size={15} className="shrink-0 text-gray-900" />
-                      ) : (
-                        <Shield size={15} className="shrink-0 text-gray-300" />
-                      )}
-                      <span className="font-medium text-gray-900">{user.email}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <p className="text-gray-700">{user.store.name}</p>
-                    <p className="text-xs text-gray-400">/loja/{user.store.slug}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                    {user.isSuperAdmin ? (
-                      <span className="rounded-full bg-gray-900 px-2 py-0.5 text-xs font-semibold text-white">Plataforma</span>
-                    ) : user.role === 'OWNER' ? (
-                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">Proprietário</span>
-                    ) : (
-                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">Equipe</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {user.emailVerified ? (
-                      <span className="text-xs font-semibold text-green-600">Sim</span>
-                    ) : (
-                      <span className="text-xs font-semibold text-orange-500">Pendente</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          storeGroups.map((group) => (
+            <StoreGroupCard
+              key={group.storeSlug}
+              group={group}
+              isExpanded={expandedSlugs.has(group.storeSlug)}
+              onToggle={() => toggleExpand(group.storeSlug)}
+            />
+          ))
         )}
       </div>
 
@@ -124,5 +104,148 @@ export default function SuperUsuariosPage() {
         </div>
       )}
     </div>
+  )
+}
+
+// Card de uma loja — mostra o proprietário e, quando expandido, os membros da equipe
+function StoreGroupCard({
+  group,
+  isExpanded,
+  onToggle,
+}: {
+  group: StoreGroup
+  isExpanded: boolean
+  onToggle: () => void
+}) {
+  const { owner, staff, storeName, storeSlug } = group
+  const hasStaff = staff.length > 0
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white">
+      {/* Cabeçalho — proprietário da loja */}
+      <button
+        onClick={hasStaff ? onToggle : undefined}
+        className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
+          hasStaff ? 'cursor-pointer hover:bg-gray-50' : 'cursor-default'
+        }`}
+      >
+        {/* Seta de expansão — só aparece se tem equipe */}
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+          {hasStaff ? (
+            isExpanded ? (
+              <ChevronDown size={16} className="text-gray-400" />
+            ) : (
+              <ChevronRight size={16} className="text-gray-400" />
+            )
+          ) : (
+            <span className="h-1.5 w-1.5 rounded-full bg-gray-200" />
+          )}
+        </span>
+
+        {/* Info do proprietário */}
+        <div className="flex flex-1 items-center gap-3 min-w-0">
+          {owner ? (
+            <>
+              {owner.isSuperAdmin ? (
+                <ShieldCheck size={15} className="shrink-0 text-gray-900" />
+              ) : (
+                <Shield size={15} className="shrink-0 text-blue-500" />
+              )}
+              <span className="truncate font-medium text-gray-900">{owner.email}</span>
+              <RoleBadge user={owner} />
+              <EmailBadge verified={owner.emailVerified} />
+            </>
+          ) : (
+            <>
+              <Shield size={15} className="shrink-0 text-gray-300" />
+              <span className="truncate text-gray-400 italic">Sem proprietário</span>
+            </>
+          )}
+        </div>
+
+        {/* Loja + contagem de equipe */}
+        <div className="shrink-0 text-right">
+          <p className="text-sm font-medium text-gray-600">{storeName}</p>
+          <p className="text-xs text-gray-400">
+            /loja/{storeSlug}
+            {hasStaff && (
+              <span className="ml-1.5">
+                · {staff.length} {staff.length === 1 ? 'membro' : 'membros'}
+              </span>
+            )}
+          </p>
+        </div>
+      </button>
+
+      {/* Equipe — aparece quando expandido */}
+      {isExpanded && hasStaff && (
+        <div className="border-t border-gray-50">
+          {staff.map((member) => (
+            <div
+              key={member.id}
+              className="flex items-center gap-3 border-b border-gray-50 px-4 py-2.5 last:border-b-0 hover:bg-gray-50/50"
+            >
+              {/* Indentação visual — alinha com o conteúdo do owner */}
+              <span className="h-5 w-5 shrink-0" />
+              <div className="flex flex-1 items-center gap-3 min-w-0 pl-0.5">
+                <User size={14} className="shrink-0 text-gray-300" />
+                <span className="truncate text-sm text-gray-700">{member.email}</span>
+                <RoleBadge user={member} />
+                <EmailBadge verified={member.emailVerified} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RoleBadge({ user }: { user: SuperUser }) {
+  if (user.isSuperAdmin) {
+    return (
+      <span
+        title="Administrador com acesso total à plataforma — gerencia lojas, planos e métricas"
+        className="shrink-0 cursor-help rounded-full bg-gray-900 px-2 py-0.5 text-[10px] font-semibold text-white"
+      >
+        Plataforma
+      </span>
+    )
+  }
+  if (user.role === 'OWNER') {
+    return (
+      <span
+        title="Dono da loja — pode editar perfil, convidar equipe e gerenciar plano"
+        className="shrink-0 cursor-help rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700"
+      >
+        Proprietário
+      </span>
+    )
+  }
+  return (
+    <span
+      title="Membro da equipe — acessa produtos, pedidos e cupons, mas não gerencia a loja"
+      className="shrink-0 cursor-help rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-500"
+    >
+      Equipe
+    </span>
+  )
+}
+
+function EmailBadge({ verified }: { verified: boolean }) {
+  return verified ? (
+    <span
+      title="E-mail confirmado pelo usuário"
+      className="shrink-0 cursor-help text-[10px] font-semibold text-green-600"
+    >
+      Verificado
+    </span>
+  ) : (
+    <span
+      title="E-mail ainda não verificado — após 7 dias, o acesso ao painel será bloqueado até a verificação"
+      className="shrink-0 cursor-help text-[10px] font-semibold text-orange-500"
+    >
+      Pendente
+    </span>
   )
 }
