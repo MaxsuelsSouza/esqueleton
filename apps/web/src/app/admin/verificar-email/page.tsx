@@ -2,11 +2,20 @@
 
 // Página de verificação de e-mail — o usuário chega aqui ao clicar no link do e-mail
 // Lê o token da URL e envia para a API confirmar o e-mail
+import { Suspense } from 'react'
 import Link from 'next/link'
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 import { useVerificarEmailPage } from '@/app/admin/verificar-email/page.hooks'
 
 export default function VerificarEmailPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><Loader2 size={40} className="animate-spin text-gray-400" /></div>}>
+      <VerificarEmailContent />
+    </Suspense>
+  )
+}
+
+function VerificarEmailContent() {
   const { status, message } = useVerificarEmailPage()
 
   return (

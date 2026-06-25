@@ -2,10 +2,19 @@
 
 // Página de redefinição de senha — o usuário chega aqui pelo link do e-mail.
 // Lê o token da URL (?token=xxx) e pede a nova senha.
+import { Suspense } from 'react'
 import Link from 'next/link'
 import { useRedefinirSenhaPage } from './page.hooks'
 
 export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><p className="text-sm text-gray-400">Carregando...</p></div>}>
+      <ResetPasswordContent />
+    </Suspense>
+  )
+}
+
+function ResetPasswordContent() {
   const {
     token,
     password,
