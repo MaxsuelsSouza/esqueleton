@@ -99,7 +99,10 @@ export function VariantPickerModal({
       setError(`Selecione: ${missing.map((g) => g.name).join(', ')}`)
       return
     }
-    if (!selectedVariant) return
+    if (!selectedVariant) {
+      setError('Combinação indisponível. Tente outra opção.')
+      return
+    }
     onAdd(selectedOptions, selectedVariant.id)
   }
 
@@ -186,14 +189,23 @@ export function VariantPickerModal({
                 <div className="flex flex-wrap gap-2">
                   {values.map((value) => {
                     const isSelected = selectedOptions[name] === value
+                    // Verifica se existe alguma variante ativa com esse valor
+                    // combinado com as demais opções já selecionadas
+                    const testOptions = { ...selectedOptions, [name]: value }
+                    const isAvailable = activeVariants.some((v) =>
+                      Object.entries(testOptions).every(([k, val]) => v.options[k] === val),
+                    )
                     return (
                       <button
                         key={value}
-                        onClick={() => handleSelectOption(name, value)}
+                        onClick={() => isAvailable && handleSelectOption(name, value)}
+                        disabled={!isAvailable}
                         className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-all ${
                           isSelected
                             ? 'border-gray-900 bg-gray-900 text-white'
-                            : 'border-gray-200 bg-white text-gray-700 hover:border-gray-400'
+                            : !isAvailable
+                              ? 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-300 line-through'
+                              : 'border-gray-200 bg-white text-gray-700 hover:border-gray-400'
                         }`}
                       >
                         {value}
