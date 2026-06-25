@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { ShoppingBag, Heart, Link, Check, ImageOff } from 'lucide-react'
 import type { Product, DisplayMode, PromotionType } from '@esqueleton/shared'
 import { ProductPrice } from './ProductPrice'
+import { VariantPickerModal } from './VariantPickerModal'
 import { useBag } from '@/modules/bag/contexts/bag-context'
 import { useFavorites } from '@/modules/favorites/contexts/favorites-context'
 import { analyticsService } from '@/modules/analytics/services/analytics.service'
@@ -43,6 +44,9 @@ export function ProductCard({ product, displayMode = 'grid', badge, badgeColor, 
   const router = useRouter()
   const slug = useStoreSlug()
   const favorited = isFavorited(product.id)
+  const [showVariantModal, setShowVariantModal] = useState(false)
+
+  const hasVariants = product.variants !== undefined && product.variants.length > 0
 
   function goToDetail() {
     // Registra o clique vindo de destaque antes de navegar
@@ -59,22 +63,40 @@ export function ProductCard({ product, displayMode = 'grid', badge, badgeColor, 
   }
 
   function handleAddToBag() {
-    // Produtos com variantes exigem seleção de opções — redireciona para a página de detalhe
-    if (product.variants && product.variants.length > 0) {
-      router.push(`/loja/${slug}/produto/${product.id}`)
+    // Produtos com variantes abrem o modal de seleção em vez de redirecionar
+    if (hasVariants) {
+      setShowVariantModal(true)
       return
     }
     addItem(product, { promotionId, promotionName, featuredId, featuredName })
   }
 
+  function handleVariantAdd(selectedOptions: Record<string, string>, variantId: string) {
+    addItem(product, { promotionId, promotionName, featuredId, featuredName, selectedOptions, variantId })
+    setShowVariantModal(false)
+  }
+
   // Texto explicativo da promoção — prioriza description do admin, senão gera automático pelo tipo
   const promoHint = getPromoHint(promotionDescription, promotionType, buyQuantity, getQuantity, kitPrice, promotionProductIds)
 
-  if (displayMode === 'list') {
-    return <ProductCardList product={product} badge={badge} badgeColor={badgeColor} originalPrice={originalPrice} discountPercent={discountPercent} promoHint={promoHint} favorited={favorited} onFavorite={() => toggleFavorite(product)} onCardClick={goToDetail} onAddToBag={handleAddToBag} />
-  }
+  return (
+    <>
+      {displayMode === 'list'
+        ? <ProductCardList product={product} badge={badge} badgeColor={badgeColor} originalPrice={originalPrice} discountPercent={discountPercent} promoHint={promoHint} favorited={favorited} onFavorite={() => toggleFavorite(product)} onCardClick={goToDetail} onAddToBag={handleAddToBag} />
+        : <ProductCardGrid product={product} badge={badge} badgeColor={badgeColor} originalPrice={originalPrice} discountPercent={discountPercent} promoHint={promoHint} favorited={favorited} onFavorite={() => toggleFavorite(product)} onCardClick={goToDetail} onAddToBag={handleAddToBag} />
+      }
 
-  return <ProductCardGrid product={product} badge={badge} badgeColor={badgeColor} originalPrice={originalPrice} discountPercent={discountPercent} promoHint={promoHint} favorited={favorited} onFavorite={() => toggleFavorite(product)} onCardClick={goToDetail} onAddToBag={handleAddToBag} />
+      {showVariantModal && (
+        <VariantPickerModal
+          product={product}
+          originalPrice={originalPrice}
+          discountPercent={discountPercent}
+          onAdd={handleVariantAdd}
+          onClose={() => setShowVariantModal(false)}
+        />
+      )}
+    </>
+  )
 }
 
 // ── Formato grade ───────────────────────────────────────────────────────────
@@ -177,11 +199,6 @@ function ProductCardGrid({ product, badge, badgeColor, originalPrice, discountPe
             <h2 className="text-sm font-semibold leading-snug text-gray-900">
               {product.name}
             </h2>
-            {promoHint && (
-              <p className="mt-0.5 line-clamp-2 text-[11px] leading-tight text-gray-500">
-                {promoHint}
-              </p>
-            )}
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -296,12 +313,12 @@ function AddToCartButton({ onClick, large }: { onClick: () => void; large?: bool
       onClick={(e) => { e.stopPropagation(); handleClick() }}
       aria-label="Adicionar à sacola"
       style={added ? {} : { backgroundColor: 'var(--color-primary, #000000)' }}
-      className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl font-semibold transition-all active:scale-95 ${large ? 'py-2.5 px-4 text-sm' : 'py-2 text-xs'} ${
+      className={`flex flex-1 items-center justify-center gap-1 rounded-xl font-semibold transition-all active:scale-95 sm:gap-1.5 ${large ? 'py-2.5 px-4 text-sm' : 'py-2 px-2 text-[11px] sm:text-xs'} ${
         added ? 'bg-green-600 text-white' : 'text-white'
       }`}
     >
-      {added ? <Check size={large ? 15 : 13} /> : <ShoppingBag size={large ? 15 : 13} />}
-      {added ? 'Adicionado!' : 'Adicionar'}
+      {added ? <Check size={large ? 15 : 13} className="shrink-0" /> : <ShoppingBag size={large ? 15 : 13} className="shrink-0" />}
+      <span className="truncate">{added ? 'Adicionado!' : 'Adicionar'}</span>
     </button>
   )
 }
@@ -329,7 +346,7 @@ function CopyLinkButton({ productId, productName }: { productId: string; product
       onClick={handleCopy}
       aria-label="Copiar link do produto"
       title={copied ? 'Link copiado!' : 'Copiar link'}
-      className={`flex shrink-0 items-center justify-center rounded-xl border px-2.5 py-2 transition-all duration-200 active:scale-95 ${
+      className={`hidden shrink-0 items-center justify-center rounded-xl border px-2.5 py-2 transition-all duration-200 active:scale-95 sm:flex ${
         copied
           ? 'border-green-200 bg-green-50 text-green-600'
           : 'border-gray-200 bg-white text-gray-400 hover:border-gray-400 hover:text-gray-600'
