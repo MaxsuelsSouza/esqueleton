@@ -15,6 +15,7 @@ import { useStoreProfile } from '@/modules/store-profile/contexts/store-profile-
 import { customersService } from '@/modules/customers/services/customers.service'
 import { analyticsService } from '@/modules/analytics/services/analytics.service'
 import { useStoreSlug } from '@/shared/hooks/useStoreSlug'
+import { normalizePhone } from '@/shared/utils/phone'
 import { applyPromotionsToProducts } from '@/modules/promotions/utils/promotions'
 import type { PromotedProduct } from '@/modules/promotions/utils/promotions'
 import type { Product, ProductVariant, Promotion } from '@esqueleton/shared'
@@ -369,12 +370,13 @@ export function useProdutoDetailPage() {
 
   // Abre o WhatsApp com a mensagem do produto
   function goToWhatsAppBuyNow(customerInfo: { name: string; phone: string }) {
-    const whatsappNumber = profile.whatsapp ?? ''
-    if (!whatsappNumber) {
+    const rawWhatsapp = profile.whatsapp ?? ''
+    if (!rawWhatsapp) {
       alert('Esta loja ainda não configurou o WhatsApp.')
       return
     }
 
+    const whatsappNumber = normalizePhone(rawWhatsapp)
     const message = encodeURIComponent(buildBuyNowMessage(customerInfo))
     const url = `https://wa.me/${whatsappNumber}?text=${message}`
     window.open(url, '_blank')

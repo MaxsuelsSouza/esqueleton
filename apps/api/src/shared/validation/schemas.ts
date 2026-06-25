@@ -83,12 +83,25 @@ export const slugSchema = z
 // Valida o parâmetro :slug presente na URL das rotas públicas
 export const slugParamSchema = z.object({ slug: slugSchema })
 
-// Telefone — apenas dígitos, espaços, parênteses, "+" e "-"
+// Normaliza um telefone: remove formatação e garante o código do Brasil (55) na frente.
+// Usado internamente pelos schemas e exportado para uso direto quando necessário.
+export function normalizePhone(value: string): string {
+  const digits = value.replace(/\D/g, '')
+  // Se já começa com 55 e tem tamanho compatível (55 + DDD + número = 12 ou 13 dígitos), mantém
+  if (digits.startsWith('55') && digits.length >= 12) return digits
+  // Caso contrário, adiciona o 55 na frente
+  return '55' + digits
+}
+
+// Telefone — aceita formatação livre (parênteses, espaços, hífens), mas sempre
+// salva apenas dígitos com o código do Brasil (55) na frente.
+// Isso garante que links wa.me/<número> funcionem corretamente.
 export const phoneSchema = z
   .string()
   .min(8, 'Telefone inválido')
   .max(30, 'Telefone inválido')
   .regex(/^[0-9()+\-\s]+$/, 'Telefone inválido')
+  .transform(normalizePhone)
 
 // Texto curto com limite de tamanho — remove espaços das pontas
 export function shortText(maxLength: number, requiredMessage?: string) {

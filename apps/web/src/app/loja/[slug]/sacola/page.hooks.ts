@@ -15,6 +15,7 @@ import { catalogService } from '@/modules/catalog/services/catalog.service'
 import { promotionsService } from '@/modules/promotions/services/promotions.service'
 import { useStoreSlug } from '@/shared/hooks/useStoreSlug'
 import { applyPromotionsToProducts, getActivePromotionForProduct } from '@/modules/promotions/utils/promotions'
+import { normalizePhone } from '@/shared/utils/phone'
 import type { Product, Promotion, Coupon } from '@esqueleton/shared'
 
 // Item completo para renderização — combina dados do servidor (Redis) com o produto do banco
@@ -419,14 +420,15 @@ export function useSacolaPage() {
 
   // Efetivamente abre o WhatsApp, salva o pedido e dispara analytics — tudo em paralelo
   function goToWhatsApp(customerInfo: { name: string; phone: string }) {
-    const whatsappNumber = profile.whatsapp ?? ''
-    if (!whatsappNumber) {
+    const rawWhatsapp = profile.whatsapp ?? ''
+    if (!rawWhatsapp) {
       alert('Esta loja ainda não configurou o WhatsApp.')
       return
     }
 
     const orderNumber = String(Date.now()).slice(-6)
 
+    const whatsappNumber = normalizePhone(rawWhatsapp)
     const message = encodeURIComponent(buildWhatsAppMessage(customerInfo, orderNumber))
     const url = `https://wa.me/${whatsappNumber}?text=${message}`
     window.open(url, '_blank')

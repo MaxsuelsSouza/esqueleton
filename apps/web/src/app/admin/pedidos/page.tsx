@@ -4,6 +4,7 @@
 import { ShoppingBag, MessageCircle, Check, XCircle, Package } from 'lucide-react'
 import type { Order, OrderItem } from '@esqueleton/shared'
 import { usePedidosPage, getStatusConfig, formatDateTime, formatCurrency } from './page.hooks'
+import { normalizePhone } from '@/shared/utils/phone'
 import type { StatusTab } from './page.hooks'
 
 export default function AdminPedidosPage() {
@@ -108,7 +109,7 @@ function OrderCard({
   const statusConfig = getStatusConfig(order.status as 'PENDING' | 'SOLD' | 'NOT_SOLD')
   const items = order.items as OrderItem[]
   const whatsappUrl = order.customerPhone
-    ? `https://wa.me/${order.customerPhone.replace(/\D/g, '')}`
+    ? `https://wa.me/${normalizePhone(order.customerPhone)}`
     : null
 
   return (

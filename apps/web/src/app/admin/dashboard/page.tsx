@@ -13,6 +13,7 @@ import type { Product, AnalyticsSummary, ProductMetric, PromotionMetric, CouponM
 import { useDashboardPage } from './page.hooks'
 import { OnboardingChecklist } from '@/modules/onboarding'
 import { ordersService } from '@/modules/orders/services/orders.service'
+import { normalizePhone } from '@/shared/utils/phone'
 
 export default function AdminDashboardPage() {
   const {
@@ -1104,7 +1105,7 @@ function PedidosSection() {
 function PhonePopover({ phone }: { phone: string }) {
   const [open, setOpen] = useState(false)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const whatsappNumber = phone.replace(/\D/g, '')
+  const whatsappNumber = normalizePhone(phone)
 
   // Cancela qualquer fechamento agendado e mantém aberto
   function handleEnter() {
