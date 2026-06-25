@@ -42,7 +42,18 @@ export function buildApp(options: BuildAppOptions = {}) {
   })
 
   // Cabeçalhos de segurança HTTP (X-Content-Type-Options, X-Frame-Options etc.)
-  app.register(helmet)
+  // A API é acessada cross-origin pelo frontend (domínios diferentes no Vercel),
+  // então desabilitamos as políticas de cross-origin do helmet que bloqueiam isso:
+  // - permissionsPolicy: causa pop-ups de permissão indevidos em mobile
+  // - crossOriginEmbedderPolicy: exige CORP em todos os recursos (incompatível com CORS)
+  // - crossOriginResourcePolicy: bloqueia acesso cross-origin aos recursos da API
+  // - contentSecurityPolicy: desabilitado porque a API retorna JSON, não HTML
+  app.register(helmet, {
+    permissionsPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: false,
+    contentSecurityPolicy: false,
+  })
 
   // Avisa quando a API aceita requisições de qualquer site — em produção defina CORS_ORIGIN
   if (!process.env.CORS_ORIGIN) {
