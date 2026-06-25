@@ -58,7 +58,7 @@ export const storeProfileAdminRoutes: FastifyPluginAsync = async (app) => {
   // Apenas o OWNER pode editar o perfil da loja
   app.put('/', { preHandler: [requireOwner] }, async (request) => {
     const storeId = request.user.storeId
-    const data = storeProfileSchema.parse(request.body)
+    const data = storeProfileSchema.partial().parse(request.body)
     return app.prisma.storeProfile.upsert({
       where: { storeId },
       create: { storeId, ...data },
