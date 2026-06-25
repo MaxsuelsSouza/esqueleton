@@ -23,6 +23,7 @@ export default function ProductDetailClient() {
     setCurrentImageIndex,
     selectedOptions,
     router,
+    slug,
     isFavorited,
     toggleFavorite,
     handleCopyLink,
@@ -60,7 +61,7 @@ export default function ProductDetailClient() {
 
         {/* Botão voltar */}
         <button
-          onClick={() => router.back()}
+          onClick={() => router.push(`/loja/${slug}`)}
           className="mb-6 flex items-center gap-2 text-sm text-gray-500 transition-colors hover:text-gray-900"
         >
           <ArrowLeft size={16} />
