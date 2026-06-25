@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "node scripts/com-perfil.mjs tsx watch src/main.ts",
     "build": "tsup src/main.ts --format cjs",
+    "build:vercel": "prisma generate && tsup src/vercel.ts --format cjs --out-dir dist",
     "start": "node dist/main.js",
     "lint": "tsc --noEmit",
     "test": "vitest run",
