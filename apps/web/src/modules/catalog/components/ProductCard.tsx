@@ -47,6 +47,8 @@ export function ProductCard({ product, displayMode = 'grid', badge, badgeColor, 
   const [showVariantModal, setShowVariantModal] = useState(false)
 
   const hasVariants = product.variants !== undefined && product.variants.length > 0
+  // Sinaliza que o produto acabou de ser adicionado (direto ou via modal de variantes)
+  const [justAdded, setJustAdded] = useState(false)
 
   function goToDetail() {
     // Registra o clique vindo de destaque antes de navegar
@@ -63,17 +65,24 @@ export function ProductCard({ product, displayMode = 'grid', badge, badgeColor, 
   }
 
   function handleAddToBag() {
-    // Produtos com variantes abrem o modal de seleção em vez de redirecionar
+    // Produtos com variantes abrem o modal de seleção em vez de adicionar direto
     if (hasVariants) {
       setShowVariantModal(true)
       return
     }
     addItem(product, { promotionId, promotionName, featuredId, featuredName })
+    triggerAddedAnimation()
   }
 
   function handleVariantAdd(selectedOptions: Record<string, string>, variantId: string) {
     addItem(product, { promotionId, promotionName, featuredId, featuredName, selectedOptions, variantId })
     setShowVariantModal(false)
+    triggerAddedAnimation()
+  }
+
+  function triggerAddedAnimation() {
+    setJustAdded(true)
+    setTimeout(() => setJustAdded(false), 1500)
   }
 
   // Texto explicativo da promoção — prioriza description do admin, senão gera automático pelo tipo
@@ -82,8 +91,8 @@ export function ProductCard({ product, displayMode = 'grid', badge, badgeColor, 
   return (
     <>
       {displayMode === 'list'
-        ? <ProductCardList product={product} badge={badge} badgeColor={badgeColor} originalPrice={originalPrice} discountPercent={discountPercent} promoHint={promoHint} favorited={favorited} onFavorite={() => toggleFavorite(product)} onCardClick={goToDetail} onAddToBag={handleAddToBag} />
-        : <ProductCardGrid product={product} badge={badge} badgeColor={badgeColor} originalPrice={originalPrice} discountPercent={discountPercent} promoHint={promoHint} favorited={favorited} onFavorite={() => toggleFavorite(product)} onCardClick={goToDetail} onAddToBag={handleAddToBag} />
+        ? <ProductCardList product={product} badge={badge} badgeColor={badgeColor} originalPrice={originalPrice} discountPercent={discountPercent} promoHint={promoHint} favorited={favorited} onFavorite={() => toggleFavorite(product)} onCardClick={goToDetail} onAddToBag={handleAddToBag} justAdded={justAdded} />
+        : <ProductCardGrid product={product} badge={badge} badgeColor={badgeColor} originalPrice={originalPrice} discountPercent={discountPercent} promoHint={promoHint} favorited={favorited} onFavorite={() => toggleFavorite(product)} onCardClick={goToDetail} onAddToBag={handleAddToBag} justAdded={justAdded} />
       }
 
       {showVariantModal && (
@@ -137,9 +146,10 @@ interface CardProps {
   onFavorite: () => void
   onCardClick: () => void
   onAddToBag: () => void
+  justAdded: boolean
 }
 
-function ProductCardGrid({ product, badge, badgeColor, originalPrice, discountPercent, promoHint, favorited, onFavorite, onCardClick, onAddToBag }: CardProps) {
+function ProductCardGrid({ product, badge, badgeColor, originalPrice, discountPercent, promoHint, favorited, onFavorite, onCardClick, onAddToBag, justAdded }: CardProps) {
   const hasPromo = !!(badge && badgeColor)
 
   return (
@@ -204,7 +214,7 @@ function ProductCardGrid({ product, badge, badgeColor, originalPrice, discountPe
           <div className="flex flex-col gap-1.5">
             <ProductPrice price={product.price} size="sm" originalPrice={originalPrice} discountPercent={discountPercent} />
             <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-              <AddToCartButton onClick={onAddToBag} />
+              <AddToCartButton onClick={onAddToBag} added={justAdded} />
               <CopyLinkButton productId={product.id} productName={product.name} />
             </div>
           </div>
@@ -217,7 +227,7 @@ function ProductCardGrid({ product, badge, badgeColor, originalPrice, discountPe
 
 // ── Formato lista ───────────────────────────────────────────────────────────
 
-function ProductCardList({ product, badge, badgeColor, originalPrice, discountPercent, promoHint, favorited, onFavorite, onCardClick, onAddToBag }: CardProps) {
+function ProductCardList({ product, badge, badgeColor, originalPrice, discountPercent, promoHint, favorited, onFavorite, onCardClick, onAddToBag, justAdded }: CardProps) {
   const hasPromo = !!(badge && badgeColor)
 
   return (
@@ -287,7 +297,7 @@ function ProductCardList({ product, badge, badgeColor, originalPrice, discountPe
           <div className="flex items-center justify-between gap-3">
             <ProductPrice price={product.price} size="sm" originalPrice={originalPrice} discountPercent={discountPercent} />
             <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-              <AddToCartButton onClick={onAddToBag} large />
+              <AddToCartButton onClick={onAddToBag} large added={justAdded} />
               <CopyLinkButton productId={product.id} productName={product.name} />
             </div>
           </div>
@@ -299,18 +309,11 @@ function ProductCardList({ product, badge, badgeColor, originalPrice, discountPe
 
 // ── Botão adicionar à sacola ────────────────────────────────────────────────
 
-function AddToCartButton({ onClick, large }: { onClick: () => void; large?: boolean }) {
-  const [added, setAdded] = useState(false)
-
-  function handleClick() {
-    onClick()
-    setAdded(true)
-    setTimeout(() => setAdded(false), 1500)
-  }
+function AddToCartButton({ onClick, large, added }: { onClick: () => void; large?: boolean; added: boolean }) {
 
   return (
     <button
-      onClick={(e) => { e.stopPropagation(); handleClick() }}
+      onClick={(e) => { e.stopPropagation(); onClick() }}
       aria-label="Adicionar à sacola"
       style={added ? {} : { backgroundColor: 'var(--color-primary, #000000)' }}
       className={`flex flex-1 items-center justify-center gap-1 rounded-xl font-semibold transition-all active:scale-95 sm:gap-1.5 ${large ? 'py-2.5 px-4 text-sm' : 'py-2 px-2 text-[11px] sm:text-xs'} ${
