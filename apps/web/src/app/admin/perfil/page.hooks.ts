@@ -1,9 +1,9 @@
 'use client'
 
 // Hook que concentra toda a lógica de estado e efeitos da página de perfil da loja
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { storeProfileService } from '@/modules/store-profile/services/store-profile.service'
-import type { StoreProfile } from '@esqueleton/shared'
+import type { StoreProfile, WhatsAppCatalogStatus } from '@esqueleton/shared'
 import { buildDiff } from '@/shared/utils/diff'
 
 type FormData = {
@@ -14,6 +14,11 @@ type FormData = {
   logoUrl: string
   themeColor: string
   announcements: string[]
+  // Integração WhatsApp Business
+  metaAccessToken: string
+  metaWabaId: string
+  metaCatalogId: string
+  whatsappCatalogEnabled: boolean
 }
 
 // Valores exibidos enquanto o perfil ainda não carregou da API
@@ -22,6 +27,7 @@ const DEFAULT_PROFILE: StoreProfile = {
   storeName: 'Minha Loja',
   themeColor: '#000000',
   announcements: [],
+  whatsappCatalogEnabled: false,
   updatedAt: '',
 }
 
@@ -37,6 +43,10 @@ export function usePerfilPage() {
     logoUrl: '',
     themeColor: '#000000',
     announcements: [],
+    metaAccessToken: '',
+    metaWabaId: '',
+    metaCatalogId: '',
+    whatsappCatalogEnabled: false,
   })
   const [newAnnouncement, setNewAnnouncement] = useState('')
   const [isSaving, setIsSaving] = useState(false)
@@ -53,6 +63,13 @@ export function usePerfilPage() {
       })
   }, [])
 
+  // ── Estado da integração WhatsApp ──
+  const [whatsappStatus, setWhatsappStatus] = useState<WhatsAppCatalogStatus | null>(null)
+  const [isTesting, setIsTesting] = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState<{ synced: number; failed: number; skipped: number; total: number } | null>(null)
+
   // Preenche o formulário quando o perfil carregar
   useEffect(() => {
     setForm({
@@ -63,8 +80,29 @@ export function usePerfilPage() {
       logoUrl: profile.logoUrl ?? '',
       themeColor: profile.themeColor,
       announcements: profile.announcements ?? [],
+      metaAccessToken: profile.metaAccessToken ?? '',
+      metaWabaId: profile.metaWabaId ?? '',
+      metaCatalogId: profile.metaCatalogId ?? '',
+      whatsappCatalogEnabled: profile.whatsappCatalogEnabled ?? false,
     })
   }, [profile])
+
+  // Carrega o status do WhatsApp quando o perfil tem integração configurada
+  const loadWhatsAppStatus = useCallback(async () => {
+    const token = localStorage.getItem('admin_token') ?? ''
+    try {
+      const status = await storeProfileService.getWhatsAppStatus(token)
+      setWhatsappStatus(status)
+    } catch {
+      // Silencioso — status fica null
+    }
+  }, [])
+
+  useEffect(() => {
+    if (profile.metaCatalogId && profile.metaAccessToken && profile.whatsappCatalogEnabled) {
+      loadWhatsAppStatus()
+    }
+  }, [profile.metaCatalogId, profile.metaAccessToken, profile.whatsappCatalogEnabled, loadWhatsAppStatus])
 
   function set<K extends keyof FormData>(key: K, value: FormData[K]) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -105,6 +143,10 @@ export function usePerfilPage() {
         logoUrl: form.logoUrl.trim() || undefined,
         themeColor: form.themeColor,
         announcements: form.announcements,
+        metaAccessToken: form.metaAccessToken.trim() || undefined,
+        metaWabaId: form.metaWabaId.trim() || undefined,
+        metaCatalogId: form.metaCatalogId.trim() || undefined,
+        whatsappCatalogEnabled: form.whatsappCatalogEnabled,
       }
       const diff = buildDiff(profile as unknown as Record<string, unknown>, payload)
       if (Object.keys(diff).length === 0) { setIsSaving(false); return }
@@ -120,6 +162,38 @@ export function usePerfilPage() {
     }
   }
 
+  async function handleTestWhatsApp() {
+    setIsTesting(true)
+    setTestResult(null)
+    const token = localStorage.getItem('admin_token') ?? ''
+    try {
+      const result = await storeProfileService.testWhatsAppConnection(token)
+      setTestResult(result)
+      if (result.ok) {
+        loadWhatsAppStatus()
+      }
+    } catch {
+      setTestResult({ ok: false, error: 'Erro ao testar conexão. Tente novamente.' })
+    } finally {
+      setIsTesting(false)
+    }
+  }
+
+  async function handleSyncWhatsApp() {
+    setIsSyncing(true)
+    setSyncResult(null)
+    const token = localStorage.getItem('admin_token') ?? ''
+    try {
+      const result = await storeProfileService.syncWhatsAppCatalog(token)
+      setSyncResult(result)
+      loadWhatsAppStatus()
+    } catch {
+      setSyncResult({ synced: 0, failed: 0, skipped: 0, total: 0 })
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
   return {
     form,
     set,
@@ -131,5 +205,13 @@ export function usePerfilPage() {
     saveError,
     saveSuccess,
     handleSave,
+    // WhatsApp
+    whatsappStatus,
+    isTesting,
+    testResult,
+    handleTestWhatsApp,
+    isSyncing,
+    syncResult,
+    handleSyncWhatsApp,
   }
 }

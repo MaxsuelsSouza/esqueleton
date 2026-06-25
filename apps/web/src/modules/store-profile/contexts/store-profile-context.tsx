@@ -12,6 +12,7 @@ const DEFAULT_PROFILE: StoreProfile = {
   storeName: 'Minha Loja',
   themeColor: '#000000',
   announcements: [],
+  whatsappCatalogEnabled: false,
   updatedAt: '',
 }
 

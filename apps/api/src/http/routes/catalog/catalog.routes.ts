@@ -5,6 +5,7 @@ import type { FastifyPluginAsync } from 'fastify'
 import { productSchema } from '../../schemas/catalog.schema'
 import { idParamSchema } from '../../../shared/validation/schemas'
 import { listarProdutos, toProductResponse, PRODUCT_INCLUDE, type ListQuery } from '../../../domain/catalog/services/product.service'
+import { syncProductToWhatsApp, removeProductFromWhatsApp } from '../../../domain/catalog/services/whatsapp-sync.service'
 
 // ── Rotas públicas — a loja vem do slug na URL ─────────────────────
 export const catalogPublicRoutes: FastifyPluginAsync = async (app) => {
@@ -105,6 +106,9 @@ export const catalogAdminRoutes: FastifyPluginAsync = async (app) => {
       include: PRODUCT_INCLUDE,
     })
 
+    // Sincroniza com o catálogo do WhatsApp (fire-and-forget — não bloqueia a resposta)
+    syncProductToWhatsApp(app.prisma, app.whatsappCatalog, app.log, storeId, product.id).catch(() => {})
+
     return reply.status(201).send(toProductResponse(product))
   })
 
@@ -168,6 +172,9 @@ export const catalogAdminRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(404).send({ message: 'Produto não encontrado' })
     }
 
+    // Sincroniza com o catálogo do WhatsApp (fire-and-forget)
+    syncProductToWhatsApp(app.prisma, app.whatsappCatalog, app.log, storeId, product.id).catch(() => {})
+
     return toProductResponse(product)
   })
 
@@ -180,6 +187,10 @@ export const catalogAdminRoutes: FastifyPluginAsync = async (app) => {
     if (count === 0) {
       return reply.status(404).send({ message: 'Produto não encontrado' })
     }
+
+    // Remove do catálogo do WhatsApp (fire-and-forget)
+    removeProductFromWhatsApp(app.prisma, app.whatsappCatalog, app.log, request.user.storeId, id).catch(() => {})
+
     return reply.status(204).send()
   })
 }

@@ -213,7 +213,44 @@ export interface StoreProfile {
   themeColor: string
   // Mensagens exibidas na barra acima do cabeçalho, uma por vez em rotação
   announcements: string[]
+
+  // ── Integração com catálogo do WhatsApp Business ──
+  // Token permanente (System User) da Meta Graph API
+  metaAccessToken?: string
+  // ID da conta WhatsApp Business (WABA)
+  metaWabaId?: string
+  // ID do catálogo de produtos no Commerce Manager
+  metaCatalogId?: string
+  // Liga/desliga a sincronização automática de produtos
+  whatsappCatalogEnabled: boolean
+
   updatedAt: string
+}
+
+// Status da conexão com o catálogo do WhatsApp Business
+export interface WhatsAppCatalogStatus {
+  // Se a conexão com a Meta está ativa
+  connected: boolean
+  // Mensagem de erro caso a conexão falhe
+  error?: string
+  // Quantos produtos estão sincronizados no catálogo
+  syncedProducts: number
+  // Quantos produtos não foram sincronizados (ex: imagem base64)
+  skippedProducts: number
+}
+
+// Produto no formato esperado pela Meta Catalog API
+export interface WhatsAppCatalogItem {
+  // ID do produto no banco (usado como retailer_id na Meta)
+  retailerId: string
+  name: string
+  // Preço em centavos (ex: 8990 = R$ 89,90)
+  priceInCents: number
+  currency: string
+  // URL pública da imagem (base64 não é aceito pela Meta)
+  imageUrl?: string
+  // "in stock" ou "out of stock"
+  availability: 'in stock' | 'out of stock'
 }
 
 // Item de um pedido — armazenado junto ao pedido para histórico independente do cadastro

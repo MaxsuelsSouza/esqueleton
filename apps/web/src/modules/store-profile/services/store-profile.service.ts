@@ -1,6 +1,6 @@
 // Operações relacionadas ao perfil da loja
 import { apiClient } from '@/shared/services/api-client'
-import type { StoreProfile } from '@esqueleton/shared'
+import type { StoreProfile, WhatsAppCatalogStatus } from '@esqueleton/shared'
 
 export const storeProfileService = {
   // ── Site público — busca o perfil da loja visitada pelo slug ───────────────
@@ -19,6 +19,24 @@ export const storeProfileService = {
   getOnboardingStatus: (token: string) =>
     apiClient.get<{ whatsapp: boolean; logo: boolean; hasProducts: boolean }>(
       '/store-profile/onboarding-status',
+      token,
+    ),
+
+  // ── Integração com catálogo do WhatsApp Business ──────────────────
+
+  // Testa a conexão com a Meta Catalog API (valida token + catalog ID)
+  testWhatsAppConnection: (token: string) =>
+    apiClient.post<{ ok: boolean; error?: string }>('/store-profile/whatsapp-test', {}, token),
+
+  // Retorna o status da sincronização com o catálogo do WhatsApp
+  getWhatsAppStatus: (token: string) =>
+    apiClient.get<WhatsAppCatalogStatus>('/store-profile/whatsapp-status', token),
+
+  // Sincroniza todos os produtos com o catálogo do WhatsApp (lote completo)
+  syncWhatsAppCatalog: (token: string) =>
+    apiClient.post<{ synced: number; failed: number; skipped: number; total: number; errors: string[] }>(
+      '/store-profile/whatsapp-sync',
+      {},
       token,
     ),
 }

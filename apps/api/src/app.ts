@@ -11,6 +11,7 @@ import { storeContextPlugin } from './http/plugins/store-context.plugin'
 import { planLimitsPlugin } from './http/plugins/plan-limits.plugin'
 import { sessionPlugin } from './http/plugins/session.plugin'
 import { mercadopagoPlugin } from './domain/billing/integrations/mercadopago.adapter'
+import { whatsappCatalogPlugin } from './http/plugins/whatsapp-catalog.plugin'
 import { authRoutes, passwordResetRoutes, emailVerificationRoutes } from './http/routes/auth'
 import { catalogPublicRoutes, catalogAdminRoutes, categoryPublicRoutes, categoryAdminRoutes } from './http/routes/catalog'
 import { couponPublicRoutes, couponAdminRoutes, promotionPublicRoutes, promotionAdminRoutes, featuredPublicRoutes, featuredAdminRoutes } from './http/routes/pricing'
@@ -96,6 +97,8 @@ export function buildApp(options: BuildAppOptions = {}) {
   // Cobrança: integração com o MercadoPago e verificação dos limites do plano
   app.register(mercadopagoPlugin)
   app.register(planLimitsPlugin)
+  // Catálogo do WhatsApp Business — sincroniza produtos com a Meta Catalog API
+  app.register(whatsappCatalogPlugin)
   // Sacola e favoritos dos visitantes — armazenados em Redis (ou memória em dev)
   app.register(sessionPlugin)
 

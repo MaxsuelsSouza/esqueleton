@@ -241,6 +241,17 @@ model StoreProfile {
   themeColor    String   @default("#000000")
   // Mensagens exibidas na barra acima do cabeçalho em rotação
   announcements String[]
+
+  // ── Integração com catálogo do WhatsApp Business ──
+  // Token permanente (System User) da Meta Graph API
+  metaAccessToken       String?
+  // ID da conta WhatsApp Business (WABA)
+  metaWabaId            String?
+  // ID do catálogo de produtos no Commerce Manager
+  metaCatalogId         String?
+  // Liga/desliga a sincronização automática de produtos com o catálogo do WhatsApp
+  whatsappCatalogEnabled Boolean @default(false)
+
   updatedAt     DateTime @updatedAt
 }
 

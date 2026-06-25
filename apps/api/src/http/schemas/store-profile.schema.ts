@@ -11,4 +11,10 @@ export const storeProfileSchema = z.object({
   themeColor: hexColorSchema.default('#000000'),
   // Mensagens da barra de anúncios — limitadas em quantidade e tamanho
   announcements: z.array(shortText(200)).max(10, 'Máximo de 10 anúncios').default([]),
+
+  // ── Integração com catálogo do WhatsApp Business ──
+  metaAccessToken: shortText(500).nullish().transform(v => v || undefined),
+  metaWabaId: shortText(100).nullish().transform(v => v || undefined),
+  metaCatalogId: shortText(100).nullish().transform(v => v || undefined),
+  whatsappCatalogEnabled: z.boolean().optional(),
 })
