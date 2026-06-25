@@ -2,7 +2,7 @@
 
 // Página de configurações da loja — nome, contato, logo e cor do tema
 import { useRef, useState } from 'react'
-import { ImagePlus, Camera, X, Save, Store, Plus, Megaphone } from 'lucide-react'
+import { ImagePlus, Camera, X, Save, Store, Plus, Megaphone, MessageCircle, RefreshCw, CheckCircle2, XCircle, AlertTriangle, ExternalLink, ChevronDown } from 'lucide-react'
 import { compressImage } from '@/modules/catalog/utils/image'
 import { usePerfilPage } from './page.hooks'
 
@@ -30,6 +30,13 @@ export default function AdminPerfilPage() {
     saveError,
     saveSuccess,
     handleSave,
+    whatsappStatus,
+    isTesting,
+    testResult,
+    handleTestWhatsApp,
+    isSyncing,
+    syncResult,
+    handleSyncWhatsApp,
   } = usePerfilPage()
 
   return (
@@ -249,6 +256,163 @@ export default function AdminPerfilPage() {
           </div>
         </div>
       </Section>
+
+      {/* ── Catálogo WhatsApp Business (expansível) ── */}
+      <div className="flex flex-col rounded-2xl border border-gray-100 bg-white">
+        {/* Cabeçalho com toggle — sempre visível */}
+        <div className="flex items-center justify-between p-4">
+          <div className="flex items-center gap-3">
+            <MessageCircle size={18} className={form.whatsappCatalogEnabled ? 'text-green-600' : 'text-gray-400'} />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Catálogo WhatsApp</p>
+              <p className="mt-0.5 text-xs text-gray-400">
+                {form.whatsappCatalogEnabled ? 'Sincronização ativa' : 'Sincronize seus produtos com o WhatsApp Business'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => set('whatsappCatalogEnabled', !form.whatsappCatalogEnabled)}
+              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${form.whatsappCatalogEnabled ? 'bg-green-500' : 'bg-gray-300'}`}
+            >
+              <span
+                className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${form.whatsappCatalogEnabled ? 'translate-x-5' : 'translate-x-0'}`}
+              />
+            </button>
+            <ChevronDown
+              size={16}
+              className={`text-gray-400 transition-transform duration-200 ${form.whatsappCatalogEnabled ? 'rotate-180' : ''}`}
+            />
+          </div>
+        </div>
+
+        {/* Conteúdo expansível — visível apenas quando ativado */}
+        <div
+          className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${form.whatsappCatalogEnabled ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+        >
+          <div className="overflow-hidden">
+            <div className="flex flex-col gap-4 border-t border-gray-100 p-4">
+
+              {/* Campos de configuração */}
+              <FormField label="Token de acesso" hint="Token permanente (System User) da Meta Graph API">
+                <input
+                  type="password"
+                  value={form.metaAccessToken}
+                  onChange={(e) => set('metaAccessToken', e.target.value)}
+                  placeholder="EAA..."
+                  className={inputClass}
+                />
+              </FormField>
+
+              <FormField label="ID do catálogo" hint="Encontre no Commerce Manager da Meta">
+                <input
+                  type="text"
+                  value={form.metaCatalogId}
+                  onChange={(e) => set('metaCatalogId', e.target.value)}
+                  placeholder="Ex: 1234567890"
+                  className={inputClass}
+                />
+              </FormField>
+
+              <FormField label="ID da conta WhatsApp Business (WABA)" optional hint="Disponível no Meta Business Manager">
+                <input
+                  type="text"
+                  value={form.metaWabaId}
+                  onChange={(e) => set('metaWabaId', e.target.value)}
+                  placeholder="Ex: 1234567890"
+                  className={inputClass}
+                />
+              </FormField>
+
+              {/* Botões de ação */}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleTestWhatsApp}
+                  disabled={isTesting || !form.metaAccessToken || !form.metaCatalogId}
+                  className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-40"
+                >
+                  {isTesting ? (
+                    <RefreshCw size={14} className="animate-spin" />
+                  ) : (
+                    <CheckCircle2 size={14} />
+                  )}
+                  {isTesting ? 'Testando...' : 'Testar conexão'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSyncWhatsApp}
+                  disabled={isSyncing || !form.metaAccessToken || !form.metaCatalogId}
+                  className="flex items-center gap-1.5 rounded-xl bg-green-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:opacity-40"
+                >
+                  {isSyncing ? (
+                    <RefreshCw size={14} className="animate-spin" />
+                  ) : (
+                    <RefreshCw size={14} />
+                  )}
+                  {isSyncing ? 'Sincronizando...' : 'Sincronizar todos'}
+                </button>
+              </div>
+
+              {/* Resultado do teste */}
+              {testResult && (
+                <div className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm ${testResult.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
+                  {testResult.ok ? (
+                    <><CheckCircle2 size={16} /> Conexão estabelecida com sucesso!</>
+                  ) : (
+                    <><XCircle size={16} /> {testResult.error ?? 'Falha na conexão'}</>
+                  )}
+                </div>
+              )}
+
+              {/* Resultado da sincronização */}
+              {syncResult && (
+                <div className="flex flex-col gap-1.5 rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                  <p className="font-medium">Sincronização concluída</p>
+                  <p>{syncResult.synced} de {syncResult.total} produtos sincronizados</p>
+                  {syncResult.skipped > 0 && (
+                    <p className="flex items-center gap-1 text-amber-600">
+                      <AlertTriangle size={14} />
+                      {syncResult.skipped} produtos ignorados (imagem em base64)
+                    </p>
+                  )}
+                  {syncResult.failed > 0 && (
+                    <p className="text-red-600">{syncResult.failed} falharam</p>
+                  )}
+                </div>
+              )}
+
+              {/* Status da conexão */}
+              {whatsappStatus && (
+                <div className={`flex items-center gap-2 rounded-xl border px-4 py-3 text-sm ${whatsappStatus.connected ? 'border-green-200 bg-green-50 text-green-700' : 'border-gray-200 bg-gray-50 text-gray-500'}`}>
+                  <div className={`h-2 w-2 rounded-full ${whatsappStatus.connected ? 'bg-green-500' : 'bg-gray-400'}`} />
+                  {whatsappStatus.connected ? (
+                    <span>{whatsappStatus.syncedProducts} produtos no catálogo do WhatsApp</span>
+                  ) : (
+                    <span>{whatsappStatus.error ?? 'Desconectado'}</span>
+                  )}
+                  {whatsappStatus.skippedProducts > 0 && (
+                    <span className="text-xs text-amber-600">({whatsappStatus.skippedProducts} sem URL de imagem)</span>
+                  )}
+                </div>
+              )}
+
+              {/* Link para tutorial */}
+              <a
+                href="https://business.facebook.com/settings/system-users"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-gray-400 transition-colors hover:text-gray-600"
+              >
+                <ExternalLink size={12} />
+                Como obter o token e o ID do catálogo
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Mensagens de feedback */}
       {saveError && (
