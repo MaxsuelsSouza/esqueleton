@@ -2,7 +2,7 @@
   "version": 2,
   "functions": {
     "src/vercel.ts": {
-      "includeFiles": ["prisma/schema.prisma"]
+      "includeFiles": "prisma/**"
     }
   },
   "rewrites": [
