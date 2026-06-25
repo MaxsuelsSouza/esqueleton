@@ -7,6 +7,9 @@
     "lint": "pnpm -r lint",
     "test": "pnpm -r --no-bail test"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": ["prisma", "@prisma/client", "@prisma/engines", "esbuild"]
+  },
   "devDependencies": {
     "typescript": "^5.4.0"
   }
