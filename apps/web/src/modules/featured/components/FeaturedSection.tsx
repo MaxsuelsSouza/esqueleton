@@ -59,7 +59,7 @@ export function FeaturedSection({
   return (
     // Fundo usa a cor do tema com 15% de opacidade para criar um tom suave
     <section
-      className="mb-10 rounded-2xl p-3 sm:p-4"
+      className="mb-10 rounded-2xl p-2 sm:p-4"
       style={{ backgroundColor: themeColor + '26' }}
     >
 
@@ -86,7 +86,7 @@ export function FeaturedSection({
         />
       ) : (
         /* Produtos em grade — 2 por linha no mobile, 3 no tablet, 4 no desktop */
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">
           {products.map((item) => (
             <ProductCard
               key={item.product.id}
