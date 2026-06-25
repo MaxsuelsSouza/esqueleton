@@ -30,6 +30,8 @@ type PromotionRecord = {
   discountPercent?: number | null
   discountValue?: number | null
   kitPrice?: number | null
+  buyQuantity?: number | null
+  getQuantity?: number | null
   productIds: string[]
   startDate?: string | null
   endDate?: string | null
@@ -174,6 +176,48 @@ export function validateOrderPrices(
   }
 
   return { valid: true }
+}
+
+// ── Desconto extra de buy_x_get_y e kit — validação server-side ───
+// Calcula o desconto especial esperado com base nos itens do pedido e promoções ativas.
+// Retorna o valor total que deveria ser descontado além das promoções por-item e cupom.
+
+export function computeExpectedSpecialDiscount(
+  items: OrderItem[],
+  promotions: PromotionRecord[],
+): number {
+  let extraDiscount = 0
+
+  for (const promo of promotions) {
+    if (!isPromotionActive(promo)) continue
+
+    if (promo.type === 'buy_x_get_y' && promo.productIds.length > 0) {
+      const buyQty = promo.buyQuantity
+      const getQty = promo.getQuantity
+      if (!buyQty || !getQty || getQty <= buyQty) continue
+
+      // Conta unidades elegíveis no pedido
+      const eligibleItems = items.filter((i) => promo.productIds.includes(i.productId))
+      const totalQty = eligibleItems.reduce((sum, i) => sum + i.quantity, 0)
+
+      if (totalQty >= getQty) {
+        // Coleta todos os preços unitários (repetidos pela quantidade)
+        const allUnits: number[] = []
+        for (const item of eligibleItems) {
+          for (let i = 0; i < item.quantity; i++) allUnits.push(item.unitPrice)
+        }
+        allUnits.sort((a, b) => a - b)
+
+        const freeQty = getQty - buyQty
+        const timesApplied = Math.floor(totalQty / getQty)
+        const freeTotal = timesApplied * freeQty
+        const discount = allUnits.slice(0, freeTotal).reduce((sum, p) => sum + p, 0)
+        extraDiscount += discount
+      }
+    }
+  }
+
+  return extraDiscount
 }
 
 // Confere a aritmética do pedido — impede totais manipulados por requisições

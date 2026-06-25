@@ -29,6 +29,7 @@ export default function SacolaPage() {
     promoItems,
     promoDiscount,
     selectedDiscount,
+    specialPromos,
     selectedTotal,
     appliedCoupon,
     couponInput,
@@ -287,6 +288,23 @@ export default function SacolaPage() {
           )}
         </div>
 
+        {/* Incentivos de promoções especiais — quase ativando */}
+        {specialPromos.messages.filter((m) => m.type === 'incentive').length > 0 && (
+          <div className="mb-4 flex flex-col gap-2">
+            {specialPromos.messages.filter((m) => m.type === 'incentive').map((msg, i) => (
+              <div
+                key={`incentive-${i}`}
+                className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-700"
+              >
+                <span className="shrink-0 text-base">💡</span>
+                <span>
+                  <span className="font-semibold">{msg.promoName}:</span> {msg.text}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Resumo de valores */}
         <div className="mb-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-2">
@@ -301,6 +319,13 @@ export default function SacolaPage() {
                 <span>-{formatCurrency(promoDiscount)}</span>
               </div>
             )}
+
+            {/* Descontos especiais: buy_x_get_y e kit ativados */}
+            {specialPromos.messages.filter((m) => m.type === 'active').map((msg, i) => (
+              <div key={`active-${i}`} className="text-sm text-green-600">
+                {msg.text}
+              </div>
+            ))}
 
             {selectedDiscount > 0 && (
               <div className="flex justify-between text-sm text-green-600">

@@ -87,16 +87,10 @@ export function FeaturedSection({
       ) : (
         /* Produtos em grade — 2 por linha no mobile, 3 no tablet, 4 no desktop */
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {products.map(({ product, badge, badgeColor, promotionId, promotionName, originalPrice, discountPercent }) => (
+          {products.map((item) => (
             <ProductCard
-              key={product.id}
-              product={product}
-              badge={badge}
-              badgeColor={badgeColor}
-              promotionId={promotionId}
-              promotionName={promotionName}
-              originalPrice={originalPrice}
-              discountPercent={discountPercent}
+              key={item.product.id}
+              {...item}
               displayMode="grid"
               featuredId={featuredId}
               featuredName={featuredName ?? title}
@@ -386,16 +380,10 @@ function FeaturedCarousel({
   if (totalPages <= 1) {
     return (
       <div className={`grid ${colsClass} gap-3`}>
-        {items.map(({ product, badge, badgeColor, promotionId, promotionName, originalPrice, discountPercent }) => (
+        {items.map((item) => (
           <ProductCard
-            key={product.id}
-            product={product}
-            badge={badge}
-            badgeColor={badgeColor}
-            promotionId={promotionId}
-            promotionName={promotionName}
-            originalPrice={originalPrice}
-            discountPercent={discountPercent}
+            key={item.product.id}
+            {...item}
             displayMode="grid"
             featuredId={featuredId}
             featuredName={featuredName}
@@ -449,16 +437,10 @@ function FeaturedCarousel({
                 key={pageIndex}
                 className={`grid w-full shrink-0 ${colsClass} gap-2 sm:gap-3`}
               >
-                {pageProducts.map(({ product, badge, badgeColor, promotionId, promotionName, originalPrice, discountPercent }) => (
+                {pageProducts.map((item) => (
                   <ProductCard
-                    key={product.id}
-                    product={product}
-                    badge={badge}
-                    badgeColor={badgeColor}
-                    promotionId={promotionId}
-                    promotionName={promotionName}
-                    originalPrice={originalPrice}
-                    discountPercent={discountPercent}
+                    key={item.product.id}
+                    {...item}
                     displayMode="grid"
                     featuredId={featuredId}
                     featuredName={featuredName}

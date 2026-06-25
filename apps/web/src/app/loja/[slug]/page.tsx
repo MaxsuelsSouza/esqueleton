@@ -7,7 +7,7 @@ import { CatalogFilters } from '@/modules/catalog/components/CatalogFilters'
 import { DisplayToggle } from '@/modules/catalog/components/DisplayToggle'
 import { FeaturedSection } from '@/modules/featured/components/FeaturedSection'
 import { ProductCard } from '@/modules/catalog/components/ProductCard'
-import type { Product, DisplayMode } from '@esqueleton/shared'
+import type { Product, DisplayMode, PromotionType } from '@esqueleton/shared'
 import { PackageSearch, ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react'
 import { useCatalogoPage } from './page.hooks'
 
@@ -252,18 +252,28 @@ function Pagination({ page, totalPages, onChange }: {
 
 // ── Grade / lista ───────────────────────────────────────────────────────────
 
-function ProductGrid({
-  items,
-  displayMode,
-}: {
-  items: { product: Product; badge?: string; badgeColor?: string; promotionId?: string; promotionName?: string; originalPrice?: number; discountPercent?: number }[]
-  displayMode: DisplayMode
-}) {
+type PromotedItem = {
+  product: Product
+  badge?: string
+  badgeColor?: string
+  promotionId?: string
+  promotionName?: string
+  originalPrice?: number
+  discountPercent?: number
+  promotionDescription?: string
+  promotionType?: PromotionType
+  promotionProductIds?: string[]
+  buyQuantity?: number
+  getQuantity?: number
+  kitPrice?: number
+}
+
+function ProductGrid({ items, displayMode }: { items: PromotedItem[]; displayMode: DisplayMode }) {
   if (displayMode === 'list') {
     return (
       <div className="flex flex-col gap-3">
-        {items.map(({ product, badge, badgeColor, promotionId, promotionName, originalPrice, discountPercent }) => (
-          <ProductCard key={product.id} product={product} badge={badge} badgeColor={badgeColor} promotionId={promotionId} promotionName={promotionName} originalPrice={originalPrice} discountPercent={discountPercent} displayMode="list" />
+        {items.map((item) => (
+          <ProductCard key={item.product.id} {...item} displayMode="list" />
         ))}
       </div>
     )
@@ -271,8 +281,8 @@ function ProductGrid({
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
-      {items.map(({ product, badge, badgeColor, promotionId, promotionName, originalPrice, discountPercent }) => (
-        <ProductCard key={product.id} product={product} badge={badge} badgeColor={badgeColor} promotionId={promotionId} promotionName={promotionName} originalPrice={originalPrice} discountPercent={discountPercent} displayMode="grid" />
+      {items.map((item) => (
+        <ProductCard key={item.product.id} {...item} displayMode="grid" />
       ))}
     </div>
   )

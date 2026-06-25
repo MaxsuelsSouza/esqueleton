@@ -14,7 +14,7 @@ import { ordersService } from '@/modules/orders/services/orders.service'
 import { catalogService } from '@/modules/catalog/services/catalog.service'
 import { promotionsService } from '@/modules/promotions/services/promotions.service'
 import { useStoreSlug } from '@/shared/hooks/useStoreSlug'
-import { applyPromotionsToProducts } from '@/modules/promotions/utils/promotions'
+import { applyPromotionsToProducts, getActivePromotionForProduct } from '@/modules/promotions/utils/promotions'
 import type { Product, Promotion, Coupon } from '@esqueleton/shared'
 
 // Item completo para renderização — combina dados do servidor (Redis) com o produto do banco
@@ -62,6 +62,7 @@ export function useSacolaPage() {
   // o desconto proporcional nas variantes
   type ProductWithPromo = { product: Product; rawPrice: number; promotionId?: string; promotionName?: string; badgeColor?: string; discountPercent?: number }
   const [productMap, setProductMap] = useState<Map<string, ProductWithPromo>>(new Map())
+  const [promotions, setPromotions] = useState<Promotion[]>([])
   const [isLoadingProducts, setIsLoadingProducts] = useState(true)
 
   // Busca os dados completos dos produtos e as promoções ativas para aplicar os descontos
@@ -82,13 +83,14 @@ export function useSacolaPage() {
       catalogService.getPublicProductsByIds(slug, productIds),
       promotionsService.listPublicPromotions(slug).catch(() => [] as Promotion[]),
     ])
-      .then(([page, promotions]) => {
+      .then(([page, promos]) => {
         const products = page.data ?? []
+        setPromotions(promos)
         // Guarda o preço original de cada produto antes de aplicar promoções
         const rawPrices = new Map<string, number>()
         for (const p of products) rawPrices.set(p.id, p.price)
         // Aplica promoções ativas aos produtos — mesmo cálculo usado no catálogo
-        const promoted = applyPromotionsToProducts(products, promotions)
+        const promoted = applyPromotionsToProducts(products, promos)
         const map = new Map<string, ProductWithPromo>()
         for (const item of promoted) {
           map.set(item.product.id, {
@@ -149,6 +151,105 @@ export function useSacolaPage() {
     }
     return result
   }, [cartItems, productMap])
+
+  // ── Descontos especiais: buy_x_get_y e kit ──────────────────────────────
+  // Verifica promoções ativas que requerem uma quantidade ou combinação específica.
+  // Calcula o desconto adicional quando a condição é atendida, ou gera uma mensagem
+  // de incentivo quando o usuário está perto de ativar a promoção.
+
+  type SpecialPromoResult = {
+    // Desconto extra que deve ser subtraído do total (buy_x_get_y grátis, kit preço fixo)
+    extraDiscount: number
+    // Mensagens de feedback para o usuário (ativados ou incentivos)
+    messages: { type: 'active' | 'incentive'; text: string; promoName: string }[]
+  }
+
+  const specialPromos = useMemo((): SpecialPromoResult => {
+    let extraDiscount = 0
+    const messages: SpecialPromoResult['messages'] = []
+
+    for (const promo of promotions) {
+      if (!promo.active) continue
+
+      if (promo.type === 'buy_x_get_y' && promo.buyQuantity && promo.getQuantity && promo.productIds.length > 0) {
+        // Conta quantas unidades de produtos elegíveis estão na sacola
+        const eligibleItems = items.filter((i) => promo.productIds.includes(i.product.id))
+        const totalQty = eligibleItems.reduce((sum, i) => sum + i.quantity, 0)
+
+        if (totalQty >= promo.getQuantity) {
+          // Condição atingida — calcula itens grátis
+          // Ordena por preço efetivo (mais barato primeiro) para dar os mais baratos de graça
+          const allUnits: number[] = []
+          for (const item of eligibleItems) {
+            for (let i = 0; i < item.quantity; i++) allUnits.push(item.effectivePrice)
+          }
+          allUnits.sort((a, b) => a - b)
+
+          const freeQty = promo.getQuantity - promo.buyQuantity
+          // Calcula quantas vezes a promoção se aplica
+          const timesApplied = Math.floor(totalQty / promo.getQuantity)
+          const freeTotal = timesApplied * freeQty
+          const discount = allUnits.slice(0, freeTotal).reduce((sum, p) => sum + p, 0)
+
+          extraDiscount += discount
+          messages.push({
+            type: 'active',
+            text: `Compre ${promo.buyQuantity} Leve ${promo.getQuantity}: -${formatCurrency(discount)}`,
+            promoName: promo.name,
+          })
+        } else if (totalQty > 0 && totalQty < promo.getQuantity) {
+          // Incentivo — falta pouco para ativar
+          const falta = promo.getQuantity - totalQty
+          messages.push({
+            type: 'incentive',
+            text: `Adicione mais ${falta} ${falta === 1 ? 'produto' : 'produtos'} e ganhe ${promo.getQuantity - promo.buyQuantity} grátis!`,
+            promoName: promo.name,
+          })
+        }
+      }
+
+      if (promo.type === 'kit' && promo.kitPrice && promo.productIds.length > 0) {
+        // Verifica se TODOS os produtos do kit estão na sacola
+        const hasAll = promo.productIds.every((pid) =>
+          items.some((i) => i.product.id === pid && i.quantity > 0),
+        )
+
+        if (hasAll) {
+          // Soma dos preços individuais (com promoção já aplicada) vs kitPrice
+          const individualTotal = promo.productIds.reduce((sum, pid) => {
+            const item = items.find((i) => i.product.id === pid)
+            return sum + (item ? item.effectivePrice : 0)
+          }, 0)
+
+          const kitDiscount = Math.max(0, individualTotal - promo.kitPrice)
+          if (kitDiscount > 0) {
+            extraDiscount += kitDiscount
+            messages.push({
+              type: 'active',
+              text: `Kit ${promo.name}: -${formatCurrency(kitDiscount)}`,
+              promoName: promo.name,
+            })
+          }
+        } else {
+          // Incentivo — mostra quantos faltam
+          const inCart = promo.productIds.filter((pid) =>
+            items.some((i) => i.product.id === pid),
+          )
+          if (inCart.length > 0) {
+            const falta = promo.productIds.length - inCart.length
+            const formatted = promo.kitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+            messages.push({
+              type: 'incentive',
+              text: `Adicione mais ${falta} ${falta === 1 ? 'produto' : 'produtos'} para completar o Kit por ${formatted}!`,
+              promoName: promo.name,
+            })
+          }
+        }
+      }
+    }
+
+    return { extraDiscount, messages }
+  }, [items, promotions])
 
   const isLoading = isBagLoading || isLoadingProducts
 
@@ -230,7 +331,7 @@ export function useSacolaPage() {
     }
   }
 
-  const selectedTotal = Math.max(0, subtotalAfterPromo - selectedDiscount)
+  const selectedTotal = Math.max(0, subtotalAfterPromo - selectedDiscount - specialPromos.extraDiscount)
 
   // Controle do modal de identificação do cliente
   const [identModalOpen, setIdentModalOpen] = useState(false)
@@ -292,6 +393,13 @@ export function useSacolaPage() {
       lines.push(`🏷️ Promoções (${promoItems.length} ${promoItems.length === 1 ? 'item' : 'itens'}): -${formatCurrency(promoDiscount)}`)
     }
 
+    // Descontos especiais (buy_x_get_y, kit) exibidos individualmente
+    for (const msg of specialPromos.messages) {
+      if (msg.type === 'active') {
+        lines.push(`🎁 ${msg.text}`)
+      }
+    }
+
     if (appliedCoupon && selectedDiscount > 0) {
       lines.push(`🎟️ Cupom *${appliedCoupon.code}*: -${formatCurrency(selectedDiscount)}`)
       if (appliedCoupon.description) {
@@ -339,7 +447,7 @@ export function useSacolaPage() {
         promotionName: promotionName ?? undefined,
       })),
       subtotal: selectedSubtotal,
-      discount: promoDiscount + selectedDiscount,
+      discount: promoDiscount + selectedDiscount + specialPromos.extraDiscount,
       total: selectedTotal,
       couponCode: appliedCoupon?.code ?? undefined,
     })
@@ -428,6 +536,7 @@ export function useSacolaPage() {
     promoItems,
     promoDiscount,
     selectedDiscount,
+    specialPromos,
     selectedTotal,
     // Cupom
     appliedCoupon,

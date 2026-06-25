@@ -4,7 +4,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ShoppingBag, Heart, Link, Check, ImageOff } from 'lucide-react'
-import type { Product, DisplayMode } from '@esqueleton/shared'
+import type { Product, DisplayMode, PromotionType } from '@esqueleton/shared'
 import { ProductPrice } from './ProductPrice'
 import { useBag } from '@/modules/bag/contexts/bag-context'
 import { useFavorites } from '@/modules/favorites/contexts/favorites-context'
@@ -28,9 +28,16 @@ interface ProductCardProps {
   // Seção em destaque de origem — quando o card é exibido dentro de um destaque
   featuredId?: string
   featuredName?: string
+  // Metadata da promoção — texto explicativo exibido abaixo do badge
+  promotionDescription?: string
+  promotionType?: PromotionType
+  promotionProductIds?: string[]
+  buyQuantity?: number
+  getQuantity?: number
+  kitPrice?: number
 }
 
-export function ProductCard({ product, displayMode = 'grid', badge, badgeColor, promotionId, promotionName, originalPrice, discountPercent, featuredId, featuredName }: ProductCardProps) {
+export function ProductCard({ product, displayMode = 'grid', badge, badgeColor, promotionId, promotionName, originalPrice, discountPercent, featuredId, featuredName, promotionDescription, promotionType, promotionProductIds, buyQuantity, getQuantity, kitPrice }: ProductCardProps) {
   const { addItem } = useBag()
   const { isFavorited, toggleFavorite } = useFavorites()
   const router = useRouter()
@@ -60,14 +67,42 @@ export function ProductCard({ product, displayMode = 'grid', badge, badgeColor, 
     addItem(product, { promotionId, promotionName, featuredId, featuredName })
   }
 
+  // Texto explicativo da promoção — prioriza description do admin, senão gera automático pelo tipo
+  const promoHint = getPromoHint(promotionDescription, promotionType, buyQuantity, getQuantity, kitPrice, promotionProductIds)
+
   if (displayMode === 'list') {
-    return <ProductCardList product={product} badge={badge} badgeColor={badgeColor} originalPrice={originalPrice} discountPercent={discountPercent} favorited={favorited} onFavorite={() => toggleFavorite(product)} onCardClick={goToDetail} onAddToBag={handleAddToBag} />
+    return <ProductCardList product={product} badge={badge} badgeColor={badgeColor} originalPrice={originalPrice} discountPercent={discountPercent} promoHint={promoHint} favorited={favorited} onFavorite={() => toggleFavorite(product)} onCardClick={goToDetail} onAddToBag={handleAddToBag} />
   }
 
-  return <ProductCardGrid product={product} badge={badge} badgeColor={badgeColor} originalPrice={originalPrice} discountPercent={discountPercent} favorited={favorited} onFavorite={() => toggleFavorite(product)} onCardClick={goToDetail} onAddToBag={handleAddToBag} />
+  return <ProductCardGrid product={product} badge={badge} badgeColor={badgeColor} originalPrice={originalPrice} discountPercent={discountPercent} promoHint={promoHint} favorited={favorited} onFavorite={() => toggleFavorite(product)} onCardClick={goToDetail} onAddToBag={handleAddToBag} />
 }
 
 // ── Formato grade ───────────────────────────────────────────────────────────
+
+// Gera texto explicativo da promoção — prioriza o que o admin escreveu, senão monta automático
+function getPromoHint(
+  description?: string,
+  type?: PromotionType,
+  buyQty?: number,
+  getQty?: number,
+  kitPriceValue?: number,
+  productIds?: string[],
+): string | undefined {
+  if (description) return description
+  if (!type) return undefined
+
+  if (type === 'buy_x_get_y' && buyQty && getQty) {
+    const freeQty = getQty - buyQty
+    return `Adicione ${getQty} unidades e pague apenas ${buyQty}${freeQty === 1 ? ' — 1 sai grátis!' : ` — ${freeQty} saem grátis!`}`
+  }
+
+  if (type === 'kit' && kitPriceValue && productIds && productIds.length > 0) {
+    const formatted = kitPriceValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    return `Kit com ${productIds.length} produtos por ${formatted}`
+  }
+
+  return undefined
+}
 
 interface CardProps {
   product: Product
@@ -75,18 +110,19 @@ interface CardProps {
   badgeColor?: string
   originalPrice?: number
   discountPercent?: number
+  promoHint?: string
   favorited: boolean
   onFavorite: () => void
   onCardClick: () => void
   onAddToBag: () => void
 }
 
-function ProductCardGrid({ product, badge, badgeColor, originalPrice, discountPercent, favorited, onFavorite, onCardClick, onAddToBag }: CardProps) {
+function ProductCardGrid({ product, badge, badgeColor, originalPrice, discountPercent, promoHint, favorited, onFavorite, onCardClick, onAddToBag }: CardProps) {
   const hasPromo = !!(badge && badgeColor)
 
   return (
-    // Wrapper relativo com espaço no topo para o badge flutuar sobre a borda
-    <div className="relative" style={hasPromo ? { paddingTop: '13px' } : {}}>
+    // Wrapper com espaço fixo no topo — mesmo sem badge, para manter todos os cards alinhados
+    <div className="relative" style={{ paddingTop: '13px' }}>
 
       {/* Badge posicionado sobre a borda superior do card */}
       {hasPromo && (
@@ -101,10 +137,7 @@ function ProductCardGrid({ product, badge, badgeColor, originalPrice, discountPe
       <div
         onClick={onCardClick}
         className="group flex cursor-pointer flex-col rounded-2xl bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
-        style={hasPromo
-          ? { border: `2px solid ${badgeColor}` }
-          : { border: '1px solid rgb(243 244 246)' }
-        }
+        style={{ border: hasPromo ? `2px solid ${badgeColor}` : '2px solid transparent' }}
       >
         {/* Imagem */}
         <div className="relative aspect-square overflow-hidden rounded-t-2xl bg-gray-50">
@@ -144,6 +177,11 @@ function ProductCardGrid({ product, badge, badgeColor, originalPrice, discountPe
             <h2 className="text-sm font-semibold leading-snug text-gray-900">
               {product.name}
             </h2>
+            {promoHint && (
+              <p className="mt-0.5 line-clamp-2 text-[11px] leading-tight text-gray-500">
+                {promoHint}
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -162,11 +200,12 @@ function ProductCardGrid({ product, badge, badgeColor, originalPrice, discountPe
 
 // ── Formato lista ───────────────────────────────────────────────────────────
 
-function ProductCardList({ product, badge, badgeColor, originalPrice, discountPercent, favorited, onFavorite, onCardClick, onAddToBag }: CardProps) {
+function ProductCardList({ product, badge, badgeColor, originalPrice, discountPercent, promoHint, favorited, onFavorite, onCardClick, onAddToBag }: CardProps) {
   const hasPromo = !!(badge && badgeColor)
 
   return (
-    <div className="relative" style={hasPromo ? { paddingTop: '13px' } : {}}>
+    // Wrapper com espaço fixo no topo — mesmo sem badge, para manter todos os cards alinhados
+    <div className="relative" style={{ paddingTop: '13px' }}>
 
       {/* Badge sobre a borda superior */}
       {hasPromo && (
@@ -181,10 +220,7 @@ function ProductCardList({ product, badge, badgeColor, originalPrice, discountPe
       <div
         onClick={onCardClick}
         className="group flex cursor-pointer gap-3 rounded-2xl bg-white p-3 shadow-sm transition-all duration-200 hover:shadow-md sm:p-4"
-        style={hasPromo
-          ? { border: `2px solid ${badgeColor}` }
-          : { border: '1px solid rgb(243 244 246)' }
-        }
+        style={{ border: hasPromo ? `2px solid ${badgeColor}` : '2px solid transparent' }}
       >
         {/* Imagem */}
         <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-gray-50 sm:h-32 sm:w-32">
@@ -214,6 +250,11 @@ function ProductCardList({ product, badge, badgeColor, originalPrice, discountPe
               <h2 className="truncate text-sm font-semibold text-gray-900">
                 {product.name}
               </h2>
+              {promoHint && (
+                <p className="mt-0.5 line-clamp-1 text-[11px] leading-tight text-gray-500">
+                  {promoHint}
+                </p>
+              )}
             </div>
             <button
               onClick={(e) => { e.stopPropagation(); onFavorite() }}

@@ -1,5 +1,5 @@
 // Funções para aplicar promoções ativas aos produtos no catálogo
-import type { Product, Promotion } from '@esqueleton/shared'
+import type { Product, Promotion, PromotionType } from '@esqueleton/shared'
 
 // Verifica se uma promoção está ativa agora — considera flag, período e janela de horário
 export function isPromotionActive(promotion: Promotion): boolean {
@@ -46,13 +46,29 @@ export interface PromotedProduct {
   originalPrice?: number
   // Percentual de desconto aplicado — usado para exibir a tag "-20%"
   discountPercent?: number
+  // Metadata da promoção — permite ao público entender as regras
+  promotionDescription?: string
+  promotionType?: PromotionType
+  promotionProductIds?: string[]
+  buyQuantity?: number
+  getQuantity?: number
+  kitPrice?: number
 }
 
 // Aplica uma promoção ao produto — modifica preço e define badge conforme o tipo
 export function applyPromotionToProduct(product: Product, promotion: Promotion): PromotedProduct {
   const badgeColor = promotion.color ?? undefined
-  // Metadados da promoção passados adiante para registro de analytics
-  const promoMeta = { promotionId: promotion.id, promotionName: promotion.name }
+  // Metadados da promoção passados adiante para analytics e exibição pública
+  const promoMeta = {
+    promotionId: promotion.id,
+    promotionName: promotion.name,
+    promotionDescription: promotion.description,
+    promotionType: promotion.type,
+    promotionProductIds: promotion.productIds,
+    buyQuantity: promotion.buyQuantity,
+    getQuantity: promotion.getQuantity,
+    kitPrice: promotion.kitPrice,
+  }
 
   switch (promotion.type) {
     case 'percentage': {

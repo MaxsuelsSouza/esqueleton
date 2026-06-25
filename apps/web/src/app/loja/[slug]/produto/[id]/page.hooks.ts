@@ -15,6 +15,8 @@ import { useStoreProfile } from '@/modules/store-profile/contexts/store-profile-
 import { customersService } from '@/modules/customers/services/customers.service'
 import { analyticsService } from '@/modules/analytics/services/analytics.service'
 import { useStoreSlug } from '@/shared/hooks/useStoreSlug'
+import { applyPromotionsToProducts } from '@/modules/promotions/utils/promotions'
+import type { PromotedProduct } from '@/modules/promotions/utils/promotions'
 import type { Product, ProductVariant, Promotion } from '@esqueleton/shared'
 
 // Quantidade mínima de sugestões exibidas — se a categoria não tiver o suficiente,
@@ -93,6 +95,12 @@ export function useProdutoDetailPage() {
   // Percentual de desconto da promoção ativa — exibido como tag (ex: "-20%")
   const [promoDiscountPercent, setPromoDiscountPercent] = useState<number | undefined>(undefined)
   const [isLoading, setIsLoading] = useState(true)
+  // Promoção ativa para o produto — usada para exibir seção de produtos relacionados
+  const [activePromotion, setActivePromotion] = useState<Promotion | null>(null)
+  // Produtos que participam da mesma promoção (excluindo o produto atual)
+  const [promoProducts, setPromoProducts] = useState<PromotedProduct[]>([])
+  const [promoProductsLoading, setPromoProductsLoading] = useState(false)
+
   // Produtos sugeridos (mesma categoria do produto atual)
   const [suggestions, setSuggestions] = useState<Product[]>([])
   const [suggestionsLoading, setSuggestionsLoading] = useState(false)
@@ -138,10 +146,29 @@ export function useProdutoDetailPage() {
         setRawPrice(p.price)
         // Aplica promoção ativa ao produto, se houver
         const promo = getActivePromotionForProduct(p.id, promotions)
+        setActivePromotion(promo)
         if (promo) {
           const result = applyPromotionToProduct(p, promo)
           setProduct(result.product)
           setPromoDiscountPercent(result.discountPercent)
+
+          // Busca os outros produtos da promoção para exibir na seção "Produtos desta promoção"
+          if (promo.productIds.length > 0) {
+            const otherIds = promo.productIds.filter((pid) => pid !== p.id)
+            if (otherIds.length > 0 && !cancelled) {
+              setPromoProductsLoading(true)
+              Promise.all(
+                otherIds.map((pid) =>
+                  catalogService.getPublicProduct(slug, pid).catch(() => null),
+                ),
+              ).then((results) => {
+                if (cancelled) return
+                const validProducts = results.filter((r): r is Product => r !== null)
+                setPromoProducts(applyPromotionsToProducts(validProducts, promotions))
+                setPromoProductsLoading(false)
+              })
+            }
+          }
         } else {
           setProduct(p)
           setPromoDiscountPercent(undefined)
@@ -292,6 +319,20 @@ export function useProdutoDetailPage() {
     setTimeout(() => setAdded(false), 1500)
   }
 
+  // Adiciona todos os produtos de um kit à sacola de uma vez
+  const [kitAdded, setKitAdded] = useState(false)
+
+  function handleAddKitToBag() {
+    if (!activePromotion || activePromotion.type !== 'kit') return
+    // Adiciona o produto atual + os da promoção
+    const allProducts = product ? [product, ...promoProducts.map((p) => p.product)] : []
+    for (const p of allProducts) {
+      addItem(p)
+    }
+    setKitAdded(true)
+    setTimeout(() => setKitAdded(false), 2000)
+  }
+
   // ── Comprar agora (WhatsApp direto) ──────────────────────────────────────
 
   // Modal de identificação do cliente
@@ -411,6 +452,11 @@ export function useProdutoDetailPage() {
     selectedVariant,
     hasPromo,
     displayPrice,
+    activePromotion,
+    promoProducts,
+    promoProductsLoading,
+    handleAddKitToBag,
+    kitAdded,
     suggestions,
     suggestionsLoading,
     // Comprar agora

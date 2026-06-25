@@ -200,6 +200,9 @@ async function main() {
   // ── Produtos com imagens ───────────────────────────────────────
   console.log('\nInserindo produtos com imagens...\n')
 
+  // Mapeia índice do produto → id gerado no banco (para vincular promoções, cupons e destaques)
+  const productIdMap: Record<number, string> = {}
+
   for (const prod of PRODUTOS) {
     const imageFile = IMAGE_MAP[prod.index]
     const imageUrl = imageFile ? imageToBase64(imageFile) : null
@@ -219,10 +222,209 @@ async function main() {
         },
       },
     })
+    productIdMap[prod.index] = produto.id
     console.log(`  ✔ [${prod.index}] ${prod.brand} ${prod.name} ${imageUrl ? '📷' : '⚠ sem imagem'}`)
   }
 
-  console.log('\n✅ Seed completo! Todos os produtos, categorias e imagens foram inseridos.\n')
+  // ── Promoções ────────────────────────────────────────────────────
+  console.log('\nInserindo promoções...\n')
+
+  // Promoção 1: Desconto de 15% em Smartphones Samsung
+  await prisma.promotion.create({
+    data: {
+      name: 'Samsung Week',
+      type: 'desconto',
+      discountPercent: 15,
+      productIds: [productIdMap[1], productIdMap[2]].filter(Boolean),
+      startDate: '2026-06-01',
+      endDate: '2026-12-31',
+      description: 'Até 15% de desconto em smartphones Samsung selecionados.',
+      color: '#1428a0',
+      active: true,
+      priority: 1,
+      storeId: store.id,
+    },
+  })
+  console.log('  ✔ Samsung Week (15% em smartphones Samsung)')
+
+  // Promoção 2: Desconto fixo de R$200 em Notebooks
+  await prisma.promotion.create({
+    data: {
+      name: 'Mega Oferta Notebooks',
+      type: 'desconto',
+      discountValue: 200,
+      productIds: [productIdMap[25], productIdMap[26], productIdMap[27], productIdMap[28], productIdMap[29]].filter(Boolean),
+      startDate: '2026-06-01',
+      endDate: '2026-12-31',
+      description: 'R$200 de desconto em notebooks selecionados.',
+      color: '#16a34a',
+      active: true,
+      priority: 2,
+      storeId: store.id,
+    },
+  })
+  console.log('  ✔ Mega Oferta Notebooks (R$200 off)')
+
+  // Promoção 3: Kit Áudio — preço especial para combo
+  await prisma.promotion.create({
+    data: {
+      name: 'Combo Áudio Premium',
+      type: 'kit',
+      kitPrice: 2199.99,
+      productIds: [productIdMap[22], productIdMap[23]].filter(Boolean),
+      startDate: '2026-06-01',
+      endDate: '2026-12-31',
+      description: 'Leve o headphone Sony WH-1000XM5 + JBL Flip 6 por um preço especial.',
+      color: '#7c3aed',
+      active: true,
+      priority: 3,
+      storeId: store.id,
+    },
+  })
+  console.log('  ✔ Combo Áudio Premium (kit por R$2.199,99)')
+
+  // Promoção 4: Compre 2 leve 3 em acessórios para celular
+  await prisma.promotion.create({
+    data: {
+      name: 'Compre 2 Leve 3 Acessórios',
+      type: 'compre_x_leve_y',
+      buyQuantity: 2,
+      getQuantity: 3,
+      productIds: [productIdMap[8], productIdMap[9], productIdMap[10], productIdMap[11], productIdMap[12]].filter(Boolean),
+      startDate: '2026-06-01',
+      endDate: '2026-12-31',
+      description: 'Na compra de 2 acessórios para celular, leve 3.',
+      color: '#f97316',
+      active: true,
+      priority: 4,
+      storeId: store.id,
+    },
+  })
+  console.log('  ✔ Compre 2 Leve 3 Acessórios')
+
+  // Promoção 5: Happy Hour — desconto por horário
+  await prisma.promotion.create({
+    data: {
+      name: 'Happy Hour Tech',
+      type: 'horario',
+      discountPercent: 10,
+      productIds: [],
+      startTime: '18:00',
+      endTime: '22:00',
+      startDate: '2026-06-01',
+      endDate: '2026-12-31',
+      description: '10% de desconto em todo o catálogo das 18h às 22h.',
+      color: '#ec4899',
+      active: true,
+      priority: 5,
+      storeId: store.id,
+    },
+  })
+  console.log('  ✔ Happy Hour Tech (10% das 18h às 22h)')
+
+  // ── Cupons ───────────────────────────────────────────────────────
+  console.log('\nInserindo cupons...\n')
+
+  await prisma.coupon.create({
+    data: {
+      code: 'BEMVINDO10',
+      description: 'Cupom de boas-vindas: 10% de desconto na primeira compra.',
+      discountType: 'percentage',
+      discountPercent: 10,
+      maxUses: 500,
+      productIds: [],
+      startDate: '2026-06-01',
+      endDate: '2026-12-31',
+      active: true,
+      storeId: store.id,
+    },
+  })
+  console.log('  ✔ BEMVINDO10 (10% off, 500 usos)')
+
+  await prisma.coupon.create({
+    data: {
+      code: 'FRETE50',
+      description: 'R$50 de desconto para pedidos acima de R$300.',
+      discountType: 'fixed',
+      discountValue: 50,
+      minimumOrderValue: 300,
+      maxUses: 200,
+      productIds: [],
+      startDate: '2026-06-01',
+      endDate: '2026-12-31',
+      active: true,
+      storeId: store.id,
+    },
+  })
+  console.log('  ✔ FRETE50 (R$50 off, pedido mínimo R$300)')
+
+  await prisma.coupon.create({
+    data: {
+      code: 'APPLE20',
+      description: '20% de desconto em produtos Apple selecionados.',
+      discountType: 'percentage',
+      discountPercent: 20,
+      maxUses: 100,
+      productIds: [productIdMap[5], productIdMap[6], productIdMap[19], productIdMap[27], productIdMap[35], productIdMap[36]].filter(Boolean),
+      startDate: '2026-06-01',
+      endDate: '2026-12-31',
+      active: true,
+      storeId: store.id,
+    },
+  })
+  console.log('  ✔ APPLE20 (20% off em produtos Apple)')
+
+  await prisma.coupon.create({
+    data: {
+      code: 'GAMER100',
+      description: 'R$100 de desconto em Games & Consoles.',
+      discountType: 'fixed',
+      discountValue: 100,
+      minimumOrderValue: 500,
+      maxUses: 150,
+      productIds: [productIdMap[39], productIdMap[40], productIdMap[41], productIdMap[42], productIdMap[43]].filter(Boolean),
+      startDate: '2026-06-01',
+      endDate: '2026-12-31',
+      active: true,
+      storeId: store.id,
+    },
+  })
+  console.log('  ✔ GAMER100 (R$100 off em games)')
+
+  await prisma.coupon.create({
+    data: {
+      code: 'AUDIO15',
+      description: '15% de desconto em fones e caixas de som.',
+      discountType: 'percentage',
+      discountPercent: 15,
+      maxUses: 200,
+      productIds: [productIdMap[19], productIdMap[20], productIdMap[21], productIdMap[22], productIdMap[23], productIdMap[24]].filter(Boolean),
+      startDate: '2026-06-01',
+      endDate: '2026-12-31',
+      active: true,
+      storeId: store.id,
+    },
+  })
+  console.log('  ✔ AUDIO15 (15% off em áudio)')
+
+  // ── Seção em destaque ────────────────────────────────────────────
+  console.log('\nInserindo seção em destaque...\n')
+
+  await prisma.featured.create({
+    data: {
+      title: 'Mais Vendidos da Semana',
+      tag: 'Destaque',
+      productIds: [productIdMap[1], productIdMap[5], productIdMap[22], productIdMap[39], productIdMap[27], productIdMap[19]].filter(Boolean),
+      startDate: '2026-06-01',
+      endDate: '2026-12-31',
+      active: true,
+      carousel: true,
+      storeId: store.id,
+    },
+  })
+  console.log('  ✔ Mais Vendidos da Semana (carrossel)')
+
+  console.log('\n✅ Seed completo! Produtos, categorias, promoções, cupons e destaques inseridos.\n')
 }
 
 main()

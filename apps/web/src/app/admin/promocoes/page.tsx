@@ -208,7 +208,7 @@ function PromotionCard({
   onDelete: () => void
   onToggleActive: () => void
 }) {
-  const typeInfo = PROMOTION_TYPES.find((t) => t.value === promo.type)!
+  const typeInfo = PROMOTION_TYPES.find((t) => t.value === promo.type) ?? { value: promo.type, label: promo.type, color: 'bg-gray-100 text-gray-700' }
 
   // Calcula o status da promoção com base nas datas e no toggle ativo
   const status = computeStatus(promo)

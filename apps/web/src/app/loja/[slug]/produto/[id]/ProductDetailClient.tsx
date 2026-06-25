@@ -2,8 +2,11 @@
 
 // Página de detalhe do produto — componente client com toda a interatividade
 import { useRouter } from 'next/navigation'
-import { ShoppingBag, Heart, Link, Check, ArrowLeft, PackageSearch, ChevronLeft, ChevronRight, X, User, Phone } from 'lucide-react'
+import { ShoppingBag, Heart, Link, Check, ArrowLeft, PackageSearch, ChevronLeft, ChevronRight, X, User, Phone, Tag } from 'lucide-react'
+import type { Promotion } from '@esqueleton/shared'
+import type { PromotedProduct } from '@/modules/promotions/utils/promotions'
 import { ProductPrice } from '@/modules/catalog/components/ProductPrice'
+import { ProductCard } from '@/modules/catalog/components/ProductCard'
 import { ProductSuggestions } from '@/modules/catalog/components/ProductSuggestions'
 import { useStoreSlug } from '@/shared/hooks/useStoreSlug'
 import { useProdutoDetailPage } from './page.hooks'
@@ -31,6 +34,11 @@ export default function ProductDetailClient() {
     selectedVariant,
     hasPromo,
     displayPrice,
+    activePromotion,
+    promoProducts,
+    promoProductsLoading,
+    handleAddKitToBag,
+    kitAdded,
     suggestions,
     suggestionsLoading,
     handleBuyNow,
@@ -294,6 +302,17 @@ export default function ProductDetailClient() {
             </div>
           </div>
 
+          {/* Produtos da mesma promoção — exibe quando há outros produtos participando */}
+          {activePromotion && promoProducts.length > 0 && (
+            <PromotionProductsSection
+              promotion={activePromotion}
+              products={promoProducts}
+              isLoading={promoProductsLoading}
+              onAddKit={handleAddKitToBag}
+              kitAdded={kitAdded}
+            />
+          )}
+
           {/* Sugestões de produtos da mesma categoria */}
           <ProductSuggestions
             products={suggestions}
@@ -374,6 +393,99 @@ export default function ProductDetailClient() {
       )}
 
     </main>
+  )
+}
+
+// ── Seção de produtos da mesma promoção ─────────────────────────────────────
+// Mostra os outros produtos que participam da promoção ativa, com texto
+// explicativo adequado ao tipo (kit, compre X leve Y, desconto, etc.)
+
+function PromotionProductsSection({
+  promotion,
+  products,
+  isLoading,
+  onAddKit,
+  kitAdded,
+}: {
+  promotion: Promotion
+  products: PromotedProduct[]
+  isLoading: boolean
+  onAddKit: () => void
+  kitAdded: boolean
+}) {
+  if (isLoading || products.length === 0) return null
+
+  // Texto descritivo baseado no tipo da promoção
+  let heading = promotion.name
+  let subtitle: string | undefined = promotion.description
+
+  if (!subtitle) {
+    switch (promotion.type) {
+      case 'kit':
+        if (promotion.kitPrice) {
+          const formatted = promotion.kitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+          subtitle = `Leve os ${promotion.productIds.length} produtos juntos por ${formatted}`
+        }
+        break
+      case 'buy_x_get_y':
+        if (promotion.buyQuantity && promotion.getQuantity) {
+          const freeQty = promotion.getQuantity - promotion.buyQuantity
+          subtitle = `Compre ${promotion.buyQuantity} e leve ${promotion.getQuantity} — ${freeQty === 1 ? '1 sai grátis!' : `${freeQty} saem grátis!`}`
+        }
+        break
+      case 'percentage':
+        if (promotion.discountPercent) {
+          subtitle = `${promotion.discountPercent}% de desconto nestes produtos`
+        }
+        break
+      case 'fixed':
+        if (promotion.discountValue) {
+          const formatted = promotion.discountValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+          subtitle = `${formatted} de desconto nestes produtos`
+        }
+        break
+    }
+  }
+
+  return (
+    <section className="mt-10">
+      <div className="mb-4 flex items-center gap-2">
+        <Tag size={18} className="text-gray-400" />
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">{heading}</h2>
+          {subtitle && (
+            <p className="text-sm text-gray-500">{subtitle}</p>
+          )}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        {products.map((item) => (
+          <ProductCard
+            key={item.product.id}
+            {...item}
+            displayMode="grid"
+          />
+        ))}
+      </div>
+
+      {/* Botão para adicionar todos os produtos do kit à sacola de uma vez */}
+      {promotion.type === 'kit' && promotion.kitPrice && (
+        <button
+          onClick={onAddKit}
+          className={`mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold transition-all active:scale-95 sm:w-auto sm:px-8 ${
+            kitAdded
+              ? 'bg-green-600 text-white'
+              : 'bg-black text-white hover:bg-gray-800'
+          }`}
+        >
+          {kitAdded ? (
+            <><Check size={17} /> Kit adicionado à sacola!</>
+          ) : (
+            <><ShoppingBag size={17} /> Adicionar kit completo à sacola</>
+          )}
+        </button>
+      )}
+    </section>
   )
 }
 
