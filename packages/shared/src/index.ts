@@ -98,6 +98,8 @@ export interface User {
   role: UserRole
   // true = e-mail verificado | false = pendente
   emailVerified: boolean
+  // true = senha temporária, deve trocar no próximo login
+  mustChangePassword?: boolean
   // Administrador da plataforma — definido manualmente no banco
   isSuperAdmin?: boolean
   // Loja à qual o usuário pertence
@@ -111,6 +113,8 @@ export interface LoginResponse {
   role: UserRole
   emailVerified: boolean
   isSuperAdmin: boolean
+  // true = senha temporária, redirecionar para tela de alterar senha
+  mustChangePassword: boolean
   store: {
     slug: string
     name: string

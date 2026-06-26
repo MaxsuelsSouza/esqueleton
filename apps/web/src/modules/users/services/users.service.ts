@@ -10,4 +10,8 @@ export const usersService = {
   // Remove um usuário da equipe (não permite remover a si mesmo)
   delete: (id: string, token: string) =>
     apiClient.delete<void>(`/users/${id}`, token),
+
+  // Reseta a senha de um membro — retorna a senha temporária gerada
+  resetPassword: (id: string, token: string) =>
+    apiClient.post<{ temporaryPassword: string }>(`/users/${id}/reset-password`, {}, token),
 }

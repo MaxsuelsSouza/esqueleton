@@ -11,7 +11,7 @@ import { storeContextPlugin } from './http/plugins/store-context.plugin'
 import { planLimitsPlugin } from './http/plugins/plan-limits.plugin'
 import { sessionPlugin } from './http/plugins/session.plugin'
 import { mercadopagoPlugin } from './domain/billing/integrations/mercadopago.adapter'
-import { authRoutes, passwordResetRoutes, emailVerificationRoutes } from './http/routes/auth'
+import { authRoutes, passwordResetRoutes, emailVerificationRoutes, changePasswordRoutes } from './http/routes/auth'
 import { catalogPublicRoutes, catalogAdminRoutes, categoryPublicRoutes, categoryAdminRoutes } from './http/routes/catalog'
 import { couponPublicRoutes, couponAdminRoutes, promotionPublicRoutes, promotionAdminRoutes, featuredPublicRoutes, featuredAdminRoutes } from './http/routes/pricing'
 import { orderPublicRoutes, orderAdminRoutes, customerPublicRoutes, customerAdminRoutes } from './http/routes/order'
@@ -102,6 +102,7 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.register(authRoutes, { prefix: '/api/auth' })
   app.register(passwordResetRoutes, { prefix: '/api/auth' })
   app.register(emailVerificationRoutes, { prefix: '/api/auth' })
+  app.register(changePasswordRoutes, { prefix: '/api/auth' })
 
   // ── Cobrança — planos públicos, assinatura da loja e webhook do MercadoPago ──
   app.register(billingPublicRoutes, { prefix: '/api/billing' })

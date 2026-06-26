@@ -7,9 +7,9 @@ import { requireOwner } from '../../../domain/identity/guards/role.guard'
 import { emailVerificationEmail } from '../../../shared/email/templates'
 import { registerStore, registerStaff } from '../../../domain/identity/services/auth.service'
 
-const emailSchema = z.string().email('Email inválido').max(254, 'Email muito longo')
+export const emailSchema = z.string().email('Email inválido').max(254, 'Email muito longo')
 
-const passwordSchema = z
+export const passwordSchema = z
   .string()
   .min(8, 'Senha deve ter no mínimo 8 caracteres')
   .max(72, 'Senha muito longa')
@@ -179,7 +179,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
       const user = await app.prisma.user.findUnique({
         where: { email },
-        select: { id: true, email: true, password: true, storeId: true, role: true, emailVerified: true, isSuperAdmin: true },
+        select: { id: true, email: true, password: true, storeId: true, role: true, emailVerified: true, isSuperAdmin: true, mustChangePassword: true },
       })
       if (!user) {
         // Compara contra um hash falso para o tempo de resposta não revelar se o email existe
@@ -216,6 +216,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         role: user.role,
         emailVerified: user.emailVerified,
         isSuperAdmin: user.isSuperAdmin,
+        mustChangePassword: user.mustChangePassword,
         store: { slug: store.slug, name: store.name },
       }
     }

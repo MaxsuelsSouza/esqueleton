@@ -49,4 +49,9 @@ export const authService = {
   // Redefine a senha usando o token recebido por e-mail
   resetPassword: (token: string, password: string) =>
     apiClient.post<{ message: string }>('/auth/reset-password', { token, password }),
+
+  // Altera a própria senha (autenticado)
+  // Se mustChangePassword = true, currentPassword não é necessário
+  changePassword: (data: { currentPassword?: string; newPassword: string }, token: string) =>
+    apiClient.put<{ message: string }>('/auth/change-password', data, token),
 }
