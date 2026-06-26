@@ -363,6 +363,7 @@ O error handler mascara erros internos — sempre retorna `"Erro interno do serv
 | `app.checkPlanLimit(key)` | planLimitsPlugin | preHandler |
 | `app.planLimitStatus(storeId, key)` | planLimitsPlugin | qualquer rota |
 | `app.email.send(...)` | resendPlugin | qualquer rota |
+| `app.storage` | r2Plugin | rotas que fazem upload (null em dev sem R2) |
 | `app.mercadopago` | mercadopagoPlugin | rotas de billing |
 | `app.sessionStore` | sessionPlugin | rotas de sessão |
 | `app.rateLimit(options)` | @fastify/rate-limit | preHandler por rota |
@@ -370,7 +371,7 @@ O error handler mascara erros internos — sempre retorna `"Erro interno do serv
 ## Ordem de registro em app.ts
 
 1. helmet → cors → rateLimit
-2. prismaPlugin → jwtAuthPlugin → resendPlugin
+2. prismaPlugin → jwtAuthPlugin → resendPlugin → r2Plugin
 3. storeContextPlugin → mercadopagoPlugin → planLimitsPlugin → sessionPlugin
 4. Rotas: auth → billing → webhooks → super → públicas (com resolveStore) → admin
 5. Health check → error handler

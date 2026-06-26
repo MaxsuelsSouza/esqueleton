@@ -5,6 +5,7 @@ import rateLimit from '@fastify/rate-limit'
 import { createRateLimitRedis } from './shared/cache/rate-limit-redis'
 import { prismaPlugin } from './shared/database/prisma.plugin'
 import { resendPlugin } from './shared/email/resend.plugin'
+import { r2Plugin } from './shared/storage/r2.plugin'
 import { registerErrorHandler } from './shared/errors/error-handler'
 import { jwtAuthPlugin } from './http/plugins/jwt.plugin'
 import { storeContextPlugin } from './http/plugins/store-context.plugin'
@@ -92,6 +93,7 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.register(prismaPlugin, { client: options.prisma })
   app.register(jwtAuthPlugin)
   app.register(resendPlugin)
+  app.register(r2Plugin)
   app.register(storeContextPlugin)
   // Cobrança: integração com o MercadoPago e verificação dos limites do plano
   app.register(mercadopagoPlugin)
