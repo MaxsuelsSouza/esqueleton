@@ -7,7 +7,7 @@ export function registerErrorHandler(app: FastifyInstance): void {
     if (error instanceof ZodError) {
       return reply.status(400).send({ message: 'Dados inválidos', errors: error.errors })
     }
-    console.error('[ERRO 500]', error.message, error.stack)
+    app.log.error(error)
 
     // Erros internos (500+) não devem expor detalhes do servidor ou do banco de dados
     const statusCode = error.statusCode ?? 500
