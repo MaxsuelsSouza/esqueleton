@@ -238,7 +238,7 @@ describe('validateOrderPrices', () => {
     expect(result.valid).toBe(false)
   })
 
-  it('aceita preço de kit rateado entre produtos', () => {
+  it('kit não altera o preço unitário — itens valem o preço cheio', () => {
     const p2 = { id: 'p2', price: 80, variants: [] }
     const promo = {
       id: 'pr1',
@@ -255,8 +255,22 @@ describe('validateOrderPrices', () => {
       active: true,
       priority: 0,
     }
-    // Kit de R$150 dividido por 2 produtos = R$75 cada
-    const result = validateOrderPrices(
+
+    // O desconto do kit entra no campo discount do pedido (validado à parte),
+    // nunca no preço unitário — item avulso do kit custa o preço cheio
+    const precoCheio = validateOrderPrices(
+      [
+        { productId: 'p1', unitPrice: 100, quantity: 1, lineTotal: 100 },
+        { productId: 'p2', unitPrice: 80, quantity: 1, lineTotal: 80 },
+      ],
+      [produto, p2],
+      [promo],
+    )
+    expect(precoCheio.valid).toBe(true)
+
+    // O rateio antigo (kitPrice ÷ nº de produtos) deixou de ser um preço válido —
+    // era isso que deixava um item do kit ser vendido sozinho por uma fração do preço
+    const precoRateado = validateOrderPrices(
       [
         { productId: 'p1', unitPrice: 75, quantity: 1, lineTotal: 75 },
         { productId: 'p2', unitPrice: 75, quantity: 1, lineTotal: 75 },
@@ -264,6 +278,6 @@ describe('validateOrderPrices', () => {
       [produto, p2],
       [promo],
     )
-    expect(result.valid).toBe(true)
+    expect(precoRateado.valid).toBe(false)
   })
 })
