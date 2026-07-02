@@ -2,7 +2,8 @@
 
 // Página de gestão da equipe — apenas o OWNER pode acessar
 // Lista os usuários da loja, permite convidar (criar) e remover membros
-import { Trash2, UserPlus, Shield, Users } from 'lucide-react'
+import { Trash2, UserPlus, Shield, Users, KeyRound, Copy, Check } from 'lucide-react'
+import { useState } from 'react'
 import { useUsuariosPage } from './page.hooks'
 
 export default function UsuariosPage() {
@@ -22,8 +23,13 @@ export default function UsuariosPage() {
     inviting,
     inviteError,
     deletingId,
+    generatedPassword,
+    generatedPasswordUserName,
+    resettingId,
     handleInvite,
     handleDelete,
+    handleResetPassword,
+    dismissGeneratedPassword,
   } = useUsuariosPage()
 
   if (isChecking || loading) {
@@ -100,6 +106,15 @@ export default function UsuariosPage() {
         <p className="mb-4 rounded-lg bg-red-50 px-3.5 py-2.5 text-sm text-red-500">{error}</p>
       )}
 
+      {/* Modal com a senha temporária gerada — exibida uma única vez para o OWNER copiar */}
+      {generatedPassword && (
+        <GeneratedPasswordModal
+          password={generatedPassword}
+          userName={generatedPasswordUserName ?? ''}
+          onClose={dismissGeneratedPassword}
+        />
+      )}
+
       {/* Lista de membros da equipe */}
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white">
         {users.length === 0 ? (
@@ -130,21 +145,90 @@ export default function UsuariosPage() {
                   </div>
                 </div>
 
-                {/* Botão de remover — não aparece para o OWNER (não pode remover a si mesmo) */}
+                {/* Ações — não aparecem para o OWNER (não pode remover/resetar a si mesmo) */}
                 {user.role !== 'OWNER' && (
-                  <button
-                    onClick={() => handleDelete(user.id)}
-                    disabled={deletingId === user.id}
-                    className="rounded-lg p-2 text-gray-300 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
-                    title="Remover membro"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleResetPassword(user.id)}
+                      disabled={resettingId === user.id}
+                      className="rounded-lg p-2 text-gray-300 transition-colors hover:bg-amber-50 hover:text-amber-600 disabled:opacity-50"
+                      title="Resetar senha"
+                    >
+                      <KeyRound size={16} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(user.id)}
+                      disabled={deletingId === user.id}
+                      className="rounded-lg p-2 text-gray-300 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+                      title="Remover membro"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 )}
               </li>
             ))}
           </ul>
         )}
+      </div>
+    </div>
+  )
+}
+
+// Modal que exibe a senha temporária gerada — o OWNER precisa copiar e enviar ao membro
+function GeneratedPasswordModal({
+  password,
+  userName,
+  onClose,
+}: {
+  password: string
+  userName: string
+  onClose: () => void
+}) {
+  const [copied, setCopied] = useState(false)
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(password)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Fallback — seleciona o texto para o usuário copiar manualmente
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+        <h2 className="mb-1 text-base font-semibold text-gray-900">Senha resetada</h2>
+        <p className="mb-4 text-sm text-gray-500">
+          A nova senha temporária de <strong>{userName}</strong> é:
+        </p>
+
+        {/* Campo com a senha gerada + botão de copiar */}
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+          <code className="flex-1 text-center text-lg font-mono font-semibold tracking-wider text-gray-900">
+            {password}
+          </code>
+          <button
+            onClick={handleCopy}
+            className="shrink-0 rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700"
+            title="Copiar senha"
+          >
+            {copied ? <Check size={16} className="text-green-600" /> : <Copy size={16} />}
+          </button>
+        </div>
+
+        <p className="mb-5 text-xs text-gray-400">
+          Envie esta senha ao membro. No próximo login, ele será obrigado a criar uma nova senha.
+        </p>
+
+        <button
+          onClick={onClose}
+          className="w-full rounded-xl bg-gray-900 py-2.5 text-sm font-medium text-white transition hover:bg-gray-700"
+        >
+          Entendi
+        </button>
       </div>
     </div>
   )

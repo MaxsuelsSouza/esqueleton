@@ -19,7 +19,13 @@
       "Bash(pnpm --filter @esqueleton/api lint)",
       "Bash(pnpm --filter @esqueleton/shared lint)",
       "Bash(npx tsc:*)",
-      "Bash(npx --filter:*)"
+      "Bash(npx --filter:*)",
+      "Read(//d//**)",
+      "Bash(cp /tmp/cve-matches.txt /d/esqueleton-project/cvelistV5/cve-matches.txt)",
+      "Bash(sed -i 's|/tmp/cve-matches.txt|cve-matches.txt|' extract-cve-summary.mjs)",
+      "Bash(node extract-cve-summary.mjs)",
+      "Bash(git checkout *)",
+      "Bash(pnpm -v)"
     ]
   }
 }

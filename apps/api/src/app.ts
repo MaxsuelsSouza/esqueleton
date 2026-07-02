@@ -5,6 +5,7 @@ import rateLimit from '@fastify/rate-limit'
 import { createRateLimitRedis } from './shared/cache/rate-limit-redis'
 import { prismaPlugin } from './shared/database/prisma.plugin'
 import { resendPlugin } from './shared/email/resend.plugin'
+import { r2Plugin } from './shared/storage/r2.plugin'
 import { registerErrorHandler } from './shared/errors/error-handler'
 import { jwtAuthPlugin } from './http/plugins/jwt.plugin'
 import { storeContextPlugin } from './http/plugins/store-context.plugin'
@@ -12,7 +13,7 @@ import { planLimitsPlugin } from './http/plugins/plan-limits.plugin'
 import { sessionPlugin } from './http/plugins/session.plugin'
 import { mercadopagoPlugin } from './domain/billing/integrations/mercadopago.adapter'
 import { whatsappCatalogPlugin } from './http/plugins/whatsapp-catalog.plugin'
-import { authRoutes, passwordResetRoutes, emailVerificationRoutes } from './http/routes/auth'
+import { authRoutes, passwordResetRoutes, emailVerificationRoutes, changePasswordRoutes } from './http/routes/auth'
 import { catalogPublicRoutes, catalogAdminRoutes, categoryPublicRoutes, categoryAdminRoutes } from './http/routes/catalog'
 import { couponPublicRoutes, couponAdminRoutes, promotionPublicRoutes, promotionAdminRoutes, featuredPublicRoutes, featuredAdminRoutes } from './http/routes/pricing'
 import { orderPublicRoutes, orderAdminRoutes, customerPublicRoutes, customerAdminRoutes } from './http/routes/order'
@@ -93,6 +94,7 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.register(prismaPlugin, { client: options.prisma })
   app.register(jwtAuthPlugin)
   app.register(resendPlugin)
+  app.register(r2Plugin)
   app.register(storeContextPlugin)
   // Cobrança: integração com o MercadoPago e verificação dos limites do plano
   app.register(mercadopagoPlugin)
@@ -105,6 +107,7 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.register(authRoutes, { prefix: '/api/auth' })
   app.register(passwordResetRoutes, { prefix: '/api/auth' })
   app.register(emailVerificationRoutes, { prefix: '/api/auth' })
+  app.register(changePasswordRoutes, { prefix: '/api/auth' })
 
   // ── Cobrança — planos públicos, assinatura da loja e webhook do MercadoPago ──
   app.register(billingPublicRoutes, { prefix: '/api/billing' })

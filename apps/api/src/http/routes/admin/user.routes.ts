@@ -1,4 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify'
+import crypto from 'crypto'
+import bcrypt from 'bcryptjs'
 import { requireOwner } from '../../../domain/identity/guards/role.guard'
 import { idParamSchema } from '../../../shared/validation/schemas'
 
@@ -20,6 +22,7 @@ export const userAdminRoutes: FastifyPluginAsync = async (app) => {
         name: true,
         role: true,
         emailVerified: true,
+        mustChangePassword: true,
         createdAt: true,
       },
       orderBy: { createdAt: 'asc' },
@@ -49,5 +52,35 @@ export const userAdminRoutes: FastifyPluginAsync = async (app) => {
     }
 
     return reply.status(204).send()
+  })
+
+  // Reseta a senha de um membro da equipe — gera uma senha temporária aleatória
+  // que o OWNER deve repassar ao membro. No próximo login, o membro será
+  // obrigado a trocar a senha (mustChangePassword = true).
+  app.post('/:id/reset-password', async (request, reply) => {
+    const { id } = idParamSchema.parse(request.params)
+
+    // Não permite resetar a própria senha por essa rota
+    if (id === request.user.sub) {
+      return reply.status(400).send({
+        message: 'Use a opção "Alterar senha" para trocar a sua própria senha.',
+      })
+    }
+
+    // Gera uma senha aleatória de 10 caracteres (letras e números)
+    const temporaryPassword = crypto.randomBytes(5).toString('hex')
+    const hashed = await bcrypt.hash(temporaryPassword, 10)
+
+    const { count } = await app.prisma.user.updateMany({
+      where: { id, storeId: request.user.storeId },
+      data: { password: hashed, mustChangePassword: true },
+    })
+
+    if (count === 0) {
+      return reply.status(404).send({ message: 'Usuário não encontrado' })
+    }
+
+    // Retorna a senha em texto para o OWNER repassar ao membro
+    return { temporaryPassword }
   })
 }

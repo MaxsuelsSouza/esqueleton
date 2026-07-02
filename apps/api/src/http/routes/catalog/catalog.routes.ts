@@ -6,6 +6,8 @@ import { productSchema } from '../../schemas/catalog.schema'
 import { idParamSchema } from '../../../shared/validation/schemas'
 import { listarProdutos, toProductResponse, PRODUCT_INCLUDE, type ListQuery } from '../../../domain/catalog/services/product.service'
 import { syncProductToWhatsApp, removeProductFromWhatsApp } from '../../../domain/catalog/services/whatsapp-sync.service'
+import { uploadImage, uploadImages } from '../../../shared/storage/image-upload.service'
+import { buildR2Prefix } from '../../../shared/storage/r2-key'
 
 // ── Rotas públicas — a loja vem do slug na URL ─────────────────────
 export const catalogPublicRoutes: FastifyPluginAsync = async (app) => {
@@ -86,30 +88,60 @@ export const catalogAdminRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
+    // Cria o produto primeiro (sem imagens) para ter o ID usado nas keys do R2
     const product = await app.prisma.product.create({
       data: {
         ...fields,
+        imageUrl: undefined,
+        images: [],
         storeId,
         categories: {
           create: categoryIds.map((categoryId) => ({ categoryId })),
         },
-        variants: variants.length > 0 ? {
-          create: variants.map((v) => ({
-            options: v.options,
-            price: v.price,
-            imageUrl: v.imageUrl ?? null,
-            active: v.active,
-            storeId,
-          })),
-        } : undefined,
       },
+      include: PRODUCT_INCLUDE,
+    })
+
+    // Faz upload das imagens para o R2 (ou mantém base64 em dev)
+    const imageUrl = await uploadImage(app.storage, request.log, fields.imageUrl, storeId, 'products', product.id)
+    const images = await uploadImages(app.storage, request.log, fields.images, storeId, 'products', product.id)
+
+    // Faz upload das imagens das variantes e cria as variantes
+    if (variants.length > 0) {
+      const variantsData = await Promise.all(
+        variants.map(async (v) => ({
+          productId: product.id,
+          options: v.options,
+          price: v.price,
+          imageUrl: (await uploadImage(app.storage, request.log, v.imageUrl, storeId, 'products', product.id)) ?? null,
+          active: v.active,
+          storeId,
+        })),
+      )
+      await app.prisma.productVariant.createMany({ data: variantsData })
+    }
+
+    // Atualiza o produto com as URLs das imagens
+    if (imageUrl || (images && images.length > 0)) {
+      await app.prisma.product.updateMany({
+        where: { id: product.id, storeId },
+        data: {
+          ...(imageUrl ? { imageUrl } : {}),
+          ...(images && images.length > 0 ? { images } : {}),
+        },
+      })
+    }
+
+    // Recarrega o produto completo com as URLs atualizadas
+    const updated = await app.prisma.product.findFirst({
+      where: { id: product.id, storeId },
       include: PRODUCT_INCLUDE,
     })
 
     // Sincroniza com o catálogo do WhatsApp (fire-and-forget — não bloqueia a resposta)
     syncProductToWhatsApp(app.prisma, app.whatsappCatalog, app.log, storeId, product.id).catch(() => {})
 
-    return reply.status(201).send(toProductResponse(product))
+    return reply.status(201).send(toProductResponse(updated!))
   })
 
   app.put('/:id', async (request, reply) => {
@@ -136,6 +168,14 @@ export const catalogAdminRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
+    // Faz upload das imagens para o R2 antes da transação
+    if (fields.imageUrl !== undefined) {
+      fields.imageUrl = await uploadImage(app.storage, request.log, fields.imageUrl, storeId, 'products', id)
+    }
+    if (fields.images !== undefined) {
+      fields.images = (await uploadImages(app.storage, request.log, fields.images, storeId, 'products', id)) ?? []
+    }
+
     const product = await app.prisma.$transaction(async (tx) => {
       if (categoryIds !== undefined) {
         await tx.productCategory.deleteMany({ where: { productId: id } })
@@ -148,16 +188,17 @@ export const catalogAdminRoutes: FastifyPluginAsync = async (app) => {
       if (variants !== undefined) {
         await tx.productVariant.deleteMany({ where: { productId: id, storeId } })
         if (variants.length > 0) {
-          await tx.productVariant.createMany({
-            data: variants.map((v) => ({
+          const variantsData = await Promise.all(
+            variants.map(async (v) => ({
               productId: id,
               options: v.options,
               price: v.price,
-              imageUrl: v.imageUrl ?? null,
+              imageUrl: (await uploadImage(app.storage, request.log, v.imageUrl, storeId, 'products', id)) ?? null,
               active: v.active,
               storeId,
             })),
-          })
+          )
+          await tx.productVariant.createMany({ data: variantsData })
         }
       }
 
@@ -180,9 +221,10 @@ export const catalogAdminRoutes: FastifyPluginAsync = async (app) => {
 
   app.delete('/:id', async (request, reply) => {
     const { id } = idParamSchema.parse(request.params)
+    const storeId = request.user.storeId
     // deleteMany com id + storeId: só apaga se o produto for desta loja
     const { count } = await app.prisma.product.deleteMany({
-      where: { id, storeId: request.user.storeId },
+      where: { id, storeId },
     })
     if (count === 0) {
       return reply.status(404).send({ message: 'Produto não encontrado' })
@@ -190,6 +232,14 @@ export const catalogAdminRoutes: FastifyPluginAsync = async (app) => {
 
     // Remove do catálogo do WhatsApp (fire-and-forget)
     removeProductFromWhatsApp(app.prisma, app.whatsappCatalog, app.log, request.user.storeId, id).catch(() => {})
+
+    // Remove as imagens do R2 (fire-and-forget — não bloqueia a resposta)
+    if (app.storage) {
+      const prefix = buildR2Prefix(storeId, 'products', id)
+      app.storage.deleteByPrefix(prefix).catch((err) => {
+        request.log.warn({ err, prefix }, 'Falha ao limpar imagens do R2')
+      })
+    }
 
     return reply.status(204).send()
   })

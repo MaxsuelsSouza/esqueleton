@@ -58,8 +58,22 @@ services:
     volumes:
       - postgres_data_whatsapp:/var/lib/postgresql/data
 
+  # Banco do perfil "teste" — isolado para testar features novas sem afetar os dados originais
+  postgres-teste:
+    image: postgres:16
+    profiles: ["teste"]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: esqueleton_teste
+    ports:
+      - "5436:5432"
+    volumes:
+      - postgres_data_teste:/var/lib/postgresql/data
+
 volumes:
   postgres_data:
   postgres_data_loja1:
   postgres_data_loja2:
   postgres_data_whatsapp:
+  postgres_data_teste:

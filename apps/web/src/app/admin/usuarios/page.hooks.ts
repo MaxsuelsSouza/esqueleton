@@ -27,6 +27,12 @@ export function useUsuariosPage() {
   // ID do usuário sendo removido — para desabilitar o botão enquanto aguarda
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
+  // Senha temporária gerada ao resetar — exibida uma única vez para o OWNER copiar
+  const [generatedPassword, setGeneratedPassword] = useState<string | null>(null)
+  const [generatedPasswordUserName, setGeneratedPasswordUserName] = useState<string | null>(null)
+  // ID do usuário cuja senha está sendo resetada
+  const [resettingId, setResettingId] = useState<string | null>(null)
+
   const loadUsers = useCallback(async () => {
     if (!token) return
     try {
@@ -91,6 +97,29 @@ export function useUsuariosPage() {
     }
   }
 
+  async function handleResetPassword(userId: string) {
+    if (!token) return
+    if (!confirm('Tem certeza que deseja resetar a senha deste membro? Ele precisará trocar a senha no próximo login.')) return
+
+    const user = users.find((u) => u.id === userId)
+    setResettingId(userId)
+    try {
+      const result = await usersService.resetPassword(userId, token)
+      setGeneratedPassword(result.temporaryPassword)
+      setGeneratedPasswordUserName(user?.name || user?.email || 'Membro')
+    } catch (err: unknown) {
+      const message = (err as { message?: string })?.message ?? ''
+      alert(message || 'Erro ao resetar a senha.')
+    } finally {
+      setResettingId(null)
+    }
+  }
+
+  function dismissGeneratedPassword() {
+    setGeneratedPassword(null)
+    setGeneratedPasswordUserName(null)
+  }
+
   return {
     users,
     loading,
@@ -107,7 +136,12 @@ export function useUsuariosPage() {
     inviting,
     inviteError,
     deletingId,
+    generatedPassword,
+    generatedPasswordUserName,
+    resettingId,
     handleInvite,
     handleDelete,
+    handleResetPassword,
+    dismissGeneratedPassword,
   }
 }

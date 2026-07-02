@@ -35,6 +35,7 @@ Every file must be readable by someone who is not a programmer. This applies to:
 - **Database:** PostgreSQL via Prisma
 - **Auth:** JWT via `@fastify/jwt` + bcryptjs
 - **Email:** Resend (`resend` npm) — reset de senha e verificação de e-mail. Sem `RESEND_API_KEY`, e-mails são apenas logados (no-op em dev).
+- **Image storage:** Cloudflare R2 (S3-compatible) via `@aws-sdk/client-s3`. Sem credenciais R2, imagens ficam como base64 no banco (ok em dev); em produção as 5 variáveis `R2_*` são obrigatórias.
 - **Shared types:** `packages/shared` (TypeScript source consumed directly, no build step)
 
 ## Commands
@@ -87,7 +88,7 @@ pnpm --filter @esqueleton/web test
 - `GET /api/coupons` and `GET /api/coupons/:id` require JWT (the list would expose all discount codes). The public checkout uses `GET /api/lojas/:slug/coupons/codigo/:code`, which validates server-side and returns only the fields needed to apply the discount.
 - Rate limiting via `@fastify/rate-limit`: 300 req/min global, stricter per-route limits on login (10/min), register (5/min), public POSTs (orders/customers 10/min, analytics 120/min) and coupon code lookup (20/min). Login additionally has a **per-email** limit (10 attempts / 15 min, `preHandler` via `app.rateLimit`) that blocks distributed brute force against a single account. Counters live in process memory by default; setting `REDIS_URL` moves them to a shared Redis (`common/rate-limit-redis.ts`, lazy-loads `ioredis`, `skipOnError: true` so a Redis outage never blocks requests) — required for the limits to hold on serverless.
 - Reusable input validators live in `apps/api/src/common/validation.ts` (`idSchema`, `dateSchema`, `timeSchema`, `hexColorSchema`, `httpUrlSchema`, `imageUrlSchema`, `phoneSchema`, `shortText`). Use them in every new schema — IDs, dates, colors and URLs must match the expected format before reaching Prisma.
-- Image fields (`Product.imageUrl`, `StoreProfile.logoUrl`) use `imageUrlSchema`: accepts an `http(s)://` URL **or** a `data:image/...;base64,...` upload (the admin uploader produces base64), capped at ~3 MB. It blocks `javascript:` and non-image data URIs. Fastify `bodyLimit` is raised to 5 MB so base64 images aren't rejected as 1 MB-over. Images are stored inline (no external file storage yet) — migrating to S3/Cloudinary/Vercel Blob is a known follow-up.
+- Image fields (`Product.imageUrl`, `StoreProfile.logoUrl`) use `imageUrlSchema`: accepts an `http(s)://` URL **or** a `data:image/...;base64,...` upload (the admin uploader produces base64), capped at ~3 MB. It blocks `javascript:` and non-image data URIs. Fastify `bodyLimit` is raised to 5 MB so base64 images aren't rejected as 1 MB-over. Images are uploaded to **Cloudflare R2** in production (see "Image storage (R2)" below); in dev without R2 credentials, base64 is kept inline in the database.
 - Error handler hides internals: 5xx responses always return `"Erro interno do servidor"`.
 - Public `GET /api/lojas/:slug/promotions` and `.../featured` return only `active: true` records of that store; the admin lists (`GET /api/promotions`, `GET /api/featured`) require JWT and return everything from the token's store.
 - `POST /api/lojas/:slug/orders` verifies the order arithmetic server-side (lineTotal = unitPrice × quantity, subtotal = sum, total = subtotal − discount), validates each item's `unitPrice` against the database product price (accounting for active promotions and coupons, with 1-centavo tolerance), and increments the coupon's `usedCount` scoped to the store — this is what enforces `maxUses`.
@@ -103,6 +104,27 @@ pnpm --filter @esqueleton/web test
 - `orderNumber` is generated client-side (unique-constrained; collision makes the fire-and-forget create fail silently).
 - Item `unitPrice` is validated server-side against the database product price, accounting for active promotions and coupons (1-centavo tolerance for rounding). Orders with manipulated prices are rejected with 400.
 - Rate limiting without `REDIS_URL` is in-memory: per serverless instance on Vercel. With Redis configured, login brute force (per-IP and per-email) is blocked across instances; other routes remain per-IP only.
+
+## Image storage (R2)
+
+Images (product photos, store logos) are uploaded to **Cloudflare R2** via `@aws-sdk/client-s3`. The system is designed so dev works without R2 (base64 stays inline) but production requires it.
+
+**Key schema (tenant isolation):** `{storeId}/{entityType}/{entityId}/{uuid}.{ext}` — mirrors the tenant guard pattern from the database. Functions in `shared/storage/r2-key.ts`.
+
+**Plugin:** `shared/storage/r2.plugin.ts` decorates `app.storage: StorageService | null`. Methods: `upload(key, buffer, contentType)`, `delete(key)`, `deleteByPrefix(prefix)`. Without R2 credentials in dev → `app.storage = null`; without credentials in production → throws at startup.
+
+**Upload service:** `shared/storage/image-upload.service.ts` — `uploadImage()` and `uploadImages()`. Logic: URL → pass through; base64 + storage → upload to R2 and return URL; base64 + null storage (dev only) → return base64 as-is; upload failure → throws (no silent fallback).
+
+**Route integration:** product POST/PUT and store-profile PUT call `uploadImage`/`uploadImages` before saving to the database. Product DELETE does fire-and-forget `deleteByPrefix` to clean up R2 objects.
+
+**Migration script:** `scripts/migrate-images-to-r2.mjs` — reads base64 images from the database, uploads to R2, and replaces database values with URLs. Idempotent (skips http URLs). Supports `--dry-run`.
+
+**Environment variables (all required in production):**
+- `R2_ACCOUNT_ID` — Cloudflare account ID
+- `R2_ACCESS_KEY_ID` — R2 API token access key
+- `R2_SECRET_ACCESS_KEY` — R2 API token secret
+- `R2_BUCKET_NAME` — bucket name (e.g. `esqueleton-images`)
+- `R2_PUBLIC_URL` — public URL prefix for the bucket (e.g. `https://img.esqueleton.com.br`)
 
 ## Architecture
 
@@ -120,6 +142,10 @@ apps/api/
       email/
         resend.plugin.ts         # integração com Resend — app.email.send() (no-op sem API key)
         templates.ts             # templates HTML de e-mail (reset de senha, verificação)
+      storage/
+        r2.plugin.ts             # upload de imagens para Cloudflare R2 — app.storage (null em dev sem credenciais)
+        r2-key.ts                # geração de keys com isolamento por tenant ({storeId}/{entity}/{id}/{uuid}.ext)
+        image-upload.service.ts  # uploadImage/uploadImages — R2 em prod, base64 passthrough em dev
       cache/
         rate-limit-redis.ts      # conexão Redis para rate limiting (lazy-load ioredis)
       validation/
@@ -329,7 +355,7 @@ Todos os modelos de dados (exceto `Store`, `ProductCategory`, `PasswordResetToke
 
 Copy `.env.example` to `.env` in each app before running.
 
-- `apps/api/.env` — `DATABASE_URL`, `PORT`, `CORS_ORIGIN`, `JWT_SECRET`, `RESEND_API_KEY` (opcional), `FROM_EMAIL` (opcional), `FRONTEND_URL` (opcional), `MERCADOPAGO_ACCESS_TOKEN` (opcional), `MERCADOPAGO_WEBHOOK_SECRET` (opcional), `REDIS_URL` (opcional)
+- `apps/api/.env` — `DATABASE_URL`, `PORT`, `CORS_ORIGIN`, `JWT_SECRET`, `RESEND_API_KEY` (opcional), `FROM_EMAIL` (opcional), `FRONTEND_URL` (opcional), `MERCADOPAGO_ACCESS_TOKEN` (opcional), `MERCADOPAGO_WEBHOOK_SECRET` (opcional), `REDIS_URL` (opcional), `R2_ACCOUNT_ID` + `R2_ACCESS_KEY_ID` + `R2_SECRET_ACCESS_KEY` + `R2_BUCKET_NAME` + `R2_PUBLIC_URL` (opcionais em dev, obrigatórios em produção)
 - `apps/web/.env.local` — `NEXT_PUBLIC_API_URL`
 
 ### Database profiles (multiple local databases)

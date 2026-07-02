@@ -47,6 +47,8 @@ model User {
   role          String   @default("STAFF")
   // true = e-mail verificado | false = pendente de verificação
   emailVerified Boolean  @default(false)
+  // true = senha temporária, o usuário deve trocar no próximo login
+  mustChangePassword Boolean @default(false)
   // Administrador da plataforma (gestão de lojas e planos) — definido manualmente
   // no banco, não existe tela para criar super-admins
   isSuperAdmin  Boolean  @default(false)

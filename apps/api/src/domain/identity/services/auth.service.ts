@@ -49,10 +49,11 @@ type RegisterStaffParams = {
 }
 
 // Cria um novo membro da equipe (STAFF) em uma loja existente
+// A senha informada é temporária — o membro deve trocá-la no primeiro login
 export async function registerStaff(
   prisma: PrismaClient,
   params: RegisterStaffParams,
-): Promise<{ id: string; email: string; name: string | null; role: string; storeId: string; createdAt: Date }> {
+): Promise<{ id: string; email: string; name: string | null; role: string; mustChangePassword: boolean; storeId: string; createdAt: Date }> {
   return prisma.user.create({
     data: {
       email: params.email,
@@ -60,7 +61,8 @@ export async function registerStaff(
       storeId: params.storeId,
       role: 'STAFF',
       name: params.name,
+      mustChangePassword: true,
     },
-    select: { id: true, email: true, name: true, role: true, storeId: true, createdAt: true },
+    select: { id: true, email: true, name: true, role: true, mustChangePassword: true, storeId: true, createdAt: true },
   })
 }

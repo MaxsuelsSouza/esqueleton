@@ -90,6 +90,13 @@ export function useLoginPage() {
       // Faz login (após o cadastro, entra automaticamente)
       const loginResponse = await authService.login({ email, password })
       saveSession(loginResponse)
+
+      // Senha temporária — redireciona para trocar antes de usar o painel
+      if (loginResponse.mustChangePassword) {
+        router.replace('/admin/alterar-senha')
+        return
+      }
+
       router.replace('/admin/produtos')
     } catch (err: unknown) {
       if (mode === 'register') {

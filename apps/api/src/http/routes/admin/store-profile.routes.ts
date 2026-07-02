@@ -5,6 +5,7 @@ import type { FastifyPluginAsync } from 'fastify'
 import { storeProfileSchema } from '../../schemas/store-profile.schema'
 import { requireOwner } from '../../../domain/identity/guards/role.guard'
 import type { WhatsAppCatalogItem } from '@esqueleton/shared'
+import { uploadImage } from '../../../shared/storage/image-upload.service'
 
 // Valores padrão exibidos enquanto a loja ainda não configurou o perfil
 const PERFIL_PADRAO = {
@@ -96,6 +97,12 @@ export const storeProfileAdminRoutes: FastifyPluginAsync = async (app) => {
   app.put('/', { preHandler: [requireOwner] }, async (request) => {
     const storeId = request.user.storeId
     const data = storeProfileSchema.partial().parse(request.body)
+
+    // Faz upload do logo para o R2 se for base64
+    if (data.logoUrl !== undefined) {
+      data.logoUrl = await uploadImage(app.storage, request.log, data.logoUrl, storeId, 'stores', storeId)
+    }
+
     return app.prisma.storeProfile.upsert({
       where: { storeId },
       create: { storeId, ...data },

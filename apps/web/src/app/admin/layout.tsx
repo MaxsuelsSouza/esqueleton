@@ -39,7 +39,7 @@ const SUPER_LINKS = [
 ]
 
 // Páginas que não exibem a barra lateral nem verificam autenticação
-const PUBLIC_PAGES = ['/admin/login', '/admin/esqueci-senha', '/admin/redefinir-senha', '/admin/verificar-email']
+const PUBLIC_PAGES = ['/admin/login', '/admin/esqueci-senha', '/admin/redefinir-senha', '/admin/verificar-email', '/admin/alterar-senha']
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
