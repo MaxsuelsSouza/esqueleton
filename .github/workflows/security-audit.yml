@@ -1,0 +1,41 @@
+# Auditoria de segurança das dependências.
+# Roda o `pnpm audit` e FALHA o build se houver vulnerabilidade de severidade
+# ALTA ou CRÍTICA — assim uma dependência vulnerável não passa despercebida.
+# Complementa o Dependabot (.github/dependabot.yml), que abre PRs de atualização.
+name: Auditoria de segurança
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Roda também toda segunda-feira de manhã, pegando CVEs publicados durante a semana
+  schedule:
+    - cron: '0 6 * * 1'
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      # Instala sem rodar scripts de build (postinstall) — a auditoria não precisa
+      # do Prisma Client gerado, e assim o job fica mais rápido e previsível
+      - name: Instalar dependências
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      # Falha o build em severidade ALTA ou superior. Vulnerabilidades MÉDIAS/BAIXAS
+      # aparecem no log mas não bloqueiam — evita travar por ruído de baixo risco.
+      - name: Auditar dependências (falha em ALTA/CRÍTICA)
+        run: pnpm audit --audit-level high

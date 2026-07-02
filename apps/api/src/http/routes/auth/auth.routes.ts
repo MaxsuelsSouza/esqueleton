@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { shortText, slugSchema, phoneSchema } from '../../../shared/validation/schemas'
 import { requireOwner } from '../../../domain/identity/guards/role.guard'
 import { emailVerificationEmail } from '../../../shared/email/templates'
+import { resolveClientKey } from '../../../shared/security/client-ip'
 import { registerStore, registerStaff } from '../../../domain/identity/services/auth.service'
 
 export const emailSchema = z.string().email('Email inválido').max(254, 'Email muito longo')
@@ -161,8 +162,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
           const body = request.body as { email?: unknown } | null
           const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
           // Sem email no corpo a validação rejeita a requisição de qualquer
-          // forma — o IP serve apenas como chave reserva para o contador
-          return email ? `email:${email}` : request.ip
+          // forma — o IP (resistente a spoofing) serve apenas como chave reserva
+          return email ? `email:${email}` : resolveClientKey(request)
         },
         // Registra no log quando uma conta passa do limite — ajuda a perceber ataques
         onExceeded: (request, key) => {

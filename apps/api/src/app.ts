@@ -3,6 +3,7 @@ import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
 import { createRateLimitRedis } from './shared/cache/rate-limit-redis'
+import { resolveClientKey } from './shared/security/client-ip'
 import { prismaPlugin } from './shared/database/prisma.plugin'
 import { resendPlugin } from './shared/email/resend.plugin'
 import { r2Plugin } from './shared/storage/r2.plugin'
@@ -77,6 +78,10 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.register(rateLimit, {
     max: 300,
     timeWindow: '1 minute',
+    // Identifica o cliente por cabeçalhos que a plataforma define (não forjáveis)
+    // em vez do x-forwarded-for padrão, que poderia ser falsificado para furar o
+    // limite acessando a origem direto — veja shared/security/client-ip.ts
+    keyGenerator: resolveClientKey,
     ...(rateLimitRedis
       ? {
           redis: rateLimitRedis,
