@@ -35,6 +35,7 @@ export default function SacolaPage() {
     couponInput,
     setCouponInput,
     couponError,
+    couponMinimumNotMet,
     applyCoupon,
     removeCoupon,
     customer,
@@ -248,21 +249,28 @@ export default function SacolaPage() {
           <p className="mb-3 text-sm font-semibold text-gray-700">Cupom de desconto</p>
 
           {appliedCoupon ? (
-            <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-2.5">
-              <Tag size={15} className="shrink-0 text-green-600" />
-              <div className="flex-1 min-w-0">
-                <span className="font-mono text-sm font-semibold text-green-700">{appliedCoupon.code}</span>
-                {appliedCoupon.description && (
-                  <span className="ml-2 text-xs text-green-600">{appliedCoupon.description}</span>
-                )}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-2.5">
+                <Tag size={15} className="shrink-0 text-green-600" />
+                <div className="flex-1 min-w-0">
+                  <span className="font-mono text-sm font-semibold text-green-700">{appliedCoupon.code}</span>
+                  {appliedCoupon.description && (
+                    <span className="ml-2 text-xs text-green-600">{appliedCoupon.description}</span>
+                  )}
+                </div>
+                <button
+                  onClick={removeCoupon}
+                  className="shrink-0 text-green-500 hover:text-green-700"
+                  aria-label="Remover cupom"
+                >
+                  <X size={15} />
+                </button>
               </div>
-              <button
-                onClick={removeCoupon}
-                className="shrink-0 text-green-500 hover:text-green-700"
-                aria-label="Remover cupom"
-              >
-                <X size={15} />
-              </button>
+              {couponMinimumNotMet && appliedCoupon.minimumOrderValue != null && (
+                <p className="text-xs text-amber-600">
+                  Este cupom vale para pedidos a partir de {formatCurrency(appliedCoupon.minimumOrderValue)} — adicione mais produtos para ativar o desconto.
+                </p>
+              )}
             </div>
           ) : (
             <div className="flex flex-col gap-1.5">

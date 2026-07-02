@@ -1,5 +1,6 @@
 // Funções para validar e aplicar cupons de desconto no catálogo
 import type { Coupon, Product } from '@esqueleton/shared'
+import { getStoreDateTime } from '@/shared/utils/store-time'
 
 // Motivos pelos quais um cupom pode ser inválido
 export type CouponError =
@@ -19,7 +20,8 @@ export function validateCoupon(code: string, coupons: Coupon[]): CouponValidatio
   if (!coupon) return { valid: false, error: 'not_found' }
   if (!coupon.active) return { valid: false, error: 'inactive' }
 
-  const today = new Date().toISOString().split('T')[0]
+  // Data no fuso da loja — o mesmo cálculo usado pela API
+  const { date: today } = getStoreDateTime()
   if (coupon.startDate && today < coupon.startDate) return { valid: false, error: 'inactive' }
   if (coupon.endDate && today > coupon.endDate) return { valid: false, error: 'expired' }
   if (coupon.maxUses != null && coupon.usedCount >= coupon.maxUses) {

@@ -10,6 +10,7 @@ import { getMockFeatured, setMockFeatured } from '@/modules/featured/mocks/featu
 import { getMockProducts } from '@/modules/catalog/mocks/products-store'
 import type { Featured, Product, ProductOption } from '@esqueleton/shared'
 import { buildDiff } from '@/shared/utils/diff'
+import { getStoreDateTime } from '@/shared/utils/store-time'
 
 const USE_MOCK_DATA = false
 
@@ -119,14 +120,16 @@ export function useDestaquesPage() {
     setIsSaving(true)
     setFormError(null)
 
+    // Campos opcionais vazios vão como null — é o que faz a API LIMPAR o valor
+    // no banco (undefined seria descartado do JSON e o valor antigo voltaria)
     const payload = {
       ...form,
       title: form.title.trim(),
       tag: form.tag.trim() || 'Destaque',
-      startTime: hasTimeWindow ? form.startTime : undefined,
-      endTime: hasTimeWindow ? form.endTime : undefined,
-      startDate: hasDateRange ? form.startDate : undefined,
-      endDate: hasDateRange ? form.endDate : undefined,
+      startTime: hasTimeWindow ? form.startTime ?? null : null,
+      endTime: hasTimeWindow ? form.endTime ?? null : null,
+      startDate: hasDateRange ? form.startDate ?? null : null,
+      endDate: hasDateRange ? form.endDate ?? null : null,
     }
 
     if (USE_MOCK_DATA) {
@@ -158,8 +161,9 @@ export function useDestaquesPage() {
       }
       setModalOpen(false)
       loadData()
-    } catch {
-      setFormError('Erro ao salvar. Tente novamente.')
+    } catch (err: unknown) {
+      // Mostra a mensagem real da API quando existir
+      setFormError((err as Error)?.message || 'Erro ao salvar. Tente novamente.')
     } finally {
       setIsSaving(false)
     }
@@ -185,6 +189,10 @@ export function useDestaquesPage() {
       await featuredService.deleteFeatured(deletingSection.id, token)
       setDeletingSection(null)
       loadData()
+    } catch {
+      // Mantém o modal aberto e avisa — fechar sem mensagem faria o lojista
+      // acreditar que o destaque foi excluído
+      alert('Não foi possível excluir o destaque. Tente novamente.')
     } finally {
       setIsDeleting(false)
     }
@@ -205,8 +213,12 @@ export function useDestaquesPage() {
     }
 
     const token = localStorage.getItem('admin_token') ?? ''
-    await featuredService.updateFeatured(id, { active: !section.active }, token)
-    loadData()
+    try {
+      await featuredService.updateFeatured(id, { active: !section.active }, token)
+      loadData()
+    } catch {
+      alert('Não foi possível alterar o status do destaque. Tente novamente.')
+    }
   }
 
   function toggleProduct(id: string) {
@@ -252,9 +264,8 @@ export function useDestaquesPage() {
 
 // Verifica se a seção está dentro da janela de horário e período definidos
 function isWithinSchedule(section: Featured): boolean {
-  const now = new Date()
-  const today = now.toISOString().split('T')[0]
-  const currentTime = now.toTimeString().slice(0, 5)
+  // Data e hora no fuso da loja — mesmo cálculo do catálogo e da API
+  const { date: today, time: currentTime } = getStoreDateTime()
 
   if (section.startDate && today < section.startDate) return false
   if (section.endDate && today > section.endDate) return false
@@ -268,9 +279,8 @@ function isWithinSchedule(section: Featured): boolean {
 export function computeStatus(section: Featured): string {
   if (!section.active) return 'Inativo'
 
-  const now = new Date()
-  const today = now.toISOString().split('T')[0]
-  const currentTime = now.toTimeString().slice(0, 5)
+  // Data e hora no fuso da loja — mesmo cálculo do catálogo e da API
+  const { date: today, time: currentTime } = getStoreDateTime()
 
   if (section.startDate && today < section.startDate) return 'Agendado'
   if (section.endDate && today > section.endDate) return 'Encerrado'

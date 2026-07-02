@@ -1,5 +1,7 @@
 // Validação de pedidos — confere totais e preços contra o banco de dados
 
+import { getStoreDateTime } from '../../../shared/datetime/store-time'
+
 type OrderItem = {
   productId: string
   lineTotal: number
@@ -45,6 +47,7 @@ type CouponRecord = {
   discountType: string
   discountPercent?: number | null
   discountValue?: number | null
+  minimumOrderValue?: number | null
   productIds: string[]
 }
 
@@ -54,9 +57,9 @@ type CouponRecord = {
 function isPromotionActive(promo: PromotionRecord): boolean {
   if (!promo.active) return false
 
-  const now = new Date()
-  const today = now.toISOString().split('T')[0]
-  const currentTime = now.toTimeString().slice(0, 5)
+  // Data e hora no fuso da loja — o mesmo cálculo usado pelo site,
+  // para a promoção nunca "virar o dia" em horário diferente nos dois lados
+  const { date: today, time: currentTime } = getStoreDateTime()
 
   if (promo.startDate && today < promo.startDate) return false
   if (promo.endDate && today > promo.endDate) return false
@@ -91,11 +94,9 @@ function computePromotedPrice(basePrice: number, promotion: PromotionRecord): nu
       if (!promotion.discountValue) return basePrice
       return Math.max(0, Math.round((basePrice - promotion.discountValue) * 100) / 100)
     }
-    case 'kit': {
-      if (!promotion.kitPrice || promotion.productIds.length === 0) return basePrice
-      return Math.round((promotion.kitPrice / promotion.productIds.length) * 100) / 100
-    }
-    // buy_x_get_y e custom não alteram o preço unitário
+    // kit, buy_x_get_y e custom não alteram o preço unitário do item avulso —
+    // o desconto do kit só vale quando TODOS os produtos estão no pedido e é
+    // validado à parte em computeExpectedSpecialDiscount
     default:
       return basePrice
   }
@@ -126,6 +127,10 @@ export function validateOrderPrices(
 ): { valid: boolean; message?: string } {
   const productMap = new Map(products.map((p) => [p.id, p]))
 
+  // Soma do pedido ANTES do cupom (com promoções já aplicadas) — usada para
+  // conferir o valor mínimo do cupom com a mesma régua que o site usa
+  let subtotalBeforeCoupon = 0
+
   for (const item of items) {
     const product = productMap.get(item.productId)
 
@@ -147,12 +152,9 @@ export function validateOrderPrices(
     let matched = false
 
     for (const basePrice of validBasePrices) {
-      let expectedPrice = basePrice
-
-      // Aplica promoção se houver
-      if (promo) {
-        expectedPrice = computePromotedPrice(basePrice, promo)
-      }
+      // Preço com promoção, ainda sem o cupom
+      const promotedPrice = promo ? computePromotedPrice(basePrice, promo) : basePrice
+      let expectedPrice = promotedPrice
 
       // Aplica cupom se houver e se o produto está na lista elegível
       if (coupon) {
@@ -166,6 +168,7 @@ export function validateOrderPrices(
       // Tolerância de 1 centavo para arredondamentos
       if (Math.abs(expectedPrice - item.unitPrice) <= 0.01) {
         matched = true
+        subtotalBeforeCoupon += promotedPrice * item.quantity
         break
       }
     }
@@ -173,6 +176,11 @@ export function validateOrderPrices(
     if (!matched) {
       return { valid: false, message: 'O preço de um ou mais produtos mudou. Atualize sua sacola.' }
     }
+  }
+
+  // Valor mínimo do pedido para usar o cupom — medido antes do desconto do cupom
+  if (coupon?.minimumOrderValue != null && subtotalBeforeCoupon < coupon.minimumOrderValue - 0.01) {
+    return { valid: false, message: 'O pedido não atinge o valor mínimo para usar este cupom.' }
   }
 
   return { valid: true }
@@ -191,13 +199,15 @@ export function computeExpectedSpecialDiscount(
   for (const promo of promotions) {
     if (!isPromotionActive(promo)) continue
 
-    if (promo.type === 'buy_x_get_y' && promo.productIds.length > 0) {
+    if (promo.type === 'buy_x_get_y') {
       const buyQty = promo.buyQuantity
       const getQty = promo.getQuantity
       if (!buyQty || !getQty || getQty <= buyQty) continue
 
-      // Conta unidades elegíveis no pedido
-      const eligibleItems = items.filter((i) => promo.productIds.includes(i.productId))
+      // Conta unidades elegíveis no pedido — lista vazia = vale para todos os produtos
+      const eligibleItems = promo.productIds.length > 0
+        ? items.filter((i) => promo.productIds.includes(i.productId))
+        : items
       const totalQty = eligibleItems.reduce((sum, i) => sum + i.quantity, 0)
 
       if (totalQty >= getQty) {
@@ -213,6 +223,21 @@ export function computeExpectedSpecialDiscount(
         const freeTotal = timesApplied * freeQty
         const discount = allUnits.slice(0, freeTotal).reduce((sum, p) => sum + p, 0)
         extraDiscount += discount
+      }
+    }
+
+    // Kit: quando TODOS os produtos do kit estão no pedido, o desconto é a
+    // diferença entre a soma dos preços individuais e o preço fechado do kit
+    if (promo.type === 'kit' && promo.kitPrice && promo.productIds.length > 0) {
+      const hasAll = promo.productIds.every((pid) =>
+        items.some((i) => i.productId === pid && i.quantity > 0),
+      )
+      if (hasAll) {
+        const individualTotal = promo.productIds.reduce((sum, pid) => {
+          const item = items.find((i) => i.productId === pid)
+          return sum + (item ? item.unitPrice : 0)
+        }, 0)
+        extraDiscount += Math.max(0, individualTotal - promo.kitPrice)
       }
     }
   }

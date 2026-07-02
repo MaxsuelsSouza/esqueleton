@@ -28,6 +28,7 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
     description: null,
     price: 100,
     imageUrl: null,
+    isAvailable: true,
     createdAt: '2026-01-01',
     updatedAt: '2026-01-01',
     ...overrides,

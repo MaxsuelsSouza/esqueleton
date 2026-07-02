@@ -418,7 +418,7 @@ function PromotionProductsSection({
 
   // Texto descritivo baseado no tipo da promoção
   let heading = promotion.name
-  let subtitle: string | undefined = promotion.description
+  let subtitle: string | undefined = promotion.description ?? undefined
 
   if (!subtitle) {
     switch (promotion.type) {

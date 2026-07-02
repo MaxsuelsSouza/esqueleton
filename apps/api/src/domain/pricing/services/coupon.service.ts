@@ -1,5 +1,7 @@
 // Validação de cupom — verifica se o cupom pode ser usado (ativo, dentro das datas, dentro do limite de usos)
 
+import { getStoreDateTime } from '../../../shared/datetime/store-time'
+
 type CouponRecord = {
   active: boolean
   startDate?: string | null
@@ -13,7 +15,8 @@ export function isCouponUsable(coupon: CouponRecord): { valid: boolean; reason?:
     return { valid: false, reason: 'Este cupom não está disponível.' }
   }
 
-  const today = new Date().toISOString().slice(0, 10)
+  // Data no fuso da loja — o mesmo cálculo usado pelo site
+  const { date: today } = getStoreDateTime()
 
   if (coupon.startDate && coupon.startDate > today) {
     return { valid: false, reason: 'Este cupom não está disponível.' }

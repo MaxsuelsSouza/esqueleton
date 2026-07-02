@@ -9,6 +9,7 @@ import { getMockCoupons, setMockCoupons } from '@/modules/coupons/mocks/coupons-
 import { buildCategoryTree, flattenCategories, expandSelectedCategories } from '@/modules/categories/utils/categories'
 import type { Coupon, ProductOption, Category } from '@esqueleton/shared'
 import { buildDiff } from '@/shared/utils/diff'
+import { getStoreDateTime } from '@/shared/utils/store-time'
 
 const USE_MOCK_DATA = false
 
@@ -143,13 +144,20 @@ export function useCuponsPage() {
         .map((p) => p.id)
     }
 
+    // Campos opcionais vazios vão como null — é o que faz a API LIMPAR o valor
+    // no banco (undefined seria descartado do JSON e o valor antigo voltaria)
     const payload = {
       ...form,
       code,
+      description: form.description?.trim() || null,
+      discountPercent: form.discountPercent ?? null,
+      discountValue: form.discountValue ?? null,
+      minimumOrderValue: form.minimumOrderValue ?? null,
+      maxUsesPerUser: form.maxUsesPerUser ?? null,
       productIds: resolvedProductIds,
-      maxUses: hasMaxUses ? form.maxUses : undefined,
-      startDate: hasDateRange ? form.startDate : undefined,
-      endDate: hasDateRange ? form.endDate : undefined,
+      maxUses: hasMaxUses ? form.maxUses ?? null : null,
+      startDate: hasDateRange ? form.startDate ?? null : null,
+      endDate: hasDateRange ? form.endDate ?? null : null,
     }
 
     if (USE_MOCK_DATA) {
@@ -203,6 +211,10 @@ export function useCuponsPage() {
       await couponsService.deleteCoupon(deletingCoupon.id, token)
       setDeletingCoupon(null)
       loadCoupons()
+    } catch {
+      // Mantém o modal aberto e avisa — fechar sem mensagem faria o lojista
+      // acreditar que o cupom foi excluído
+      alert('Não foi possível excluir o cupom. Tente novamente.')
     } finally {
       setIsDeleting(false)
     }
@@ -222,8 +234,12 @@ export function useCuponsPage() {
     }
 
     const token = localStorage.getItem('admin_token') ?? ''
-    await couponsService.updateCoupon(id, { active: !coupon.active }, token)
-    loadCoupons()
+    try {
+      await couponsService.updateCoupon(id, { active: !coupon.active }, token)
+      loadCoupons()
+    } catch {
+      alert('Não foi possível alterar o status do cupom. Tente novamente.')
+    }
   }
 
   return {
@@ -260,7 +276,8 @@ export function useCuponsPage() {
 
 export function computeStatus(coupon: Coupon): string {
   if (!coupon.active) return 'Inativo'
-  const today = new Date().toISOString().split('T')[0]
+  // Data no fuso da loja — mesmo cálculo do catálogo e da API
+  const { date: today } = getStoreDateTime()
   if (coupon.startDate && today < coupon.startDate) return 'Agendado'
   if (coupon.endDate && today > coupon.endDate) return 'Encerrado'
   return 'Ativo'

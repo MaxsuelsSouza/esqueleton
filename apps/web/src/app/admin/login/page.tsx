@@ -3,9 +3,19 @@
 // Tela de login da área administrativa
 // Também permite criar uma loja nova ("Criar minha loja") com nome, endereço, e-mail e senha
 import Link from 'next/link'
+import { Suspense } from 'react'
 import { useLoginPage } from './page.hooks'
 
+// Suspense necessário porque useSearchParams() (aviso de sessão expirada) precisa de um boundary
 export default function AdminLoginPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-white" />}>
+      <LoginPageContent />
+    </Suspense>
+  )
+}
+
+function LoginPageContent() {
   const {
     mode,
     email,

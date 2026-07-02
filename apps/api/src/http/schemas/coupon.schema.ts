@@ -10,18 +10,20 @@ export const couponSchema = z.object({
     .max(50, 'Código muito longo')
     .regex(/^[A-Za-z0-9_-]+$/, 'Código pode ter apenas letras, números, hífen e underline')
     .toUpperCase(),
-  description: shortText(500).optional(),
+  // Campos opcionais aceitam null (ou "") para LIMPAR o valor no banco.
+  // undefined (campo ausente) significa "não alterar" nos updates parciais.
+  description: shortText(500).nullish().transform(v => v === '' ? null : v),
   discountType: z.enum(['percentage', 'fixed'], {
     errorMap: () => ({ message: 'Tipo de desconto inválido' }),
   }),
-  discountPercent: z.number().positive('Desconto percentual deve ser maior que zero').max(100, 'Desconto não pode passar de 100%').nullish().transform(v => v ?? undefined),
-  discountValue: z.number().positive('Valor de desconto deve ser maior que zero').max(99999999, 'Valor muito alto').nullish().transform(v => v ?? undefined),
-  minimumOrderValue: z.number().nonnegative('Valor mínimo do pedido não pode ser negativo').max(99999999, 'Valor muito alto').nullish().transform(v => v ?? undefined),
-  maxUses: z.number().int().positive('Limite de usos deve ser maior que zero').max(1000000, 'Limite muito alto').nullish().transform(v => v ?? undefined),
-  maxUsesPerUser: z.number().int().positive('Limite por usuário deve ser maior que zero').max(1000000, 'Limite muito alto').nullish().transform(v => v ?? undefined),
+  discountPercent: z.number().positive('Desconto percentual deve ser maior que zero').max(100, 'Desconto não pode passar de 100%').nullish(),
+  discountValue: z.number().positive('Valor de desconto deve ser maior que zero').max(99999999, 'Valor muito alto').nullish(),
+  minimumOrderValue: z.number().nonnegative('Valor mínimo do pedido não pode ser negativo').max(99999999, 'Valor muito alto').nullish(),
+  maxUses: z.number().int().positive('Limite de usos deve ser maior que zero').max(1000000, 'Limite muito alto').nullish(),
+  maxUsesPerUser: z.number().int().positive('Limite por usuário deve ser maior que zero').max(1000000, 'Limite muito alto').nullish(),
   productIds: idListSchema.default([]),
-  startDate: dateSchema.optional(),
-  endDate: dateSchema.optional(),
+  startDate: dateSchema.or(z.literal('')).nullish().transform(v => v === '' ? null : v),
+  endDate: dateSchema.or(z.literal('')).nullish().transform(v => v === '' ? null : v),
   active: z.boolean().default(true),
 })
 

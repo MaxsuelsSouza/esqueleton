@@ -6,5 +6,5 @@ import { useStoreProfile } from '@/modules/store-profile/contexts/store-profile-
 
 export function HeaderWithProfile() {
   const { profile } = useStoreProfile()
-  return <Header storeName={profile.storeName} logoUrl={profile.logoUrl} />
+  return <Header storeName={profile.storeName} logoUrl={profile.logoUrl ?? undefined} />
 }
