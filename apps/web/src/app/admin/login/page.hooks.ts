@@ -39,6 +39,8 @@ export function useLoginPage() {
   const [storeName, setStoreName] = useState('')
   const [storeSlug, setStoreSlug] = useState('')
   const [whatsapp, setWhatsapp] = useState('')
+  // LGPD: aceite dos Termos de Uso e da Política de Privacidade no cadastro
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
   // Marca se o usuário editou o endereço manualmente — aí paramos de sugerir automaticamente
   const [slugEditedManually, setSlugEditedManually] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -92,6 +94,10 @@ export function useLoginPage() {
           setError('Informe o WhatsApp para receber pedidos.')
           return
         }
+        if (!acceptedTerms) {
+          setError('Para criar a loja é preciso aceitar os Termos de Uso e a Política de Privacidade.')
+          return
+        }
         // Cria a loja nova com o primeiro usuário
         await authService.registerStore({
           email,
@@ -99,6 +105,7 @@ export function useLoginPage() {
           storeName: storeName.trim(),
           storeSlug: storeSlug.trim(),
           whatsapp: whatsapp.trim().replace(/\D/g, ''),
+          acceptedTerms,
         })
       }
 
@@ -150,6 +157,8 @@ export function useLoginPage() {
     storeSlug,
     whatsapp,
     setWhatsapp,
+    acceptedTerms,
+    setAcceptedTerms,
     error,
     isLoading,
     handleStoreNameChange,

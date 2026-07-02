@@ -52,6 +52,10 @@ model User {
   // Administrador da plataforma (gestão de lojas e planos) — definido manualmente
   // no banco, não existe tela para criar super-admins
   isSuperAdmin  Boolean  @default(false)
+  // Registro do aceite dos Termos de Uso e Política de Privacidade (LGPD) —
+  // preenchido no cadastro público da loja; membros convidados não passam pelo aceite
+  acceptedTermsAt      DateTime?
+  acceptedTermsVersion String?
   storeId       String
   store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   createdAt     DateTime @default(now())

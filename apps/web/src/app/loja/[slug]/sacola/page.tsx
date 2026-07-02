@@ -458,6 +458,20 @@ export default function SacolaPage() {
                 />
               </div>
 
+              {/* Aviso de privacidade (LGPD) — informa o uso dos dados na coleta */}
+              <p className="text-[11px] leading-relaxed text-gray-400">
+                Seu nome e telefone serão usados pela loja apenas para atender este pedido.
+                A mensagem com os dados do pedido é entregue pelo WhatsApp (Meta).{' '}
+                <a
+                  href="/privacidade"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-gray-600"
+                >
+                  Política de Privacidade
+                </a>
+              </p>
+
               {identError && (
                 <p className="rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-600">{identError}</p>
               )}

@@ -414,7 +414,15 @@ export default function HomePage() {
       {/* Rodapé                                                             */}
       {/* ----------------------------------------------------------------- */}
       <footer className="border-t border-gray-100 px-6 py-8 text-center text-xs text-gray-400">
-        <p>© {new Date().getFullYear()} Esqueleton. Todos os direitos reservados.</p>
+        <div className="flex items-center justify-center gap-4">
+          <Link href="/privacidade" className="transition-colors hover:text-gray-600">
+            Política de Privacidade
+          </Link>
+          <Link href="/termos" className="transition-colors hover:text-gray-600">
+            Termos de Uso
+          </Link>
+        </div>
+        <p className="mt-3">© {new Date().getFullYear()} Esqueleton. Todos os direitos reservados.</p>
       </footer>
     </div>
   )

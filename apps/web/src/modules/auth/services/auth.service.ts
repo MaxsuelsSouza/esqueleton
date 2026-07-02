@@ -15,6 +15,8 @@ interface RegisterStoreInput {
   storeName: string
   storeSlug: string
   whatsapp: string
+  // LGPD: aceite obrigatório dos Termos de Uso e da Política de Privacidade
+  acceptedTerms: boolean
 }
 
 // Resposta do cadastro de loja nova — inclui o slug e o nome da loja criada

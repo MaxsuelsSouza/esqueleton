@@ -22,6 +22,11 @@ const registerStoreSchema = z.object({
   storeName: shortText(80, 'Nome da loja é obrigatório'),
   storeSlug: slugSchema,
   whatsapp: phoneSchema.describe('WhatsApp é obrigatório para receber pedidos'),
+  // LGPD: o aceite dos Termos de Uso e da Política de Privacidade é obrigatório
+  // no cadastro — a data e a versão aceitas ficam gravadas no usuário
+  acceptedTerms: z
+    .boolean({ invalid_type_error: 'É preciso aceitar os Termos de Uso e a Política de Privacidade' })
+    .refine((value) => value === true, 'É preciso aceitar os Termos de Uso e a Política de Privacidade'),
 })
 
 // Cadastro de mais um usuário em uma loja que já existe (feito por um admin autenticado)
@@ -92,6 +97,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
       // ── Modo 1: cadastro público — cria a loja e o primeiro usuário ──
       const { email, password, storeName, storeSlug, whatsapp } = registerStoreSchema.parse(request.body)
+      // O schema garante que acceptedTerms veio como true — daqui em diante só gravamos o registro
 
       const [existingUser, existingStore] = await Promise.all([
         app.prisma.user.findUnique({ where: { email } }),
