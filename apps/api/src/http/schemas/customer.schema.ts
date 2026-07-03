@@ -9,3 +9,11 @@ export const upsertCustomerSchema = z.object({
   // Aceita apenas dígitos, espaços, parênteses, "+" e "-" — bloqueia textos arbitrários no campo de telefone
   phone: phoneSchema,
 })
+
+// Correção de cadastro pelo painel (art. 18, III da LGPD) — todos os campos são opcionais
+export const updateCustomerSchema = upsertCustomerSchema.partial()
+
+// Opções da exclusão de cliente — anonimizar também os pedidos do telefone dele
+export const deleteCustomerQuerySchema = z.object({
+  anonimizarPedidos: z.enum(['true', 'false']).optional(),
+})

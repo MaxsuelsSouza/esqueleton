@@ -81,9 +81,11 @@ export const apiClient = {
       },
     }),
 
-  delete: <T>(path: string, token?: string) =>
+  // body é opcional — usado quando a exclusão exige confirmação (ex: senha)
+  delete: <T>(path: string, token?: string, body?: unknown) =>
     request<T>(path, {
       method: 'DELETE',
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
