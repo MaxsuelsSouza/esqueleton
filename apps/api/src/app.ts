@@ -24,6 +24,7 @@ import { notificationRoutes } from './http/routes/notification'
 import { userAdminRoutes, storeProfilePublicRoutes, storeProfileAdminRoutes, storeAdminRoutes } from './http/routes/admin'
 import { superStoresRoutes, superPlansRoutes, superUsersRoutes, superMetricsRoutes } from './http/routes/super'
 import { sessionPublicRoutes } from './http/routes/session'
+import { dataRetentionJobRoutes } from './http/routes/jobs'
 
 // Nos testes é possível injetar um banco de dados falso — veja prisma.plugin.ts
 type BuildAppOptions = {
@@ -159,6 +160,9 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.register(userAdminRoutes, { prefix: '/api/users' })
   // Conta/loja (LGPD): exportação de dados e exclusão definitiva — OWNER only
   app.register(storeAdminRoutes, { prefix: '/api/store' })
+
+  // Job agendado (Vercel Cron) — limpeza de retenção de dados (LGPD)
+  app.register(dataRetentionJobRoutes, { prefix: '/api/jobs' })
 
   app.get('/api/health', async () => ({ status: 'ok' }))
 
