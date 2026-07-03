@@ -44,6 +44,11 @@ export const authService = {
   login: (credentials: Credentials) =>
     apiClient.post<LoginResponse>('/auth/login', credentials),
 
+  // Revoga a sessão no servidor (LGPD) — o token deixa de valer imediatamente,
+  // não apenas no navegador
+  logout: (token: string) =>
+    apiClient.post<void>('/auth/logout', {}, token),
+
   // Envia o link de redefinição de senha para o e-mail informado
   forgotPassword: (email: string) =>
     apiClient.post<{ message: string }>('/auth/forgot-password', { email }),

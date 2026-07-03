@@ -98,6 +98,14 @@ export const passwordResetRoutes: FastifyPluginAsync = async (app) => {
         }),
       ])
 
+      // Revogação de sessão (LGPD, Fase 4.4): quem redefine a senha por e-mail
+      // pode estar recuperando uma conta comprometida — sessões antigas caem
+      try {
+        await app.sessionStore.setRevogacao(resetToken.userId, Math.floor(Date.now() / 1000))
+      } catch (error) {
+        app.log.error({ error, userId: resetToken.userId }, 'Falha ao revogar sessões na redefinição de senha')
+      }
+
       // Auditoria (LGPD): senha redefinida via link de e-mail
       app.audit({ action: 'SENHA_REDEFINIDA', userId: resetToken.userId, ip: request.ip })
 

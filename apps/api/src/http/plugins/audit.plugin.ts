@@ -12,6 +12,7 @@ import type { FastifyInstance } from 'fastify'
 export type AuditAction =
   | 'LOGIN'
   | 'LOGIN_FALHOU'
+  | 'LOGOUT'
   | 'TROCA_DE_SENHA'
   | 'SENHA_REDEFINIDA'
   | 'MEMBRO_CONVIDADO'

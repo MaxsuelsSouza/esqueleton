@@ -57,6 +57,15 @@ export const userAdminRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(404).send({ message: 'Usuário não encontrado' })
     }
 
+    // Revogação de sessão (LGPD, Fase 4.4): o token do membro removido deixa
+    // de valer imediatamente — sem isso ele continuaria acessando o painel
+    // até o token expirar (1 dia)
+    try {
+      await app.sessionStore.setRevogacao(id, Math.floor(Date.now() / 1000))
+    } catch (error) {
+      app.log.error({ error, userId: id }, 'Falha ao revogar a sessão do membro removido')
+    }
+
     // Auditoria (LGPD): remoção de membro da equipe
     app.audit({
       action: 'MEMBRO_REMOVIDO',
@@ -93,6 +102,14 @@ export const userAdminRoutes: FastifyPluginAsync = async (app) => {
 
     if (count === 0) {
       return reply.status(404).send({ message: 'Usuário não encontrado' })
+    }
+
+    // Revogação de sessão (LGPD, Fase 4.4): as sessões abertas do membro caem
+    // junto com a senha antiga — ele volta apenas com a senha temporária
+    try {
+      await app.sessionStore.setRevogacao(id, Math.floor(Date.now() / 1000))
+    } catch (error) {
+      app.log.error({ error, userId: id }, 'Falha ao revogar sessões no reset de senha do membro')
     }
 
     // Retorna a senha em texto para o OWNER repassar ao membro

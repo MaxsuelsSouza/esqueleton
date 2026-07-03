@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import type { UserRole } from '@esqueleton/shared'
+import { authService } from '../services/auth.service'
 
 // Páginas do admin acessíveis SEM login — quem chega nelas por link de e-mail
 // (redefinir senha, verificar e-mail) não pode ser jogado de volta para o login
@@ -117,6 +118,13 @@ export function useAdminAuth() {
   }, [pathname, router])
 
   function logout() {
+    // Revoga a sessão no servidor (LGPD, Fase 4.4) — fire-and-forget: mesmo
+    // com a API fora do ar, o navegador é limpo e o usuário sai normalmente
+    const savedToken = localStorage.getItem('admin_token')
+    if (savedToken) {
+      authService.logout(savedToken).catch(() => {})
+    }
+
     clearAdminSession()
     // Navegação dura — garante que todo estado é limpo
     window.location.href = '/admin/login'

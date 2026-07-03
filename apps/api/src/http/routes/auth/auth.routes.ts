@@ -251,4 +251,31 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       }
     }
   )
+
+  // Logout — revogação de sessão no servidor (LGPD, Fase 4.4).
+  // Antes, "sair" apenas limpava o navegador e o token continuava válido até
+  // expirar; agora a marca de revogação invalida o token imediatamente.
+  app.post(
+    '/logout',
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const agoraEmSegundos = Math.floor(Date.now() / 1000)
+      try {
+        await app.sessionStore.setRevogacao(request.user.sub, agoraEmSegundos)
+      } catch (error) {
+        // Sem Redis o logout do navegador ainda funciona — apenas registra a falha
+        app.log.error({ error, userId: request.user.sub }, 'Falha ao gravar a revogação de sessão no logout')
+      }
+
+      // Auditoria (LGPD): encerramento de sessão
+      app.audit({
+        action: 'LOGOUT',
+        storeId: request.user.storeId,
+        userId: request.user.sub,
+        ip: request.ip,
+      })
+
+      return reply.status(204).send()
+    }
+  )
 }
