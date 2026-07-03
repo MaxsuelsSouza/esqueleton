@@ -79,8 +79,12 @@ export function RouteLoadingBar() {
     const originalPushState = history.pushState.bind(history)
     const originalReplaceState = history.replaceState.bind(history)
 
+    // O Next.js chama history.replaceState de dentro de um useInsertionEffect do React,
+    // e o React proíbe agendar atualizações de estado nessa fase. Por isso adiamos o
+    // startLoading para um microtask: ele roda só depois que a fase de commit termina,
+    // evitando o erro "useInsertionEffect must not schedule updates".
     history.pushState = function (...args) {
-      startLoading()
+      queueMicrotask(startLoading)
       return originalPushState(...args)
     }
 
@@ -88,7 +92,7 @@ export function RouteLoadingBar() {
       // Só inicia loading se a URL realmente mudou
       const newUrl = args[2]
       if (newUrl && newUrl !== window.location.pathname + window.location.search) {
-        startLoading()
+        queueMicrotask(startLoading)
       }
       return originalReplaceState(...args)
     }
