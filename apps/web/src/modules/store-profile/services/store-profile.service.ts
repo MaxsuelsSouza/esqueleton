@@ -12,8 +12,19 @@ export const storeProfileService = {
   // Busca o perfil da loja do administrador
   getProfile: (token: string) => apiClient.get<StoreProfile>('/store-profile', token),
 
-  updateProfile: (data: Partial<Omit<StoreProfile, 'id' | 'updatedAt'>>, token: string) =>
-    apiClient.put<StoreProfile>('/store-profile', data, token),
+  // O campo metaAccessToken é write-only: enviado no update, mas nunca devolvido pela API
+  updateProfile: (
+    data: Partial<Omit<StoreProfile, 'id' | 'updatedAt'>> & { metaAccessToken?: string | null },
+    token: string,
+  ) => apiClient.put<StoreProfile>('/store-profile', data, token),
+
+  // Remove as credenciais da Meta e desativa a sincronização (revogação pelo painel)
+  disconnectWhatsAppCatalog: (token: string) =>
+    apiClient.put<StoreProfile>(
+      '/store-profile',
+      { metaAccessToken: null, metaWabaId: null, metaCatalogId: null, whatsappCatalogEnabled: false },
+      token,
+    ),
 
   // Retorna o progresso do onboarding (checklist do primeiro acesso)
   getOnboardingStatus: (token: string) =>

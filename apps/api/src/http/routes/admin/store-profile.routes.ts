@@ -6,6 +6,7 @@ import { storeProfileSchema } from '../../schemas/store-profile.schema'
 import { requireOwner } from '../../../domain/identity/guards/role.guard'
 import type { WhatsAppCatalogItem } from '@esqueleton/shared'
 import { uploadImage } from '../../../shared/storage/image-upload.service'
+import { productToCatalogItem } from '../../../domain/catalog/services/whatsapp-sync.service'
 
 // Valores padrão exibidos enquanto a loja ainda não configurou o perfil
 const PERFIL_PADRAO = {
@@ -14,39 +15,44 @@ const PERFIL_PADRAO = {
   announcements: [] as string[],
 }
 
-// Campos sensíveis que não devem ir para o catálogo público
-const CAMPOS_SENSIVEIS = ['metaAccessToken', 'metaWabaId', 'metaCatalogId'] as const
+// Allowlist: somente estes campos vão para o catálogo público.
+// Preferimos listar o que PODE sair (em vez de remover o que não pode) —
+// assim um campo sensível novo no modelo nunca vaza por esquecimento.
+const CAMPOS_PUBLICOS = [
+  'id',
+  'storeId',
+  'storeName',
+  'address',
+  'whatsapp',
+  'instagram',
+  'logoUrl',
+  'themeColor',
+  'announcements',
+  'updatedAt',
+] as const
 
-/** Remove campos de integração Meta do objeto antes de enviar ao público */
-function semCamposSensiveis<T extends Record<string, unknown>>(obj: T): Omit<T, 'metaAccessToken' | 'metaWabaId' | 'metaCatalogId'> {
-  const copia = { ...obj }
-  for (const campo of CAMPOS_SENSIVEIS) {
-    delete (copia as Record<string, unknown>)[campo]
+/** Mantém apenas os campos públicos do perfil antes de enviar ao catálogo */
+function apenasCamposPublicos(profile: Record<string, unknown>) {
+  const publico: Record<string, unknown> = {}
+  for (const campo of CAMPOS_PUBLICOS) {
+    if (campo in profile) publico[campo] = profile[campo]
   }
-  return copia
+  return publico
 }
 
-/** Verifica se a imagem é URL pública (não base64) — a Meta Catalog API exige URL */
-function isPublicImageUrl(url: string | null | undefined): url is string {
-  return Boolean(url && url.startsWith('http'))
+/** Remove o token da Meta da resposta — o token é write-only:
+ *  o painel só precisa saber SE existe um token salvo, nunca o valor. */
+function semTokenMeta<T extends { metaAccessToken?: string | null }>(profile: T) {
+  const { metaAccessToken, ...semToken } = profile
+  return { ...semToken, hasMetaAccessToken: Boolean(metaAccessToken) }
 }
 
-/** Converte um produto do banco para o formato da Meta Catalog API */
-function productToCatalogItem(product: {
-  id: string
-  name: string
-  price: number
-  imageUrl: string | null
-  isAvailable: boolean
-}): WhatsAppCatalogItem | null {
-  return {
-    retailerId: product.id,
-    name: product.name,
-    priceInCents: Math.round(product.price * 100),
-    currency: 'BRL',
-    imageUrl: isPublicImageUrl(product.imageUrl) ? product.imageUrl : undefined,
-    availability: product.isAvailable ? 'in stock' : 'out of stock',
-  }
+// Filtro Prisma para "produto com imagem pública" — precisa casar com isPublicImageUrl
+const IMAGEM_PUBLICA_WHERE = {
+  OR: [
+    { imageUrl: { startsWith: 'http://' } },
+    { imageUrl: { startsWith: 'https://' } },
+  ],
 }
 
 // ── Rota pública — a loja vem do slug na URL ───────────────────────
@@ -57,7 +63,7 @@ export const storeProfilePublicRoutes: FastifyPluginAsync = async (app) => {
     })
     // Loja sem perfil configurado mostra os valores padrão — a leitura pública não cria registros
     if (!profile) return { ...PERFIL_PADRAO, storeName: request.store!.name }
-    return semCamposSensiveis(profile)
+    return apenasCamposPublicos(profile)
   })
 }
 
@@ -66,14 +72,17 @@ export const storeProfileAdminRoutes: FastifyPluginAsync = async (app) => {
   // Todas as rotas deste grupo exigem login
   app.addHook('preHandler', app.authenticate)
 
-  // Retorna o perfil da loja — cria com valores padrão se ainda não existir
+  // Retorna o perfil da loja — cria com valores padrão se ainda não existir.
+  // O token da Meta nunca é devolvido (write-only) — qualquer membro da equipe
+  // pode ler o perfil, mas só o OWNER define o token e ninguém o lê de volta.
   app.get('/', async (request) => {
     const storeId = request.user.storeId
-    return app.prisma.storeProfile.upsert({
+    const profile = await app.prisma.storeProfile.upsert({
       where: { storeId },
       create: { storeId, ...PERFIL_PADRAO },
       update: {},
     })
+    return semTokenMeta(profile)
   })
 
   // Retorna o progresso do onboarding — usado pelo Dashboard para exibir o checklist inicial
@@ -103,17 +112,21 @@ export const storeProfileAdminRoutes: FastifyPluginAsync = async (app) => {
       data.logoUrl = await uploadImage(app.storage, request.log, data.logoUrl, storeId, 'stores', storeId)
     }
 
-    return app.prisma.storeProfile.upsert({
+    const profile = await app.prisma.storeProfile.upsert({
       where: { storeId },
       create: { storeId, ...data },
       update: data,
     })
+    return semTokenMeta(profile)
   })
 
   // ── Integração com o catálogo do WhatsApp Business ──────────────
 
   // Testa se o token e catalog ID da Meta são válidos
-  app.post('/whatsapp-test', { preHandler: [requireOwner] }, async (request, reply) => {
+  app.post('/whatsapp-test', {
+    preHandler: [requireOwner],
+    config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
     const storeId = request.user.storeId
     const profile = await app.prisma.storeProfile.findUnique({ where: { storeId } })
 
@@ -132,7 +145,10 @@ export const storeProfileAdminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   // Retorna o status da sincronização (quantos produtos estão no catálogo)
-  app.get('/whatsapp-status', { preHandler: [requireOwner] }, async (request) => {
+  app.get('/whatsapp-status', {
+    preHandler: [requireOwner],
+    config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+  }, async (request) => {
     const storeId = request.user.storeId
     const profile = await app.prisma.storeProfile.findUnique({ where: { storeId } })
 
@@ -154,14 +170,12 @@ export const storeProfileAdminRoutes: FastifyPluginAsync = async (app) => {
       profile.metaAccessToken,
     )
 
-    // Conta quantos produtos locais têm imagem base64 (não sincronizáveis)
-    const totalLocal = await app.prisma.product.count({ where: { storeId } })
-    const withPublicImage = await app.prisma.product.count({
-      where: {
-        storeId,
-        imageUrl: { not: null, startsWith: 'http' },
-      },
-    })
+    // Conta quantos produtos locais não têm imagem pública (não sincronizáveis) —
+    // mesmo critério usado pelo sync (isPublicImageUrl)
+    const [totalLocal, withPublicImage] = await Promise.all([
+      app.prisma.product.count({ where: { storeId } }),
+      app.prisma.product.count({ where: { storeId, ...IMAGEM_PUBLICA_WHERE } }),
+    ])
 
     return {
       connected: true,
@@ -171,13 +185,23 @@ export const storeProfileAdminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   // Sincroniza todos os produtos da loja com o catálogo do WhatsApp (lote completo)
-  app.post('/whatsapp-sync', { preHandler: [requireOwner] }, async (request, reply) => {
+  app.post('/whatsapp-sync', {
+    preHandler: [requireOwner],
+    config: { rateLimit: { max: 2, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
     const storeId = request.user.storeId
     const profile = await app.prisma.storeProfile.findUnique({ where: { storeId } })
 
     if (!profile?.metaAccessToken || !profile?.metaCatalogId) {
       return reply.status(400).send({
         message: 'Configure o token e o ID do catálogo antes de sincronizar',
+      })
+    }
+
+    // Mesma regra do sync automático e do status: a integração precisa estar ativada
+    if (!profile.whatsappCatalogEnabled) {
+      return reply.status(400).send({
+        message: 'Ative a sincronização com o WhatsApp antes de sincronizar',
       })
     }
 

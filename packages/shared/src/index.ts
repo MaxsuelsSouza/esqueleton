@@ -219,8 +219,9 @@ export interface StoreProfile {
   announcements: string[]
 
   // ── Integração com catálogo do WhatsApp Business ──
-  // Token permanente (System User) da Meta Graph API
-  metaAccessToken?: string
+  // O token da Meta é write-only: a API nunca o devolve, apenas informa se existe.
+  // Indica se a loja já salvou um token de acesso da Meta
+  hasMetaAccessToken?: boolean
   // ID da conta WhatsApp Business (WABA)
   metaWabaId?: string
   // ID do catálogo de produtos no Commerce Manager

@@ -157,6 +157,13 @@ const PRODUTOS: ProdutoDef[] = [
 ]
 
 async function main() {
+  // Seed de DESENVOLVIMENTO: cria super admin com senha fraca conhecida.
+  // Nunca pode rodar contra um banco de produção.
+  if (process.env.NODE_ENV === 'production') {
+    console.error('Este seed é apenas para desenvolvimento — abortando em produção.')
+    process.exit(1)
+  }
+
   // Busca a loja Electric Store pelo nome
   const store = await prisma.store.findFirst({ where: { name: 'Electric Store' } })
   if (!store) {

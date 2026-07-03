@@ -95,6 +95,7 @@ pnpm --filter @esqueleton/web test
 - `trustProxy: true` is set so rate limiting sees the real client IP behind Vercel/nginx.
 - Failed logins are logged with `app.log.warn` (email + IP).
 - API tests inject a fake Prisma client via `buildApp({ prisma })` — see `apps/api/src/test/test-helpers.ts`. No real database needed.
+- **WhatsApp catalog (Meta):** each store can sync products to its WhatsApp Business catalog. `StoreProfile` holds `metaAccessToken`/`metaCatalogId`/`metaWabaId` + `whatsappCatalogEnabled`. The token is **write-only**: admin reads return `hasMetaAccessToken: boolean` instead of the value (never send the token back — any STAFF can read the profile). Sending `null`/`''` clears a credential; omitting the field leaves it untouched. The public profile route uses an **allowlist** (`CAMPOS_PUBLICOS`) — new sensitive fields stay private by default. Product CRUD fires `syncProductToWhatsApp`/`removeProductFromWhatsApp` (fire-and-forget, only when `whatsappCatalogEnabled` and credentials exist); products without a public `http(s)` image URL are skipped (Meta requires `image_url`). The adapter (`domain/catalog/integrations/whatsapp-catalog.adapter.ts`) uses the Meta `/batch` endpoint with method `UPDATE` (upsert — `CREATE` fails on existing retailer_id) and treats per-item `validation_status` errors as failures (a 200 alone doesn't mean success). OWNER-only routes: `POST /whatsapp-test` (5/min), `GET /whatsapp-status` (30/min), `POST /whatsapp-sync` (2/min, requires the toggle on).
 
 ### Known accepted risks (document before changing)
 
@@ -104,6 +105,9 @@ pnpm --filter @esqueleton/web test
 - `orderNumber` is generated client-side (unique-constrained; collision makes the fire-and-forget create fail silently).
 - Item `unitPrice` is validated server-side against the database product price, accounting for active promotions and coupons (1-centavo tolerance for rounding). Orders with manipulated prices are rejected with 400.
 - Rate limiting without `REDIS_URL` is in-memory: per serverless instance on Vercel. With Redis configured, login brute force (per-IP and per-email) is blocked across instances; other routes remain per-IP only.
+- `metaAccessToken` (WhatsApp catalog) is stored in plaintext in the database — a database dump leaks every store's Meta token. Encryption at rest (e.g. AES-GCM with a key from env) would be the alternative. Mitigations in place: the API never returns the token (write-only) and only OWNER can set it.
+- WhatsApp catalog sync sends the product's **base price** — active promotions, coupons and per-variant prices are not reflected in the Meta catalog (design decision: the WhatsApp catalog is a showcase; checkout happens on the site with correct prices).
+- Meta's `/batch` endpoint is asynchronous: even counting `validation_status` errors, an item can still fail later server-side at Meta. Sync counters are best-effort, not a guarantee.
 
 ## Image storage (R2)
 

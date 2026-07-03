@@ -32,7 +32,7 @@ const WHATSAPP_GUIDE_STEPS: {
     number: 1,
     title: 'Criar portfólio no Meta Business',
     images: [
-      { src: '/images/whatsapp-guide/step-1-criar-conta.png', alt: 'Tela do Meta Business Suite' },
+      { src: '/images/whatsapp-guide/step-1-criar-conta.webp', alt: 'Tela do Meta Business Suite' },
     ],
     instructions: [
       'Acesse business.facebook.com e faça login com seu Facebook.',
@@ -47,7 +47,7 @@ const WHATSAPP_GUIDE_STEPS: {
     number: 2,
     title: 'Criar catálogo de produtos',
     images: [
-      { src: '/images/whatsapp-guide/step-2-criar-catalogo.png', alt: 'Commerce Manager — criar catálogo e encontrar o ID' },
+      { src: '/images/whatsapp-guide/step-2-criar-catalogo.webp', alt: 'Commerce Manager — criar catálogo e encontrar o ID' },
     ],
     instructions: [
       'No link abaixo, acesse o Gerenciador de Comércio (Commerce Manager).',
@@ -63,7 +63,7 @@ const WHATSAPP_GUIDE_STEPS: {
     number: 3,
     title: 'Registrar-se como desenvolvedor e criar app',
     images: [
-      { src: '/images/whatsapp-guide/step-3-criar-app.png', alt: 'Registro no Meta for Developers e criação do app' },
+      { src: '/images/whatsapp-guide/step-3-criar-app.webp', alt: 'Registro no Meta for Developers e criação do app' },
     ],
     instructions: [
       'Acesse developers.facebook.com e clique em "Começar" (canto superior direito).',
@@ -80,9 +80,9 @@ const WHATSAPP_GUIDE_STEPS: {
     number: 4,
     title: 'Gerar token de acesso',
     images: [
-      { src: '/images/whatsapp-guide/step-4a-criar-usuario.png', alt: 'Criar usuário do sistema no Meta Business' },
-      { src: '/images/whatsapp-guide/step-4b-gerar-token.png', alt: 'Selecionar permissões catalog_management e whatsapp_business_management' },
-      { src: '/images/whatsapp-guide/step-4c-copiar-token.png', alt: 'Copiar o token gerado' },
+      { src: '/images/whatsapp-guide/step-4a-criar-usuario.webp', alt: 'Criar usuário do sistema no Meta Business' },
+      { src: '/images/whatsapp-guide/step-4b-gerar-token.webp', alt: 'Selecionar permissões catalog_management e whatsapp_business_management' },
+      { src: '/images/whatsapp-guide/step-4c-copiar-token.webp', alt: 'Copiar o token gerado' },
     ],
     instructions: [
       'No link abaixo, vá em Configurações → Usuários → Usuários do sistema.',
@@ -100,9 +100,9 @@ const WHATSAPP_GUIDE_STEPS: {
   {
     number: 5,
     title: 'Vincular conta WhatsApp (opcional)',
-    images: [
-      { src: '/images/whatsapp-guide/step-5-waba-id.png', alt: 'Configurações — vincular conta do WhatsApp Business' },
-    ],
+    // Sem imagem por enquanto: o print anterior era uma cópia do passo 3 (errado).
+    // Adicionar aqui o screenshot real da tela "Contas do WhatsApp" quando disponível.
+    images: [],
     instructions: [
       'No link abaixo, vá em Configurações → Contas → Contas do WhatsApp.',
       'Clique em "+ Adicionar" para vincular sua conta WhatsApp Business.',
@@ -137,7 +137,12 @@ export default function AdminPerfilPage() {
     handleTestWhatsApp,
     isSyncing,
     syncResult,
+    syncError,
     handleSyncWhatsApp,
+    hasSavedToken,
+    whatsappConfigured,
+    isDisconnecting,
+    handleDisconnectWhatsApp,
   } = usePerfilPage()
 
   return (
@@ -472,12 +477,17 @@ export default function AdminPerfilPage() {
                       </FormField>
                     )}
                     {step.field === 'metaAccessToken' && (
-                      <FormField label="Token de acesso" hint="Cole aqui o token que você acabou de copiar">
+                      <FormField
+                        label="Token de acesso"
+                        hint={hasSavedToken
+                          ? 'Já existe um token salvo — cole um novo apenas se quiser substituí-lo'
+                          : 'Cole aqui o token que você acabou de copiar'}
+                      >
                         <input
                           type="password"
                           value={form.metaAccessToken}
                           onChange={(e) => set('metaAccessToken', e.target.value)}
-                          placeholder="EAA..."
+                          placeholder={hasSavedToken ? '••••••••  (token salvo)' : 'EAA...'}
                           className={inputClass}
                         />
                       </FormField>
@@ -518,7 +528,7 @@ export default function AdminPerfilPage() {
                         <button
                           type="button"
                           onClick={handleTestWhatsApp}
-                          disabled={isTesting || !form.metaAccessToken || !form.metaCatalogId}
+                          disabled={isTesting || !whatsappConfigured}
                           className="flex items-center gap-1.5 rounded-xl bg-green-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:opacity-40"
                         >
                           {isTesting ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
@@ -537,7 +547,7 @@ export default function AdminPerfilPage() {
                   <button
                     type="button"
                     onClick={handleTestWhatsApp}
-                    disabled={isTesting || !form.metaAccessToken || !form.metaCatalogId}
+                    disabled={isTesting || !whatsappConfigured}
                     className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-40"
                   >
                     {isTesting ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
@@ -547,13 +557,32 @@ export default function AdminPerfilPage() {
                   <button
                     type="button"
                     onClick={handleSyncWhatsApp}
-                    disabled={isSyncing || !form.metaAccessToken || !form.metaCatalogId}
+                    disabled={isSyncing || !whatsappConfigured}
                     className="flex items-center gap-1.5 rounded-xl bg-green-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:opacity-40"
                   >
                     {isSyncing ? <RefreshCw size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                     {isSyncing ? 'Sincronizando...' : 'Sincronizar todos'}
                   </button>
+
+                  {hasSavedToken && (
+                    <button
+                      type="button"
+                      onClick={handleDisconnectWhatsApp}
+                      disabled={isDisconnecting}
+                      className="flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-40"
+                    >
+                      <X size={14} />
+                      {isDisconnecting ? 'Removendo...' : 'Remover credenciais'}
+                    </button>
+                  )}
                 </div>
+
+                {/* Erro na sincronização ou na remoção das credenciais */}
+                {syncError && (
+                  <div className="flex items-center gap-2 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
+                    <XCircle size={16} /> {syncError}
+                  </div>
+                )}
 
                 {/* Resultado do teste */}
                 {testResult && (

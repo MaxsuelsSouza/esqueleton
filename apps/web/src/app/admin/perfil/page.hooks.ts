@@ -70,8 +70,12 @@ export function usePerfilPage() {
   const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null)
   const [isSyncing, setIsSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<{ synced: number; failed: number; skipped: number; total: number } | null>(null)
+  const [syncError, setSyncError] = useState<string | null>(null)
+  const [isDisconnecting, setIsDisconnecting] = useState(false)
 
-  // Preenche o formulário quando o perfil carregar
+  // Preenche o formulário quando o perfil carregar.
+  // O token da Meta nunca volta da API (write-only) — o campo começa vazio
+  // e `hasMetaAccessToken` indica que já existe um token salvo.
   useEffect(() => {
     setForm({
       storeName: profile.storeName,
@@ -81,7 +85,7 @@ export function usePerfilPage() {
       logoUrl: profile.logoUrl ?? '',
       themeColor: profile.themeColor,
       announcements: profile.announcements ?? [],
-      metaAccessToken: profile.metaAccessToken ?? '',
+      metaAccessToken: '',
       metaWabaId: profile.metaWabaId ?? '',
       metaCatalogId: profile.metaCatalogId ?? '',
       whatsappCatalogEnabled: profile.whatsappCatalogEnabled ?? false,
@@ -100,10 +104,16 @@ export function usePerfilPage() {
   }, [])
 
   useEffect(() => {
-    if (profile.metaCatalogId && profile.metaAccessToken && profile.whatsappCatalogEnabled) {
+    if (profile.metaCatalogId && profile.hasMetaAccessToken && profile.whatsappCatalogEnabled) {
       loadWhatsAppStatus()
     }
-  }, [profile.metaCatalogId, profile.metaAccessToken, profile.whatsappCatalogEnabled, loadWhatsAppStatus])
+  }, [profile.metaCatalogId, profile.hasMetaAccessToken, profile.whatsappCatalogEnabled, loadWhatsAppStatus])
+
+  // A integração está configurada quando há token salvo (ou recém-digitado) + catalog ID
+  const hasSavedToken = Boolean(profile.hasMetaAccessToken)
+  const whatsappConfigured = Boolean(
+    (hasSavedToken || form.metaAccessToken.trim()) && (form.metaCatalogId.trim() || profile.metaCatalogId),
+  )
 
   function set<K extends keyof FormData>(key: K, value: FormData[K]) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -124,10 +134,12 @@ export function usePerfilPage() {
     set('announcements', form.announcements.filter((_, i) => i !== index))
   }
 
-  async function handleSave() {
+  // Salva o perfil e retorna true em caso de sucesso — usado também pelo teste
+  // de conexão, que precisa garantir que as credenciais digitadas foram salvas
+  async function handleSave(): Promise<boolean> {
     if (!form.storeName.trim()) {
       setSaveError('O nome da loja é obrigatório.')
-      return
+      return false
     }
 
     setIsSaving(true)
@@ -144,20 +156,23 @@ export function usePerfilPage() {
         logoUrl: form.logoUrl.trim() || undefined,
         themeColor: form.themeColor,
         announcements: form.announcements,
+        // Token é write-only: só entra no payload quando o usuário digitou um novo
         metaAccessToken: form.metaAccessToken.trim() || undefined,
         metaWabaId: form.metaWabaId.trim() || undefined,
         metaCatalogId: form.metaCatalogId.trim() || undefined,
         whatsappCatalogEnabled: form.whatsappCatalogEnabled,
       }
       const diff = buildDiff(profile as unknown as Record<string, unknown>, payload)
-      if (Object.keys(diff).length === 0) { setIsSaving(false); return }
+      if (Object.keys(diff).length === 0) { setIsSaving(false); return true }
       const updated = await storeProfileService.updateProfile(diff, token)
       // Atualiza o estado local para refletir os dados salvos imediatamente
       setProfile(updated)
       setSaveSuccess(true)
       setTimeout(() => setSaveSuccess(false), 3000)
+      return true
     } catch {
       setSaveError('Erro ao salvar. Tente novamente.')
+      return false
     } finally {
       setIsSaving(false)
     }
@@ -168,6 +183,13 @@ export function usePerfilPage() {
     setTestResult(null)
     const token = localStorage.getItem('admin_token') ?? ''
     try {
+      // O teste roda no servidor com as credenciais do banco — salva antes
+      // para que o token/ID recém-digitados sejam considerados
+      const saved = await handleSave()
+      if (!saved) {
+        setTestResult({ ok: false, error: 'Não foi possível salvar as credenciais antes do teste.' })
+        return
+      }
       const result = await storeProfileService.testWhatsAppConnection(token)
       setTestResult(result)
       if (result.ok) {
@@ -183,15 +205,35 @@ export function usePerfilPage() {
   async function handleSyncWhatsApp() {
     setIsSyncing(true)
     setSyncResult(null)
+    setSyncError(null)
     const token = localStorage.getItem('admin_token') ?? ''
     try {
       const result = await storeProfileService.syncWhatsAppCatalog(token)
       setSyncResult(result)
       loadWhatsAppStatus()
     } catch {
-      setSyncResult({ synced: 0, failed: 0, skipped: 0, total: 0 })
+      // Mostra o erro em vez de exibir "0 sincronizados" como se tivesse rodado
+      setSyncError('Erro ao sincronizar com o WhatsApp. Tente novamente.')
     } finally {
       setIsSyncing(false)
+    }
+  }
+
+  // Remove as credenciais da Meta e desativa a sincronização
+  async function handleDisconnectWhatsApp() {
+    setIsDisconnecting(true)
+    const token = localStorage.getItem('admin_token') ?? ''
+    try {
+      const updated = await storeProfileService.disconnectWhatsAppCatalog(token)
+      setProfile(updated)
+      setWhatsappStatus(null)
+      setTestResult(null)
+      setSyncResult(null)
+      setSyncError(null)
+    } catch {
+      setSyncError('Erro ao remover as credenciais. Tente novamente.')
+    } finally {
+      setIsDisconnecting(false)
     }
   }
 
@@ -215,6 +257,11 @@ export function usePerfilPage() {
     handleTestWhatsApp,
     isSyncing,
     syncResult,
+    syncError,
     handleSyncWhatsApp,
+    hasSavedToken,
+    whatsappConfigured,
+    isDisconnecting,
+    handleDisconnectWhatsApp,
   }
 }

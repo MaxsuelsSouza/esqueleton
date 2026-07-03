@@ -13,8 +13,10 @@ export const storeProfileSchema = z.object({
   announcements: z.array(shortText(200)).max(10, 'Máximo de 10 anúncios').default([]),
 
   // ── Integração com catálogo do WhatsApp Business ──
-  metaAccessToken: shortText(500).nullish().transform(v => v || undefined),
-  metaWabaId: shortText(100).nullish().transform(v => v || undefined),
-  metaCatalogId: shortText(100).nullish().transform(v => v || undefined),
+  // Campo ausente = não mexe; null ou string vazia = LIMPA a credencial no banco.
+  // Sem isso o dono da loja não teria como revogar um token salvo.
+  metaAccessToken: shortText(500).nullish().transform(v => (v === undefined ? undefined : v || null)),
+  metaWabaId: shortText(100).nullish().transform(v => (v === undefined ? undefined : v || null)),
+  metaCatalogId: shortText(100).nullish().transform(v => (v === undefined ? undefined : v || null)),
   whatsappCatalogEnabled: z.boolean().optional(),
 })
