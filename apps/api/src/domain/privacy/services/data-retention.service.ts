@@ -18,6 +18,8 @@ export const RETENCAO = {
   CLIENTES_MESES: 24,
   // Eventos de analytics não têm dado pessoal, mas a tabela cresce sem limite
   EVENTOS_MESES: 12,
+  // Logs de auditoria contêm IP (dado pessoal) — política de logs: 6 meses
+  AUDITORIA_MESES: 6,
 } as const
 
 // Data de "N horas atrás" — tudo anterior a ela está fora do prazo de retenção
@@ -94,14 +96,25 @@ export async function expurgarEventosAntigos(prisma: PrismaClient) {
   return { eventos: count }
 }
 
+// Fase 4.1 — Apaga registros de auditoria com mais de 6 meses (política de
+// logs): eles guardam IP, que é dado pessoal, e a finalidade de investigação
+// de segurança não justifica retenção indefinida.
+export async function limparAuditoriaAntiga(prisma: PrismaClient) {
+  const { count } = await prisma.auditLog.deleteMany({
+    where: { createdAt: { lt: mesesAtras(RETENCAO.AUDITORIA_MESES) } },
+  })
+  return { auditoria: count }
+}
+
 // Executa toda a limpeza de uma vez — chamado pelo job agendado (cron).
 // Retorna a contagem de cada etapa para registro em log.
 export async function executarLimpezaDeRetencao(prisma: PrismaClient) {
-  const [tokens, notificacoes, pedidosEClientes, eventos] = await Promise.all([
+  const [tokens, notificacoes, pedidosEClientes, eventos, auditoria] = await Promise.all([
     limparTokensExpirados(prisma),
     limparNotificacoesAntigas(prisma),
     anonimizarPedidosEClientesAntigos(prisma),
     expurgarEventosAntigos(prisma),
+    limparAuditoriaAntiga(prisma),
   ])
-  return { ...tokens, ...notificacoes, ...pedidosEClientes, ...eventos }
+  return { ...tokens, ...notificacoes, ...pedidosEClientes, ...eventos, ...auditoria }
 }

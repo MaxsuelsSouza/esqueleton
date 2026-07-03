@@ -9,6 +9,7 @@ import { resendPlugin } from './shared/email/resend.plugin'
 import { r2Plugin } from './shared/storage/r2.plugin'
 import { registerErrorHandler } from './shared/errors/error-handler'
 import { jwtAuthPlugin } from './http/plugins/jwt.plugin'
+import { auditPlugin } from './http/plugins/audit.plugin'
 import { storeContextPlugin } from './http/plugins/store-context.plugin'
 import { planLimitsPlugin } from './http/plugins/plan-limits.plugin'
 import { sessionPlugin } from './http/plugins/session.plugin'
@@ -97,6 +98,8 @@ export function buildApp(options: BuildAppOptions = {}) {
 
   app.register(prismaPlugin, { client: options.prisma })
   app.register(jwtAuthPlugin)
+  // Log de auditoria de ações sensíveis (LGPD) — app.audit(), fire-and-forget
+  app.register(auditPlugin)
   app.register(resendPlugin)
   app.register(r2Plugin)
   app.register(storeContextPlugin)

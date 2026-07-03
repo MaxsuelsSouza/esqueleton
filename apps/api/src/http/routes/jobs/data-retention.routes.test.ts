@@ -52,6 +52,12 @@ function createRetentionPrismaFake() {
         return { count: 0 }
       },
     },
+    auditLog: {
+      deleteMany: async (args: unknown) => {
+        chamadas.auditLog = args
+        return { count: 7 }
+      },
+    },
   })
   return { prisma, chamadas }
 }
@@ -83,6 +89,7 @@ describe('GET /api/jobs/limpeza-lgpd', () => {
       pedidosAnonimizados: 3,
       clientesEliminados: 4,
       eventos: 100,
+      auditoria: 7,
       lojasExcluidas: 0,
       lojasAvisadas: 0,
       avisosCancelados: 0,

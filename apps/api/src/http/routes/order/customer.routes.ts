@@ -76,6 +76,14 @@ export async function customerAdminRoutes(app: FastifyInstance) {
     const { id } = idParamSchema.parse(request.params)
     const exportacao = await exportarDadosDoCliente(app.prisma, request.user.storeId, id)
     if (!exportacao) return reply.status(404).send({ message: 'Cliente não encontrado' })
+    // Auditoria (LGPD): exportação de dados de um cliente
+    app.audit({
+      action: 'CLIENTE_EXPORTADO',
+      storeId: request.user.storeId,
+      userId: request.user.sub,
+      detail: `Cliente ${id}`,
+      ip: request.ip,
+    })
     return reply.send(exportacao)
   })
 
@@ -96,6 +104,14 @@ export async function customerAdminRoutes(app: FastifyInstance) {
     }
 
     await app.prisma.customer.deleteMany({ where: { id, storeId } })
+    // Auditoria (LGPD): eliminação de cliente (art. 18, VI)
+    app.audit({
+      action: 'CLIENTE_EXCLUIDO',
+      storeId,
+      userId: request.user.sub,
+      detail: anonimizarPedidos === 'true' ? `Cliente ${id} + pedidos anonimizados` : `Cliente ${id}`,
+      ip: request.ip,
+    })
     return reply.status(204).send()
   })
 }

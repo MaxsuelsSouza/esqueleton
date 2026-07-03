@@ -42,6 +42,12 @@ export const userAdminRoutes: FastifyPluginAsync = async (app) => {
       })
     }
 
+    // Busca o e-mail antes de remover — fica registrado na auditoria
+    const membro = await app.prisma.user.findFirst({
+      where: { id, storeId: request.user.storeId },
+      select: { email: true },
+    })
+
     // Remove apenas se o usuário pertence à mesma loja
     const { count } = await app.prisma.user.deleteMany({
       where: { id, storeId: request.user.storeId },
@@ -50,6 +56,15 @@ export const userAdminRoutes: FastifyPluginAsync = async (app) => {
     if (count === 0) {
       return reply.status(404).send({ message: 'Usuário não encontrado' })
     }
+
+    // Auditoria (LGPD): remoção de membro da equipe
+    app.audit({
+      action: 'MEMBRO_REMOVIDO',
+      storeId: request.user.storeId,
+      userId: request.user.sub,
+      detail: `Removeu ${membro?.email ?? id}`,
+      ip: request.ip,
+    })
 
     return reply.status(204).send()
   })

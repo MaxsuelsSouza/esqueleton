@@ -92,6 +92,15 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
           name,
         })
 
+        // Auditoria (LGPD): membro convidado para a equipe
+        app.audit({
+          action: 'MEMBRO_CONVIDADO',
+          storeId: request.user.storeId,
+          userId: request.user.sub,
+          detail: `Convidou ${email}`,
+          ip: request.ip,
+        })
+
         return reply.status(201).send(user)
       }
 
@@ -208,6 +217,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       const valid = await bcrypt.compare(password, user.password)
       if (!valid) {
         app.log.warn({ email, ip: request.ip }, 'Tentativa de login com senha incorreta')
+        // Auditoria (LGPD): tentativa com senha errada em conta existente
+        app.audit({ action: 'LOGIN_FALHOU', storeId: user.storeId, userId: user.id, ip: request.ip })
         return reply.status(401).send({ message: 'Credenciais inválidas' })
       }
 
@@ -217,6 +228,9 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         app.log.error({ userId: user.id }, 'Usuário sem loja correspondente no banco')
         return reply.status(401).send({ message: 'Credenciais inválidas' })
       }
+
+      // Auditoria (LGPD): login bem-sucedido
+      app.audit({ action: 'LOGIN', storeId: user.storeId, userId: user.id, ip: request.ip })
 
       // O token carrega a loja e o papel — toda consulta do admin usa o storeId do token
       const token = app.jwt.sign({

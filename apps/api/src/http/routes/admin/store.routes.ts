@@ -20,6 +20,13 @@ export const storeAdminRoutes: FastifyPluginAsync = async (app) => {
 
   // GET /api/store/export — exporta todos os dados da loja em JSON (OWNER)
   app.get('/export', { preHandler: [requireOwner] }, async (request) => {
+    // Auditoria (LGPD): exportação completa dos dados da loja
+    app.audit({
+      action: 'LOJA_EXPORTADA',
+      storeId: request.user.storeId,
+      userId: request.user.sub,
+      ip: request.ip,
+    })
     return exportarDadosDaLoja(app.prisma, request.user.storeId)
   })
 
@@ -78,6 +85,15 @@ export const storeAdminRoutes: FastifyPluginAsync = async (app) => {
       // apenas IDs de produtos — sem dado pessoal identificado
 
       app.log.warn({ storeId, userId: request.user.sub }, 'Loja excluída a pedido do proprietário (LGPD)')
+      // Auditoria (LGPD): a loja já não existe, mas o registro sobrevive
+      // (AuditLog não tem chave estrangeira para Store de propósito)
+      app.audit({
+        action: 'LOJA_EXCLUIDA',
+        storeId,
+        userId: request.user.sub,
+        detail: 'Exclusão a pedido do proprietário',
+        ip: request.ip,
+      })
       return reply.status(204).send()
     },
   )

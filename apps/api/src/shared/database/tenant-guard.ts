@@ -11,6 +11,9 @@ import type { PrismaClient } from '@prisma/client'
 // Modelos que pertencem a uma loja (nome da propriedade no Prisma Client).
 // "user" fica de fora: o login busca por email, que é único no sistema inteiro.
 // "store" fica de fora: é a própria tabela de lojas.
+// "auditLog" fica de fora: registros de plataforma têm storeId null e o log da
+// exclusão de uma loja precisa ser gravável mesmo depois que a loja não existe —
+// as gravações sempre definem o storeId explicitamente (veja audit.plugin.ts).
 const MODELOS_DE_LOJA = new Set([
   'product',
   'productVariant',

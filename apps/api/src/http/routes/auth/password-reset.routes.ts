@@ -98,6 +98,9 @@ export const passwordResetRoutes: FastifyPluginAsync = async (app) => {
         }),
       ])
 
+      // Auditoria (LGPD): senha redefinida via link de e-mail
+      app.audit({ action: 'SENHA_REDEFINIDA', userId: resetToken.userId, ip: request.ip })
+
       return reply.status(200).send({
         message: 'Senha redefinida com sucesso. Faça login com a nova senha.',
       })

@@ -46,6 +46,14 @@ export const changePasswordRoutes: FastifyPluginAsync = async (app) => {
         data: { password: hashed, mustChangePassword: false },
       })
 
+      // Auditoria (LGPD): troca de senha pelo próprio usuário
+      app.audit({
+        action: 'TROCA_DE_SENHA',
+        storeId: request.user.storeId,
+        userId: user.id,
+        ip: request.ip,
+      })
+
       return { message: 'Senha alterada com sucesso' }
     }
   )

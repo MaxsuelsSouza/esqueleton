@@ -350,6 +350,29 @@ model Notification {
   @@unique([storeId, type, entityId])
 }
 
+// Log de auditoria (LGPD, Fase 4.1) — registra ações sensíveis: quem fez,
+// o quê, quando e de qual IP. Ajuda a investigar acessos indevidos (art. 46).
+// storeId é null em ações de plataforma (ex: super-admin). SEM relação com
+// Store de propósito: o registro da exclusão de uma loja precisa sobreviver
+// à exclusão (o cascade apagaria a trilha). Fora do tenant guard — as
+// gravações definem o storeId explicitamente e a leitura é da plataforma.
+// Retenção: 6 meses (limpo pelo job diário — contém IP, que é dado pessoal).
+model AuditLog {
+  id        String   @id @default(cuid())
+  storeId   String?
+  userId    String?
+  // Ação registrada — ex: LOGIN, LOGIN_FALHOU, TROCA_DE_SENHA, MEMBRO_REMOVIDO,
+  // CLIENTE_EXCLUIDO, LOJA_EXPORTADA, LOJA_EXCLUIDA, PLATAFORMA_LOJA_ALTERADA
+  action    String
+  // Contexto adicional em texto livre (ex: e-mail do membro removido)
+  detail    String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([storeId])
+  @@index([createdAt])
+}
+
 // Plano de assinatura da plataforma — define limites e preço
 // Entidade global (não pertence a uma loja) — gerenciada pelo super-admin
 model Plan {
