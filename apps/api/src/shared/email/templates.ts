@@ -72,3 +72,33 @@ export function emailVerificationEmail(verifyUrl: string, storeName: string): st
     </div>
   `
 }
+
+// E-mail enviado ao dono de loja inativa (suspensa/cancelada há mais de 6 meses)
+// avisando que a loja será excluída em 30 dias se não for reativada (LGPD, Fase 3.5)
+export function storeDeletionWarningEmail(storeName: string, loginUrl: string): string {
+  return `
+    <div style="${containerStyle}">
+      <h2 style="font-size: 20px; margin-bottom: 16px;">Sua loja será excluída em 30 dias</h2>
+      <p style="font-size: 14px; color: #6b7280; line-height: 1.6;">
+        Sua loja <strong>${storeName}</strong> está inativa há mais de 6 meses.
+        Para proteger os dados pessoais que ela guarda, a Lei Geral de Proteção
+        de Dados (LGPD) nos obriga a eliminar dados cuja finalidade acabou.
+      </p>
+      <p style="font-size: 14px; color: #6b7280; line-height: 1.6;">
+        Se você não reativar a loja em <strong>30 dias</strong>, ela será excluída
+        definitivamente — produtos, pedidos, clientes e imagens. Essa ação não
+        pode ser desfeita.
+      </p>
+      <div style="margin: 24px 0;">
+        <a href="${loginUrl}" style="${buttonStyle}">Reativar minha loja</a>
+      </div>
+      <p style="font-size: 13px; color: #9ca3af; line-height: 1.5;">
+        Quer exportar seus dados antes? Acesse o painel e use
+        <strong>Perfil da loja &rarr; Dados e conta &rarr; Exportar dados</strong>.
+      </p>
+      <p style="${footerStyle}">
+        Esqueleton — ${storeName}
+      </p>
+    </div>
+  `
+}

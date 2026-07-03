@@ -19,6 +19,10 @@ model Store {
   name      String
   // ACTIVE = funcionando | SUSPENDED = suspensa (preparação para a etapa de cobrança)
   status    String   @default("ACTIVE")
+  // LGPD (Fase 3.5): data do aviso de exclusão enviado ao dono de loja inativa
+  // (suspensa/cancelada há mais de 6 meses). Sem reativação em 30 dias após o
+  // aviso, o job de limpeza exclui a loja. Volta a null se a loja reativar.
+  deletionWarnedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

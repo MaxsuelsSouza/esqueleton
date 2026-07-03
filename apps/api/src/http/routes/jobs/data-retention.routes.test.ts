@@ -43,6 +43,15 @@ function createRetentionPrismaFake() {
         return { count: 100 }
       },
     },
+    // Ciclo de lojas inativas — sem lojas para excluir/avisar neste fake;
+    // o comportamento detalhado é testado em inactive-stores.service.test.ts
+    store: {
+      findMany: async () => [],
+      updateMany: async (args: unknown) => {
+        chamadas.storeUpdateMany = args
+        return { count: 0 }
+      },
+    },
   })
   return { prisma, chamadas }
 }
@@ -74,6 +83,9 @@ describe('GET /api/jobs/limpeza-lgpd', () => {
       pedidosAnonimizados: 3,
       clientesEliminados: 4,
       eventos: 100,
+      lojasExcluidas: 0,
+      lojasAvisadas: 0,
+      avisosCancelados: 0,
     })
     await app.close()
   })
