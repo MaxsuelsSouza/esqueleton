@@ -11,6 +11,9 @@ import type { PrismaClient } from '@prisma/client'
 // Modelos que pertencem a uma loja (nome da propriedade no Prisma Client).
 // "user" fica de fora: o login busca por email, que é único no sistema inteiro.
 // "store" fica de fora: é a própria tabela de lojas.
+// "auditLog" fica de fora: registros de plataforma têm storeId null e o log da
+// exclusão de uma loja precisa ser gravável mesmo depois que a loja não existe —
+// as gravações sempre definem o storeId explicitamente (veja audit.plugin.ts).
 const MODELOS_DE_LOJA = new Set([
   'product',
   'productVariant',
@@ -91,7 +94,15 @@ function protegeModelo(modelo: object, nomeModelo: string): object {
       const valor = Reflect.get(alvo, propriedade)
       if (typeof propriedade !== 'string' || typeof valor !== 'function') return valor
       return (...argumentos: unknown[]) => {
-        verificaOperacao(nomeModelo, propriedade, argumentos[0])
+        // A falha vira uma promise rejeitada (não um throw imediato) porque todas
+        // essas operações do Prisma devolvem promises — assim chamadas
+        // fire-and-forget com .catch(() => {}) também capturam o erro do guard,
+        // em vez de derrubar a rota inteira
+        try {
+          verificaOperacao(nomeModelo, propriedade, argumentos[0])
+        } catch (erro) {
+          return Promise.reject(erro)
+        }
         return (valor as (...a: unknown[]) => unknown).apply(alvo, argumentos)
       }
     },

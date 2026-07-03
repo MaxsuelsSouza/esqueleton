@@ -42,7 +42,8 @@ describe('limite de produtos (POST /api/products)', () => {
     app = await buildTestApp(
       createPrismaFake({
         subscription: assinaturaComLimites({ maxProducts: 5 }),
-        product: { count: vi.fn(async () => 1), create: productCreate },
+        // findFirst: a rota recarrega o produto completo depois de criar
+        product: { count: vi.fn(async () => 1), create: productCreate, findFirst: vi.fn(async () => PRODUTO_CRIADO) },
         notification: { upsert: vi.fn(async () => ({})) },
       })
     )
@@ -86,7 +87,7 @@ describe('limite de produtos (POST /api/products)', () => {
     app = await buildTestApp(
       createPrismaFake({
         subscription: assinaturaComLimites({}),
-        product: { count: vi.fn(async () => 99999), create: productCreate },
+        product: { count: vi.fn(async () => 99999), create: productCreate, findFirst: vi.fn(async () => PRODUTO_CRIADO) },
       })
     )
     const token = await createTestToken(app)
@@ -106,7 +107,7 @@ describe('limite de produtos (POST /api/products)', () => {
     app = await buildTestApp(
       createPrismaFake({
         subscription: assinaturaComLimites({ maxProducts: 10 }),
-        product: { count: vi.fn(async () => 8), create: vi.fn(async () => PRODUTO_CRIADO) },
+        product: { count: vi.fn(async () => 8), create: vi.fn(async () => PRODUTO_CRIADO), findFirst: vi.fn(async () => PRODUTO_CRIADO) },
         notification: { upsert: notificationUpsert },
       })
     )

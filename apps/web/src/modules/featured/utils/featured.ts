@@ -1,13 +1,13 @@
 // Funções para determinar qual seção em destaque exibir no catálogo público
 import type { Featured } from '@esqueleton/shared'
+import { getStoreDateTime } from '@/shared/utils/store-time'
 
 // Verifica se uma seção em destaque está ativa agora — considera flag, período e janela de horário
 export function isFeaturedActive(featured: Featured): boolean {
   if (!featured.active) return false
 
-  const now = new Date()
-  const today = now.toISOString().split('T')[0]
-  const currentTime = now.toTimeString().slice(0, 5) // "HH:mm"
+  // Data e hora no fuso da loja — o mesmo cálculo usado pela API
+  const { date: today, time: currentTime } = getStoreDateTime()
 
   if (featured.startDate && today < featured.startDate) return false
   if (featured.endDate && today > featured.endDate) return false

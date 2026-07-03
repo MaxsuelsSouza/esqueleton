@@ -1,4 +1,6 @@
 // Cliente HTTP base — todas as chamadas para a API passam por aqui
+import { redirectToLoginSessionExpired } from './admin-session'
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -6,6 +8,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     ...init,
   })
+
+  // 401 numa chamada autenticada dentro do painel = sessão expirada ou
+  // revogada (LGPD, Fase 4.2) — limpa o navegador e volta ao login com aviso,
+  // em vez de deixar cada tela falhar com erro genérico.
+  // A página de login fica de fora: lá o 401 significa "senha errada".
+  if (res.status === 401 && typeof window !== 'undefined') {
+    const sentToken = Boolean((init?.headers as Record<string, string> | undefined)?.Authorization)
+    const isAdminPage = window.location.pathname.startsWith('/admin')
+    const isLoginPage = window.location.pathname.startsWith('/admin/login')
+    if (sentToken && isAdminPage && !isLoginPage) {
+      redirectToLoginSessionExpired()
+    }
+  }
 
   if (!res.ok) {
     // Tenta ler a mensagem de erro retornada pela API.
@@ -63,9 +78,11 @@ export const apiClient = {
       },
     }),
 
-  delete: <T>(path: string, token?: string) =>
+  // body é opcional — usado quando a exclusão exige confirmação (ex: senha)
+  delete: <T>(path: string, token?: string, body?: unknown) =>
     request<T>(path, {
       method: 'DELETE',
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),

@@ -21,8 +21,11 @@ function criaFake() {
     store: {
       findUnique: vi.fn(async () => null),
     },
-    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(fake)),
+    // A transação roda com o próprio banco falso. A referência adiada (abaixo)
+    // evita o ciclo de tipo "fake usa fake" que o TypeScript não consegue inferir
+    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(referenciaAdiada)),
   }
+  const referenciaAdiada: unknown = fake
   return fake
 }
 

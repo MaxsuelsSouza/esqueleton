@@ -16,12 +16,16 @@ interface CreateOrderInput {
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
 export const ordersService = {
-  // Cria um pedido na loja visitada (slug) — fire and forget, nunca bloqueia o envio pelo WhatsApp
-  async create(slug: string, input: CreateOrderInput): Promise<void> {
+  // Cria um pedido na loja visitada (slug) — nunca lança erro para não bloquear
+  // o fluxo do WhatsApp, mas informa quem chamou se o registro falhou
+  // (assim a tela pode avisar em vez de o pedido sumir silenciosamente)
+  async create(slug: string, input: CreateOrderInput): Promise<{ ok: boolean; message?: string }> {
     try {
       await apiClient.post(`/lojas/${encodeURIComponent(slug)}/orders`, input)
-    } catch {
-      // Falha silenciosa — o pedido nunca deve bloquear o fluxo do cliente
+      return { ok: true }
+    } catch (error) {
+      console.error('Falha ao registrar o pedido no servidor:', error)
+      return { ok: false, message: (error as Error)?.message }
     }
   },
 

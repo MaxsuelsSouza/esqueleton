@@ -3,7 +3,7 @@
 //   - orderAdminRoutes: gestão pelo painel, a loja vem do token JWT
 import type { FastifyInstance } from 'fastify'
 import { createOrderSchema, updateOrderStatusSchema } from '../../schemas/order.schema'
-import { validateOrderArithmetic, validateOrderPrices } from '../../../domain/order/services/order.service'
+import { validateOrderArithmetic, validateOrderPrices, computeExpectedSpecialDiscount } from '../../../domain/order/services/order.service'
 import { isCouponUsable } from '../../../domain/pricing/services/coupon.service'
 
 // ── Rota pública — a loja vem do slug na URL ───────────────────────
@@ -51,9 +51,31 @@ export async function orderPublicRoutes(app: FastifyInstance) {
     // (o incremento de usedCount no final também já é fire-and-forget)
     const couponValido = coupon && isCouponUsable(coupon).valid ? coupon : null
 
+    // Limite de usos por cliente — conta quantos pedidos este telefone já fez com o cupom
+    if (couponValido?.maxUsesPerUser != null && data.customerPhone) {
+      const usosDoCliente = await app.prisma.order.count({
+        where: {
+          storeId,
+          couponCode: data.couponCode!.toUpperCase(),
+          customerPhone: data.customerPhone,
+        },
+      })
+      if (usosDoCliente >= couponValido.maxUsesPerUser) {
+        return reply.status(400).send({ message: 'Este cupom já atingiu o limite de usos para este cliente.' })
+      }
+    }
+
     const priceCheck = validateOrderPrices(data.items, products, promotions, couponValido)
     if (!priceCheck.valid) {
       return reply.status(400).send({ message: priceCheck.message })
+    }
+
+    // O campo discount só pode conter descontos especiais reais (Compre X Leve Y e Kit).
+    // Sem esta checagem, uma requisição montada à mão poderia declarar discount = subtotal
+    // e registrar um pedido com total próximo de zero.
+    const descontoEsperado = computeExpectedSpecialDiscount(data.items, promotions)
+    if (data.discount > descontoEsperado + 0.01) {
+      return reply.status(400).send({ message: 'Os valores do pedido não conferem.' })
     }
 
     const order = await app.prisma.order.create({

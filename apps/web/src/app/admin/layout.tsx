@@ -4,8 +4,8 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { Package, Tag, BadgePercent, Ticket, Sparkles, LogOut, Store, LayoutDashboard, Bell, ExternalLink, Users, CreditCard, Building2, Layers, UserCog, BarChart3, ShoppingBag } from 'lucide-react'
-import { useAdminAuth } from '@/modules/auth/hooks/useAdminAuth'
+import { Package, Tag, BadgePercent, Ticket, Sparkles, LogOut, Store, LayoutDashboard, Bell, ExternalLink, Users, UsersRound, CreditCard, Building2, Layers, UserCog, BarChart3, ShoppingBag } from 'lucide-react'
+import { useAdminAuth, isAdminPublicPage } from '@/modules/auth/hooks/useAdminAuth'
 import { NotificationBell } from '@/modules/notifications/components/NotificationBell'
 import { PendingOrdersPopup } from '@/shared/components/PendingOrdersPopup'
 import { billingService } from '@/modules/billing/services/billing.service'
@@ -15,6 +15,7 @@ import type { BillingCurrentResponse } from '@esqueleton/shared'
 const NAV_LINKS = [
   { href: '/admin/dashboard',     label: 'Dashboard',      icon: LayoutDashboard },
   { href: '/admin/pedidos',       label: 'Pedidos',        icon: ShoppingBag },
+  { href: '/admin/clientes',      label: 'Clientes',       icon: UsersRound },
   { href: '/admin/produtos',      label: 'Produtos',       icon: Package },
   { href: '/admin/categorias',    label: 'Categorias',     icon: Tag },
   { href: '/admin/destaques',     label: 'Destaques',      icon: Sparkles },
@@ -38,12 +39,11 @@ const SUPER_LINKS = [
   { href: '/admin/super/metricas', label: 'Métricas',       icon: BarChart3 },
 ]
 
-// Páginas que não exibem a barra lateral nem verificam autenticação
-const PUBLIC_PAGES = ['/admin/login', '/admin/esqueci-senha', '/admin/redefinir-senha', '/admin/verificar-email', '/admin/alterar-senha']
-
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const isPublicPage = PUBLIC_PAGES.some((p) => pathname.startsWith(p))
+  // Páginas públicas (login, redefinir senha, verificar e-mail) não exibem a barra
+  // lateral nem verificam autenticação — a lista vive junto do useAdminAuth
+  const isPublicPage = isAdminPublicPage(pathname)
   const { isChecking, isOwner, isSuperAdmin, emailVerified, logout } = useAdminAuth()
   const [scrolled, setScrolled] = useState(false)
   // Endereço (slug) da loja do admin, salvo no login — usado no link "Ver minha loja"
@@ -267,24 +267,35 @@ function SubscriptionBanner({ pathname }: { pathname: string }) {
 function EmailVerificationBanner() {
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
+  const [resendError, setResendError] = useState<string | null>(null)
 
   async function handleResend() {
     setSending(true)
+    setResendError(null)
     try {
       const token = localStorage.getItem('admin_token')
       if (!token) return
 
       const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
-      await fetch(`${API_URL}/api/auth/resend-verification`, {
+      const res = await fetch(`${API_URL}/api/auth/resend-verification`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
       })
+      // Só confirma o envio se a API aceitou — o rate limit (2/min) responde 429
+      if (!res.ok) {
+        setResendError(
+          res.status === 429
+            ? 'Aguarde um minuto antes de pedir outro e-mail.'
+            : 'Não foi possível enviar o e-mail. Tente novamente.',
+        )
+        return
+      }
       setSent(true)
     } catch {
-      // Silently fail — o usuário pode tentar novamente
+      setResendError('Não foi possível enviar o e-mail. Verifique sua conexão.')
     } finally {
       setSending(false)
     }
@@ -293,6 +304,7 @@ function EmailVerificationBanner() {
   return (
     <div className="border-b border-yellow-200 bg-yellow-50 px-4 py-3 text-center text-sm text-yellow-800">
       <span>Verifique seu e-mail para continuar usando o painel. </span>
+      {resendError && <span className="font-medium text-red-600">{resendError} </span>}
       {sent ? (
         <span className="font-medium text-green-700">Link enviado! Verifique sua caixa de entrada.</span>
       ) : (

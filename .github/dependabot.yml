@@ -1,0 +1,30 @@
+# Dependabot — abre PRs automáticos de atualização de dependências.
+# Foco em patches de segurança: mantém os pacotes atualizados para que o projeto
+# não volte a ficar em versões EOL (fim de vida) sem correção — a causa-raiz do
+# plano de correção de CVEs (docs/PLANO-CORRECAO-VULNERABILIDADES.md).
+version: 2
+updates:
+  # Dependências do monorepo (pnpm workspaces) — o ecossistema "npm" cobre pnpm
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # Agrupa atualizações de patch/minor num PR só para reduzir ruído
+    groups:
+      dependencias-de-producao:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+      dependencias-de-desenvolvimento:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+    open-pull-requests-limit: 10
+
+  # Atualiza também as próprias GitHub Actions usadas nos workflows
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

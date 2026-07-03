@@ -5,10 +5,12 @@ export const featuredSchema = z.object({
   title: shortText(120, 'Título é obrigatório'),
   tag: shortText(40, 'Tag é obrigatória'),
   productIds: idListSchema.default([]),
-  startDate: dateSchema.nullish().transform(v => v || undefined),
-  endDate: dateSchema.nullish().transform(v => v || undefined),
-  startTime: timeSchema.nullish().transform(v => v || undefined),
-  endTime: timeSchema.nullish().transform(v => v || undefined),
+  // Campos opcionais aceitam null (ou "") para LIMPAR o valor no banco.
+  // undefined (campo ausente) significa "não alterar" nos updates parciais.
+  startDate: dateSchema.or(z.literal('')).nullish().transform(v => v === '' ? null : v),
+  endDate: dateSchema.or(z.literal('')).nullish().transform(v => v === '' ? null : v),
+  startTime: timeSchema.or(z.literal('')).nullish().transform(v => v === '' ? null : v),
+  endTime: timeSchema.or(z.literal('')).nullish().transform(v => v === '' ? null : v),
   active: z.boolean().default(false),
   carousel: z.boolean().default(false),
 })

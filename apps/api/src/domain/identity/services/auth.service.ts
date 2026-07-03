@@ -2,6 +2,10 @@
 // Recebe PrismaClient e dados já validados; não conhece HTTP nem JWT.
 import type { PrismaClient } from '@prisma/client'
 
+// Versão vigente dos Termos de Uso / Política de Privacidade (LGPD) —
+// gravada no aceite do cadastro; deve acompanhar a versão publicada no site
+export const VERSAO_TERMOS_ATUAL = '1.0'
+
 type RegisterStoreParams = {
   email: string
   hashedPassword: string
@@ -34,6 +38,9 @@ export async function registerStore(
         password: params.hashedPassword,
         storeId: store.id,
         role: 'OWNER',
+        // LGPD: registra quando e qual versão dos termos foi aceita no cadastro
+        acceptedTermsAt: new Date(),
+        acceptedTermsVersion: VERSAO_TERMOS_ATUAL,
       },
       select: { id: true, email: true, role: true, storeId: true, createdAt: true },
     })

@@ -54,10 +54,30 @@ const plugin: FastifyPluginAsync = async (app) => {
         return reply.status(401).send({ message: 'Não autorizado. Faça login novamente.' })
       }
 
+      // Revogação de sessão (LGPD, Fase 4.4): logout, troca de senha e remoção
+      // de membro gravam uma marca de revogação; tokens emitidos ATÉ a marca
+      // (inclusive no mesmo segundo) deixam de valer. Um login imediatamente
+      // após a revogação pode cair no mesmo segundo e ser rejeitado — raro, e
+      // preferimos errar para o lado seguro.
+      try {
+        const marcaRevogacao = await app.sessionStore.getRevogacao(request.user.sub)
+        if (marcaRevogacao !== null) {
+          const emitidoEm = (request.user as { iat?: number }).iat
+          if (!emitidoEm || emitidoEm <= marcaRevogacao) {
+            return reply.status(401).send({ message: 'Sessão encerrada. Faça login novamente.' })
+          }
+        }
+      } catch (error) {
+        // Redis fora do ar não pode derrubar o painel inteiro — a requisição
+        // segue sem a checagem (mesma filosofia do skipOnError do rate limit)
+        app.log.error({ error }, 'Falha ao consultar a marca de revogação de sessão')
+      }
+
       // Após 7 dias sem verificar o e-mail, o painel é bloqueado (403) —
       // exceto nas rotas marcadas com skipEmailVerification (reenvio do link).
-      // Em desenvolvimento local a verificação é ignorada para não travar o painel.
-      const isDev = process.env.NODE_ENV !== 'production'
+      // Em desenvolvimento local a verificação é ignorada para não travar o painel;
+      // nos testes (NODE_ENV=test) ela vale como em produção, para a regra ser testável.
+      const isDev = process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test'
       if (!isDev && !request.routeOptions.config.skipEmailVerification) {
         await requireVerifiedEmail(request, reply)
       }

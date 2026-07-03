@@ -36,6 +36,7 @@ describe('POST /api/auth/register (cadastro público de loja)', () => {
         storeName: 'Perfumaria Ana',
         storeSlug: 'perfumaria-ana',
         whatsapp: '5511999999999',
+        acceptedTerms: true,
       },
     })
 
@@ -80,6 +81,7 @@ describe('POST /api/auth/register (cadastro público de loja)', () => {
         storeName: 'Loja Admin',
         storeSlug: 'admin',
         whatsapp: '5511999999999',
+        acceptedTerms: true,
       },
     })
 
@@ -104,6 +106,7 @@ describe('POST /api/auth/register (cadastro público de loja)', () => {
         storeName: 'Loja Teste',
         storeSlug: 'loja-teste',
         whatsapp: '5511999999999',
+        acceptedTerms: true,
       },
     })
 
@@ -169,10 +172,101 @@ describe('POST /api/auth/register (cadastro público de loja)', () => {
         storeName: 'Loja',
         storeSlug: 'loja-da-ana',
         whatsapp: '5511999999999',
+        acceptedTerms: true,
       },
     })
 
     expect(response.statusCode).toBe(400)
+  })
+
+  it('rejeita senha muito comum mesmo com 8+ caracteres (LGPD)', async () => {
+    const userCreate = vi.fn(async () => ({}))
+    app = await buildTestApp(
+      createPrismaFake({
+        user: { findUnique: vi.fn(async () => null), create: userCreate },
+        store: { findUnique: vi.fn(async () => null), create: vi.fn(async () => ({})) },
+        storeProfile: { create: vi.fn(async () => ({})) },
+      })
+    )
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: {
+        email: 'ana@loja.com',
+        password: '12345678',
+        storeName: 'Perfumaria Ana',
+        storeSlug: 'perfumaria-ana',
+        whatsapp: '5511999999999',
+        acceptedTerms: true,
+      },
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(userCreate).not.toHaveBeenCalled()
+  })
+
+  it('rejeita cadastro sem o aceite dos termos (LGPD)', async () => {
+    const userCreate = vi.fn(async () => ({}))
+    app = await buildTestApp(
+      createPrismaFake({
+        user: { findUnique: vi.fn(async () => null), create: userCreate },
+        store: { findUnique: vi.fn(async () => null), create: vi.fn(async () => ({})) },
+        storeProfile: { create: vi.fn(async () => ({})) },
+      })
+    )
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: {
+        email: 'ana@loja.com',
+        password: 'senha-segura-123',
+        storeName: 'Perfumaria Ana',
+        storeSlug: 'perfumaria-ana',
+        whatsapp: '5511999999999',
+        acceptedTerms: false,
+      },
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(userCreate).not.toHaveBeenCalled()
+  })
+
+  it('grava a data e a versão do aceite dos termos no cadastro', async () => {
+    const userCreate = vi.fn(async () => ({
+      id: 'u1', email: 'ana@loja.com', storeId: 'loja-nova', createdAt: new Date(),
+    }))
+    app = await buildTestApp(
+      createPrismaFake({
+        user: { findUnique: vi.fn(async () => null), create: userCreate },
+        store: { findUnique: vi.fn(async () => null), create: vi.fn(async () => ({ id: 'loja-nova', slug: 'perfumaria-ana', name: 'Perfumaria Ana' })) },
+        storeProfile: { create: vi.fn(async () => ({})) },
+      })
+    )
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: {
+        email: 'ana@loja.com',
+        password: 'senha-segura-123',
+        storeName: 'Perfumaria Ana',
+        storeSlug: 'perfumaria-ana',
+        whatsapp: '5511999999999',
+        acceptedTerms: true,
+      },
+    })
+
+    expect(response.statusCode).toBe(201)
+    expect(userCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          acceptedTermsAt: expect.any(Date),
+          acceptedTermsVersion: expect.any(String),
+        }),
+      })
+    )
   })
 })
 

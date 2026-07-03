@@ -77,7 +77,7 @@ export function StoreProfileProvider({ children }: { children: React.ReactNode }
       .then((data) => {
         setProfile(data)
         // Atualiza o cache do logo para a próxima visita
-        cacheLogo(slug, data.logoUrl)
+        cacheLogo(slug, data.logoUrl ?? undefined)
       })
       .catch((error: unknown) => {
         const status = (error as { status?: number })?.status

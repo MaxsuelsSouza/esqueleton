@@ -1,9 +1,10 @@
 // Handler global de erros — trata validações Zod e esconde detalhes de erros internos
-import type { FastifyInstance } from 'fastify'
+import type { FastifyError, FastifyInstance } from 'fastify'
 import { ZodError } from 'zod'
 
 export function registerErrorHandler(app: FastifyInstance): void {
-  app.setErrorHandler((error, _request, reply) => {
+  // No Fastify 5 o parâmetro de erro chega tipado como FastifyError (pode trazer statusCode)
+  app.setErrorHandler((error: FastifyError, _request, reply) => {
     if (error instanceof ZodError) {
       return reply.status(400).send({ message: 'Dados inválidos', errors: error.errors })
     }

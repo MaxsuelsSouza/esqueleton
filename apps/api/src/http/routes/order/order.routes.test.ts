@@ -187,6 +187,76 @@ describe('POST /api/lojas/:slug/orders (criação pública)', () => {
 
     expect(response.statusCode).toBe(400)
   })
+
+  it('rejeita discount inventado sem promoção especial correspondente', async () => {
+    app = await buildTestApp(createPrismaFake(orderModels()))
+
+    // Sem promoção especial ativa, o único discount válido é 0.
+    // Um pedido que declara desconto arbitrário deve ser recusado.
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/lojas/loja-teste/orders',
+      payload: {
+        ...pedidoValido,
+        items: [
+          { productId: 'p1', productName: 'Perfume Teste', quantity: 1, unitPrice: 100, lineTotal: 100 },
+        ],
+        subtotal: 100,
+        discount: 50,
+        total: 50,
+      },
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(response.json().message).toBe('Os valores do pedido não conferem.')
+  })
+
+  it('rejeita cupom quando o pedido não atinge o valor mínimo', async () => {
+    const couponData = {
+      id: 'c1',
+      code: 'MIN200',
+      discountType: 'percentage',
+      discountPercent: 10,
+      discountValue: null,
+      minimumOrderValue: 200,
+      productIds: [],
+      active: true,
+      startDate: null,
+      endDate: null,
+      maxUses: null,
+      maxUsesPerUser: null,
+      usedCount: 0,
+      storeId: LOJA_TESTE.id,
+    }
+
+    app = await buildTestApp(
+      createPrismaFake(orderModels({
+        coupon: {
+          findUnique: vi.fn(async () => couponData),
+          updateMany: vi.fn(async () => ({ count: 1 })),
+        },
+      }))
+    )
+
+    // Pedido de R$90 (com 10% off = R$90) não atinge o mínimo de R$200
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/lojas/loja-teste/orders',
+      payload: {
+        ...pedidoValido,
+        items: [
+          { productId: 'p1', productName: 'Perfume Teste', quantity: 1, unitPrice: 90, lineTotal: 90 },
+        ],
+        subtotal: 90,
+        couponCode: 'MIN200',
+        discount: 0,
+        total: 90,
+      },
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(response.json().message).toBe('O pedido não atinge o valor mínimo para usar este cupom.')
+  })
 })
 
 describe('POST /api/lojas/:slug/orders (validação de preço contra o banco)', () => {

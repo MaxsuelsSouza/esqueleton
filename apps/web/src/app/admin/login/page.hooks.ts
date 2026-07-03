@@ -1,8 +1,8 @@
 'use client'
 
 // Hook que concentra toda a lógica de estado e callbacks da página de login/cadastro
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { authService } from '@/modules/auth/services/auth.service'
 
 // Converte o nome da loja em um endereço (slug): minúsculas, sem acentos, hífens
@@ -32,16 +32,33 @@ function saveSession(data: {
 
 export function useLoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [storeName, setStoreName] = useState('')
   const [storeSlug, setStoreSlug] = useState('')
   const [whatsapp, setWhatsapp] = useState('')
+  // LGPD: aceite dos Termos de Uso e da Política de Privacidade no cadastro
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
   // Marca se o usuário editou o endereço manualmente — aí paramos de sugerir automaticamente
   const [slugEditedManually, setSlugEditedManually] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+
+  // Avisa quando a pessoa foi trazida ao login porque a sessão expirou (token de 1 dia)
+  useEffect(() => {
+    if (searchParams.get('sessao') === 'expirada') {
+      setError('Sua sessão expirou. Entre novamente para continuar.')
+    }
+  }, [searchParams])
+
+  // Quem já está logado (token válido) não precisa ver o login — vai direto ao painel
+  useEffect(() => {
+    const token = localStorage.getItem('admin_token')
+    if (!token || searchParams.get('sessao') === 'expirada') return
+    router.replace('/admin/produtos')
+  }, [router, searchParams])
 
   function handleStoreNameChange(value: string) {
     setStoreName(value)
@@ -77,6 +94,10 @@ export function useLoginPage() {
           setError('Informe o WhatsApp para receber pedidos.')
           return
         }
+        if (!acceptedTerms) {
+          setError('Para criar a loja é preciso aceitar os Termos de Uso e a Política de Privacidade.')
+          return
+        }
         // Cria a loja nova com o primeiro usuário
         await authService.registerStore({
           email,
@@ -84,6 +105,7 @@ export function useLoginPage() {
           storeName: storeName.trim(),
           storeSlug: storeSlug.trim(),
           whatsapp: whatsapp.trim().replace(/\D/g, ''),
+          acceptedTerms,
         })
       }
 
@@ -105,7 +127,15 @@ export function useLoginPage() {
           ? 'Este e-mail ou endereço de loja já está em uso.'
           : message || 'Erro ao criar a loja. Tente novamente.')
       } else {
-        setError('E-mail ou senha inválidos.')
+        // Diferencia falhas que não são culpa da senha — rate limit e servidor fora do ar
+        const status = (err as { status?: number })?.status
+        if (status === 429) {
+          setError('Muitas tentativas de login. Aguarde alguns minutos e tente novamente.')
+        } else if (status == null || status >= 500) {
+          setError('Não foi possível conectar ao servidor. Tente novamente em instantes.')
+        } else {
+          setError('E-mail ou senha inválidos.')
+        }
       }
     } finally {
       setIsLoading(false)
@@ -127,6 +157,8 @@ export function useLoginPage() {
     storeSlug,
     whatsapp,
     setWhatsapp,
+    acceptedTerms,
+    setAcceptedTerms,
     error,
     isLoading,
     handleStoreNameChange,

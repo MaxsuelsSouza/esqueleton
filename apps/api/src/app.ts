@@ -3,11 +3,13 @@ import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
 import { createRateLimitRedis } from './shared/cache/rate-limit-redis'
+import { resolveClientKey } from './shared/security/client-ip'
 import { prismaPlugin } from './shared/database/prisma.plugin'
 import { resendPlugin } from './shared/email/resend.plugin'
 import { r2Plugin } from './shared/storage/r2.plugin'
 import { registerErrorHandler } from './shared/errors/error-handler'
 import { jwtAuthPlugin } from './http/plugins/jwt.plugin'
+import { auditPlugin } from './http/plugins/audit.plugin'
 import { storeContextPlugin } from './http/plugins/store-context.plugin'
 import { planLimitsPlugin } from './http/plugins/plan-limits.plugin'
 import { sessionPlugin } from './http/plugins/session.plugin'
@@ -21,9 +23,10 @@ import { billingPublicRoutes, billingAdminRoutes } from './http/routes/billing'
 import { webhookRoutes } from './http/routes/webhooks'
 import { analyticsPublicRoutes, analyticsAdminRoutes } from './http/routes/analytics'
 import { notificationRoutes } from './http/routes/notification'
-import { userAdminRoutes, storeProfilePublicRoutes, storeProfileAdminRoutes } from './http/routes/admin'
+import { userAdminRoutes, storeProfilePublicRoutes, storeProfileAdminRoutes, storeAdminRoutes } from './http/routes/admin'
 import { superStoresRoutes, superPlansRoutes, superUsersRoutes, superMetricsRoutes } from './http/routes/super'
 import { sessionPublicRoutes } from './http/routes/session'
+import { dataRetentionJobRoutes } from './http/routes/jobs'
 
 // Nos testes é possível injetar um banco de dados falso — veja prisma.plugin.ts
 type BuildAppOptions = {
@@ -46,12 +49,11 @@ export function buildApp(options: BuildAppOptions = {}) {
   // Cabeçalhos de segurança HTTP (X-Content-Type-Options, X-Frame-Options etc.)
   // A API é acessada cross-origin pelo frontend (domínios diferentes no Vercel),
   // então desabilitamos as políticas de cross-origin do helmet que bloqueiam isso:
-  // - permissionsPolicy: causa pop-ups de permissão indevidos em mobile
   // - crossOriginEmbedderPolicy: exige CORP em todos os recursos (incompatível com CORS)
   // - crossOriginResourcePolicy: bloqueia acesso cross-origin aos recursos da API
   // - contentSecurityPolicy: desabilitado porque a API retorna JSON, não HTML
+  // (o helmet não gerencia o header Permissions-Policy — nada a configurar aqui)
   app.register(helmet, {
-    permissionsPolicy: false,
     crossOriginEmbedderPolicy: false,
     crossOriginResourcePolicy: false,
     contentSecurityPolicy: false,
@@ -78,6 +80,10 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.register(rateLimit, {
     max: 300,
     timeWindow: '1 minute',
+    // Identifica o cliente por cabeçalhos que a plataforma define (não forjáveis)
+    // em vez do x-forwarded-for padrão, que poderia ser falsificado para furar o
+    // limite acessando a origem direto — veja shared/security/client-ip.ts
+    keyGenerator: resolveClientKey,
     ...(rateLimitRedis
       ? {
           redis: rateLimitRedis,
@@ -93,6 +99,8 @@ export function buildApp(options: BuildAppOptions = {}) {
 
   app.register(prismaPlugin, { client: options.prisma })
   app.register(jwtAuthPlugin)
+  // Log de auditoria de ações sensíveis (LGPD) — app.audit(), fire-and-forget
+  app.register(auditPlugin)
   app.register(resendPlugin)
   app.register(r2Plugin)
   app.register(storeContextPlugin)
@@ -156,6 +164,11 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.register(orderAdminRoutes, { prefix: '/api/orders' })
   app.register(notificationRoutes, { prefix: '/api/notifications' })
   app.register(userAdminRoutes, { prefix: '/api/users' })
+  // Conta/loja (LGPD): exportação de dados e exclusão definitiva — OWNER only
+  app.register(storeAdminRoutes, { prefix: '/api/store' })
+
+  // Job agendado (Vercel Cron) — limpeza de retenção de dados (LGPD)
+  app.register(dataRetentionJobRoutes, { prefix: '/api/jobs' })
 
   app.get('/api/health', async () => ({ status: 'ok' }))
 

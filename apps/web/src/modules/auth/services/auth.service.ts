@@ -15,6 +15,8 @@ interface RegisterStoreInput {
   storeName: string
   storeSlug: string
   whatsapp: string
+  // LGPD: aceite obrigatório dos Termos de Uso e da Política de Privacidade
+  acceptedTerms: boolean
 }
 
 // Resposta do cadastro de loja nova — inclui o slug e o nome da loja criada
@@ -41,6 +43,11 @@ export const authService = {
   // Faz login e retorna o token de acesso e os dados da loja
   login: (credentials: Credentials) =>
     apiClient.post<LoginResponse>('/auth/login', credentials),
+
+  // Revoga a sessão no servidor (LGPD) — o token deixa de valer imediatamente,
+  // não apenas no navegador
+  logout: (token: string) =>
+    apiClient.post<void>('/auth/logout', {}, token),
 
   // Envia o link de redefinição de senha para o e-mail informado
   forgotPassword: (email: string) =>

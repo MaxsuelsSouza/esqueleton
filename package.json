@@ -8,7 +8,10 @@
     "test": "pnpm -r --no-bail test"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["prisma", "@prisma/client", "@prisma/engines", "esbuild"]
+    "onlyBuiltDependencies": ["prisma", "@prisma/client", "@prisma/engines", "esbuild"],
+    "overrides": {
+      "vite": "^6.4.3"
+    }
   },
   "devDependencies": {
     "typescript": "^5.4.0"

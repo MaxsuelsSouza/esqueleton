@@ -99,8 +99,9 @@ describe('GET /api/lojas/:slug/products (catálogo público)', () => {
     })
 
     // Apenas os IDs válidos chegam à consulta — sempre limitada à loja
+    // (o catálogo público também esconde produtos indisponíveis)
     expect(findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: { in: ['p1', 'p2'] }, storeId: LOJA_TESTE.id } })
+      expect.objectContaining({ where: { id: { in: ['p1', 'p2'] }, storeId: LOJA_TESTE.id, isAvailable: true } })
     )
   })
 })
@@ -130,7 +131,8 @@ describe('rotas admin de produtos', () => {
     const create = vi.fn(async () => produto)
     app = await buildTestApp(
       createPrismaFake({
-        product: { create },
+        // findFirst: a rota recarrega o produto completo depois de criar
+        product: { create, findFirst: vi.fn(async () => produto) },
         category: { count: vi.fn(async () => 1) },
       })
     )
@@ -200,7 +202,13 @@ describe('rotas admin de produtos', () => {
   it('aceita imagem enviada pelo painel (data:image/...;base64)', async () => {
     app = await buildTestApp(
       createPrismaFake({
-        product: { create: vi.fn(async () => produto) },
+        // Em dev/teste (sem R2) a imagem base64 é mantida: a rota cria o produto,
+        // grava a imagem via updateMany e recarrega com findFirst
+        product: {
+          create: vi.fn(async () => produto),
+          updateMany: vi.fn(async () => ({ count: 1 })),
+          findFirst: vi.fn(async () => produto),
+        },
       })
     )
     const token = await createTestToken(app)

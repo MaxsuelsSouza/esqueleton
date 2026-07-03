@@ -5,13 +5,12 @@
 //   1. Obrigatório (primeiro login com senha temporária) — não pede a senha atual
 //   2. Voluntário (usuário quer trocar a senha) — pede a senha atual
 import { useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { authService } from '@/modules/auth/services/auth.service'
 import { useAdminAuth } from '@/modules/auth/hooks/useAdminAuth'
 
 export function useAlterarSenhaPage() {
-  const { token, isChecking } = useAdminAuth()
-  const router = useRouter()
+  const { token, isChecking, logout } = useAdminAuth()
   const searchParams = useSearchParams()
 
   // Se veio do login com senha temporária, o modo é "obrigatório"
@@ -58,9 +57,11 @@ export function useAlterarSenhaPage() {
       )
 
       setSuccess(true)
-      // Redireciona para o painel após 1.5s
+      // A troca de senha revoga todas as sessões no servidor (LGPD) —
+      // inclusive esta. Após mostrar o sucesso, encerra a sessão local
+      // e volta para o login com a nova senha.
       setTimeout(() => {
-        router.replace('/admin/produtos')
+        logout()
       }, 1500)
     } catch (err: unknown) {
       const message = (err as { message?: string })?.message ?? ''

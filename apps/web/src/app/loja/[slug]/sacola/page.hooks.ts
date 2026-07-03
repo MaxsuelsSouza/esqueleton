@@ -36,10 +36,17 @@ export type FullBagItem = {
   discountPercent?: number
 }
 
-// Chave única do item na sacola — mesmo produto com opções diferentes = itens distintos
+// Chave única do item na sacola — mesmo produto com opções diferentes = itens distintos.
+// Usa nome e valor de cada opção, em ordem alfabética, para {Cor: "Preto"} e
+// {Material: "Preto"} nunca gerarem a mesma chave.
 export function itemKey(item: { product: { id: string }; selectedOptions?: Record<string, string> }) {
   const opts = item.selectedOptions
-  const optsSuffix = opts ? ':' + Object.values(opts).join(',') : ''
+  const optsSuffix = opts
+    ? ':' + Object.entries(opts)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([name, value]) => `${name}=${value}`)
+        .join('|')
+    : ''
   return item.product.id + optsSuffix
 }
 
@@ -153,105 +160,6 @@ export function useSacolaPage() {
     return result
   }, [cartItems, productMap])
 
-  // ── Descontos especiais: buy_x_get_y e kit ──────────────────────────────
-  // Verifica promoções ativas que requerem uma quantidade ou combinação específica.
-  // Calcula o desconto adicional quando a condição é atendida, ou gera uma mensagem
-  // de incentivo quando o usuário está perto de ativar a promoção.
-
-  type SpecialPromoResult = {
-    // Desconto extra que deve ser subtraído do total (buy_x_get_y grátis, kit preço fixo)
-    extraDiscount: number
-    // Mensagens de feedback para o usuário (ativados ou incentivos)
-    messages: { type: 'active' | 'incentive'; text: string; promoName: string }[]
-  }
-
-  const specialPromos = useMemo((): SpecialPromoResult => {
-    let extraDiscount = 0
-    const messages: SpecialPromoResult['messages'] = []
-
-    for (const promo of promotions) {
-      if (!promo.active) continue
-
-      if (promo.type === 'buy_x_get_y' && promo.buyQuantity && promo.getQuantity && promo.productIds.length > 0) {
-        // Conta quantas unidades de produtos elegíveis estão na sacola
-        const eligibleItems = items.filter((i) => promo.productIds.includes(i.product.id))
-        const totalQty = eligibleItems.reduce((sum, i) => sum + i.quantity, 0)
-
-        if (totalQty >= promo.getQuantity) {
-          // Condição atingida — calcula itens grátis
-          // Ordena por preço efetivo (mais barato primeiro) para dar os mais baratos de graça
-          const allUnits: number[] = []
-          for (const item of eligibleItems) {
-            for (let i = 0; i < item.quantity; i++) allUnits.push(item.effectivePrice)
-          }
-          allUnits.sort((a, b) => a - b)
-
-          const freeQty = promo.getQuantity - promo.buyQuantity
-          // Calcula quantas vezes a promoção se aplica
-          const timesApplied = Math.floor(totalQty / promo.getQuantity)
-          const freeTotal = timesApplied * freeQty
-          const discount = allUnits.slice(0, freeTotal).reduce((sum, p) => sum + p, 0)
-
-          extraDiscount += discount
-          messages.push({
-            type: 'active',
-            text: `Compre ${promo.buyQuantity} Leve ${promo.getQuantity}: -${formatCurrency(discount)}`,
-            promoName: promo.name,
-          })
-        } else if (totalQty > 0 && totalQty < promo.getQuantity) {
-          // Incentivo — falta pouco para ativar
-          const falta = promo.getQuantity - totalQty
-          messages.push({
-            type: 'incentive',
-            text: `Adicione mais ${falta} ${falta === 1 ? 'produto' : 'produtos'} e ganhe ${promo.getQuantity - promo.buyQuantity} grátis!`,
-            promoName: promo.name,
-          })
-        }
-      }
-
-      if (promo.type === 'kit' && promo.kitPrice && promo.productIds.length > 0) {
-        // Verifica se TODOS os produtos do kit estão na sacola
-        const hasAll = promo.productIds.every((pid) =>
-          items.some((i) => i.product.id === pid && i.quantity > 0),
-        )
-
-        if (hasAll) {
-          // Soma dos preços individuais (com promoção já aplicada) vs kitPrice
-          const individualTotal = promo.productIds.reduce((sum, pid) => {
-            const item = items.find((i) => i.product.id === pid)
-            return sum + (item ? item.effectivePrice : 0)
-          }, 0)
-
-          const kitDiscount = Math.max(0, individualTotal - promo.kitPrice)
-          if (kitDiscount > 0) {
-            extraDiscount += kitDiscount
-            messages.push({
-              type: 'active',
-              text: `Kit ${promo.name}: -${formatCurrency(kitDiscount)}`,
-              promoName: promo.name,
-            })
-          }
-        } else {
-          // Incentivo — mostra quantos faltam
-          const inCart = promo.productIds.filter((pid) =>
-            items.some((i) => i.product.id === pid),
-          )
-          if (inCart.length > 0) {
-            const falta = promo.productIds.length - inCart.length
-            const formatted = promo.kitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-            messages.push({
-              type: 'incentive',
-              text: `Adicione mais ${falta} ${falta === 1 ? 'produto' : 'produtos'} para completar o Kit por ${formatted}!`,
-              promoName: promo.name,
-            })
-          }
-        }
-      }
-    }
-
-    return { extraDiscount, messages }
-  }, [items, promotions])
-
   const isLoading = isBagLoading || isLoadingProducts
 
   // Itens selecionados para envio — usa chave única (produto + opções) para distinguir variantes
@@ -259,19 +167,21 @@ export function useSacolaPage() {
     () => new Set(items.map(itemKey)),
   )
 
+  // Chaves de itens que já passaram pela sacola nesta visita — permite auto-selecionar
+  // apenas itens recém-adicionados, sem re-marcar itens que o cliente desmarcou de propósito
+  const knownKeysRef = useRef<Set<string>>(new Set())
+
   // Sincroniza a seleção quando a sacola muda:
-  // remove chaves de itens que saíram e adiciona os recém-adicionados
+  // remove chaves de itens que saíram e marca apenas os recém-adicionados
   useEffect(() => {
     setSelectedKeys((prev) => {
-      const next = new Set(prev)
-      const currentKeys = new Set(items.map(itemKey))
-      for (const key of next) {
-        if (!currentKeys.has(key)) next.delete(key)
-      }
+      const next = new Set<string>()
       for (const item of items) {
         const key = itemKey(item)
-        if (!next.has(key)) next.add(key)
+        const isNewItem = !knownKeysRef.current.has(key)
+        if (isNewItem || prev.has(key)) next.add(key)
       }
+      knownKeysRef.current = new Set(items.map(itemKey))
       return next
     })
   }, [items])
@@ -314,23 +224,141 @@ export function useSacolaPage() {
   // Subtotal após promoções (usado como base para o cupom)
   const subtotalAfterPromo = selectedSubtotal - promoDiscount
 
-  let selectedDiscount = 0
-  if (appliedCoupon) {
-    const eligible = selectedItems.filter(
-      ({ product }) =>
-        !appliedCoupon.productIds?.length ||
-        appliedCoupon.productIds.includes(product.id),
-    )
-    const eligibleTotal = eligible.reduce(
-      (sum, { effectivePrice, quantity }) => sum + effectivePrice * quantity,
-      0,
-    )
-    if (appliedCoupon.discountType === 'percentage' && appliedCoupon.discountPercent) {
-      selectedDiscount = Math.round(eligibleTotal * (appliedCoupon.discountPercent / 100) * 100) / 100
-    } else if (appliedCoupon.discountType === 'fixed' && appliedCoupon.discountValue) {
-      selectedDiscount = Math.min(appliedCoupon.discountValue, eligibleTotal)
+  // O cupom só vale quando o pedido (após promoções, antes do cupom) atinge o valor mínimo
+  const couponMinimumNotMet = !!(
+    appliedCoupon?.minimumOrderValue != null &&
+    subtotalAfterPromo < appliedCoupon.minimumOrderValue
+  )
+  const activeCoupon = appliedCoupon && !couponMinimumNotMet ? appliedCoupon : null
+
+  // Preço unitário do item já com o cupom aplicado (quando o cupom vale para ele).
+  // É exatamente este preço que a API espera receber em cada item do pedido.
+  function couponUnitPrice(item: FullBagItem): number {
+    if (!activeCoupon) return item.effectivePrice
+    const couponApplies =
+      !activeCoupon.productIds?.length ||
+      activeCoupon.productIds.includes(item.product.id)
+    if (!couponApplies) return item.effectivePrice
+    if (activeCoupon.discountType === 'percentage' && activeCoupon.discountPercent) {
+      return Math.round(item.effectivePrice * (1 - activeCoupon.discountPercent / 100) * 100) / 100
     }
+    if (activeCoupon.discountType === 'fixed' && activeCoupon.discountValue) {
+      return Math.max(0, Math.round((item.effectivePrice - activeCoupon.discountValue) * 100) / 100)
+    }
+    return item.effectivePrice
   }
+
+  // Desconto total do cupom — soma da diferença de preço de cada item elegível
+  const selectedDiscount = selectedItems.reduce(
+    (sum, item) => sum + (item.effectivePrice - couponUnitPrice(item)) * item.quantity,
+    0,
+  )
+
+  // ── Descontos especiais: buy_x_get_y e kit ──────────────────────────────
+  // Verifica promoções ativas que requerem uma quantidade ou combinação específica.
+  // Calcula o desconto adicional quando a condição é atendida, ou gera uma mensagem
+  // de incentivo quando o usuário está perto de ativar a promoção.
+  // Usa os preços já com cupom — o mesmo cálculo que a API faz ao validar o pedido.
+
+  type SpecialPromoResult = {
+    // Desconto extra que deve ser subtraído do total (buy_x_get_y grátis, kit preço fixo)
+    extraDiscount: number
+    // Mensagens de feedback para o usuário (ativados ou incentivos)
+    messages: { type: 'active' | 'incentive'; text: string; promoName: string }[]
+  }
+
+  function computeSpecialPromos(): SpecialPromoResult {
+    let extraDiscount = 0
+    const messages: SpecialPromoResult['messages'] = []
+
+    for (const promo of promotions) {
+      if (!promo.active) continue
+
+      if (promo.type === 'buy_x_get_y' && promo.buyQuantity && promo.getQuantity) {
+        // Conta quantas unidades de produtos elegíveis estão selecionadas.
+        // Lista de produtos vazia = a promoção vale para todos os produtos.
+        const eligibleItems = promo.productIds.length > 0
+          ? selectedItems.filter((i) => promo.productIds.includes(i.product.id))
+          : selectedItems
+        const totalQty = eligibleItems.reduce((sum, i) => sum + i.quantity, 0)
+
+        if (totalQty >= promo.getQuantity) {
+          // Condição atingida — calcula itens grátis
+          // Ordena por preço (mais barato primeiro) para dar os mais baratos de graça
+          const allUnits: number[] = []
+          for (const item of eligibleItems) {
+            const unitPrice = couponUnitPrice(item)
+            for (let i = 0; i < item.quantity; i++) allUnits.push(unitPrice)
+          }
+          allUnits.sort((a, b) => a - b)
+
+          const freeQty = promo.getQuantity - promo.buyQuantity
+          // Calcula quantas vezes a promoção se aplica
+          const timesApplied = Math.floor(totalQty / promo.getQuantity)
+          const freeTotal = timesApplied * freeQty
+          const discount = allUnits.slice(0, freeTotal).reduce((sum, p) => sum + p, 0)
+
+          extraDiscount += discount
+          messages.push({
+            type: 'active',
+            text: `Compre ${promo.buyQuantity} Leve ${promo.getQuantity}: -${formatCurrency(discount)}`,
+            promoName: promo.name,
+          })
+        } else if (totalQty > 0 && totalQty < promo.getQuantity) {
+          // Incentivo — falta pouco para ativar
+          const falta = promo.getQuantity - totalQty
+          messages.push({
+            type: 'incentive',
+            text: `Adicione mais ${falta} ${falta === 1 ? 'produto' : 'produtos'} e ganhe ${promo.getQuantity - promo.buyQuantity} grátis!`,
+            promoName: promo.name,
+          })
+        }
+      }
+
+      if (promo.type === 'kit' && promo.kitPrice && promo.productIds.length > 0) {
+        // Verifica se TODOS os produtos do kit estão selecionados
+        const hasAll = promo.productIds.every((pid) =>
+          selectedItems.some((i) => i.product.id === pid && i.quantity > 0),
+        )
+
+        if (hasAll) {
+          // Soma dos preços individuais (com promoção e cupom já aplicados) vs kitPrice
+          const individualTotal = promo.productIds.reduce((sum, pid) => {
+            const item = selectedItems.find((i) => i.product.id === pid)
+            return sum + (item ? couponUnitPrice(item) : 0)
+          }, 0)
+
+          const kitDiscount = Math.max(0, individualTotal - promo.kitPrice)
+          if (kitDiscount > 0) {
+            extraDiscount += kitDiscount
+            messages.push({
+              type: 'active',
+              text: `Kit ${promo.name}: -${formatCurrency(kitDiscount)}`,
+              promoName: promo.name,
+            })
+          }
+        } else {
+          // Incentivo — mostra quantos faltam
+          const inCart = promo.productIds.filter((pid) =>
+            selectedItems.some((i) => i.product.id === pid),
+          )
+          if (inCart.length > 0) {
+            const falta = promo.productIds.length - inCart.length
+            const formatted = promo.kitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+            messages.push({
+              type: 'incentive',
+              text: `Adicione mais ${falta} ${falta === 1 ? 'produto' : 'produtos'} para completar o Kit por ${formatted}!`,
+              promoName: promo.name,
+            })
+          }
+        }
+      }
+    }
+
+    return { extraDiscount, messages }
+  }
+
+  const specialPromos = computeSpecialPromos()
 
   const selectedTotal = Math.max(0, subtotalAfterPromo - selectedDiscount - specialPromos.extraDiscount)
 
@@ -426,32 +454,51 @@ export function useSacolaPage() {
       return
     }
 
-    const orderNumber = String(Date.now()).slice(-6)
+    // Sufixo aleatório reduz a chance de dois clientes gerarem o mesmo número no mesmo segundo
+    const orderNumber =
+      String(Date.now()).slice(-6) + String(Math.floor(Math.random() * 100)).padStart(2, '0')
 
     const whatsappNumber = normalizePhone(rawWhatsapp)
     const message = encodeURIComponent(buildWhatsAppMessage(customerInfo, orderNumber))
     const url = `https://wa.me/${whatsappNumber}?text=${message}`
     window.open(url, '_blank')
 
-    // Salva o pedido no banco da loja — fire and forget
-    ordersService.create(slug, {
-      orderNumber,
-      customerName: customerInfo.name,
-      customerPhone: customerInfo.phone,
-      items: selectedItems.map(({ product, quantity, promotionName, selectedOptions, effectivePrice }) => ({
+    // Monta os itens no contrato que a API valida: unitPrice já com promoção E cupom,
+    // subtotal = soma dos itens, discount apenas com os descontos especiais (kit / leve Y)
+    const orderItems = selectedItems.map((item) => {
+      const { product, quantity, promotionName, selectedOptions } = item
+      const unitPrice = couponUnitPrice(item)
+      return {
         productId: product.id,
         productName: product.brand
           ? `${product.brand} ${product.name}${selectedOptions ? ' — ' + Object.values(selectedOptions).join(' · ') : ''}`
           : `${product.name}${selectedOptions ? ' — ' + Object.values(selectedOptions).join(' · ') : ''}`,
         quantity,
-        unitPrice: effectivePrice,
-        lineTotal: effectivePrice * quantity,
+        unitPrice,
+        lineTotal: Math.round(unitPrice * quantity * 100) / 100,
         promotionName: promotionName ?? undefined,
-      })),
-      subtotal: selectedSubtotal,
-      discount: promoDiscount + selectedDiscount + specialPromos.extraDiscount,
-      total: selectedTotal,
-      couponCode: appliedCoupon?.code ?? undefined,
+      }
+    })
+    const orderSubtotal = Math.round(orderItems.reduce((sum, i) => sum + i.lineTotal, 0) * 100) / 100
+    const orderDiscount = Math.round(specialPromos.extraDiscount * 100) / 100
+    const orderTotal = Math.max(0, Math.round((orderSubtotal - orderDiscount) * 100) / 100)
+
+    // Salva o pedido no banco da loja — não bloqueia o WhatsApp, mas avisa se falhar
+    ordersService.create(slug, {
+      orderNumber,
+      customerName: customerInfo.name,
+      customerPhone: customerInfo.phone,
+      items: orderItems,
+      subtotal: orderSubtotal,
+      discount: orderDiscount,
+      total: orderTotal,
+      // Só envia o código quando o cupom realmente descontou algo — evita
+      // contar uso de cupom em pedidos que ele não afetou
+      couponCode: activeCoupon && selectedDiscount > 0 ? activeCoupon.code : undefined,
+    }).then((result) => {
+      if (!result.ok) {
+        alert('Seu pedido foi enviado pelo WhatsApp, mas não pôde ser registrado no sistema da loja. A loja ainda receberá sua mensagem normalmente.')
+      }
     })
 
     // Registra analytics — fire and forget
@@ -491,7 +538,12 @@ export function useSacolaPage() {
     const phone = phoneInput.trim()
 
     if (!name) { setIdentError('Informe seu nome.'); return }
-    if (phone.length < 8) { setIdentError('Informe um telefone válido.'); return }
+    // Mesma regra da página de produto: DDD + número (10 ou 11 dígitos)
+    const phoneDigits = phone.replace(/\D/g, '')
+    if (phoneDigits.length < 10 || phoneDigits.length > 11) {
+      setIdentError('Informe um telefone válido com DDD (10 ou 11 dígitos).')
+      return
+    }
 
     const info = { name, phone }
     setCustomer(info)
@@ -545,6 +597,7 @@ export function useSacolaPage() {
     couponInput,
     setCouponInput,
     couponError,
+    couponMinimumNotMet,
     applyCoupon,
     removeCoupon,
     // Cliente
