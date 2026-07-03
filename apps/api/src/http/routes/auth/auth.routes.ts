@@ -149,31 +149,40 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   //   1. Por IP (config abaixo): barra muitas tentativas vindas de um mesmo endereço.
   //   2. Por email (preHandler abaixo): barra ataques distribuídos — muitos IPs
   //      diferentes tentando senhas contra uma MESMA conta.
+  //
+  // O limite por email usa app.createRateLimit (contador manual) em vez de
+  // app.rateLimit: o plugin marca a requisição como "já limitada" depois que o
+  // limite por IP roda, e um segundo app.rateLimit seria pulado em silêncio —
+  // o contador por conta nunca contaria.
+  const contadorPorConta = app.createRateLimit({
+    max: 10,
+    timeWindow: '15 minutes',
+    // Conta as tentativas pelo email informado, não pelo IP — em minúsculas,
+    // para "Ana@loja.com" e "ana@loja.com" contarem como a mesma conta
+    keyGenerator: (request) => {
+      const body = request.body as { email?: unknown } | null
+      const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
+      // Sem email no corpo a validação rejeita a requisição de qualquer
+      // forma — o IP (resistente a spoofing) serve apenas como chave reserva
+      return email ? `email:${email}` : resolveClientKey(request)
+    },
+  })
+
   app.post(
     '/login',
     {
       config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
-      preHandler: app.rateLimit({
-        max: 10,
-        timeWindow: '15 minutes',
-        // Conta as tentativas pelo email informado, não pelo IP — em minúsculas,
-        // para "Ana@loja.com" e "ana@loja.com" contarem como a mesma conta
-        keyGenerator: (request) => {
-          const body = request.body as { email?: unknown } | null
-          const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
-          // Sem email no corpo a validação rejeita a requisição de qualquer
-          // forma — o IP (resistente a spoofing) serve apenas como chave reserva
-          return email ? `email:${email}` : resolveClientKey(request)
-        },
-        // Registra no log quando uma conta passa do limite — ajuda a perceber ataques
-        onExceeded: (request, key) => {
-          app.log.warn({ key, ip: request.ip }, 'Limite de tentativas de login por conta excedido')
-        },
-        errorResponseBuilder: () => ({
-          statusCode: 429,
-          message: 'Muitas tentativas de login para esta conta. Aguarde alguns minutos e tente novamente.',
-        }),
-      }),
+      preHandler: async (request, reply) => {
+        const limite = await contadorPorConta(request)
+        if (!limite.isAllowed && limite.isExceeded) {
+          // Registra no log quando uma conta passa do limite — ajuda a perceber ataques
+          app.log.warn({ key: limite.key, ip: request.ip }, 'Limite de tentativas de login por conta excedido')
+          return reply.status(429).send({
+            statusCode: 429,
+            message: 'Muitas tentativas de login para esta conta. Aguarde alguns minutos e tente novamente.',
+          })
+        }
+      },
     },
     async (request, reply) => {
       const { email, password } = loginSchema.parse(request.body)

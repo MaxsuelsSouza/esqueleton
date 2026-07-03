@@ -77,12 +77,17 @@ describe('applyPromotionToProduct', () => {
     expect(result.badge).toBe('Compre 2 Leve 3')
   })
 
-  it('kit divide o preço do kit pela quantidade de produtos', () => {
+  it('kit não muda o preço do produto avulso, apenas marca com a etiqueta', () => {
+    // O preço do kit só vale quando todos os produtos são comprados juntos —
+    // o desconto é calculado na sacola. No catálogo o produto mantém o preço normal.
     const result = applyPromotionToProduct(
       makeProduct({ price: 100 }),
       makePromotion({ type: 'kit', kitPrice: 90, productIds: ['p1', 'p2', 'p3'], discountPercent: undefined })
     )
-    expect(result.product.price).toBe(30)
+    expect(result.product.price).toBe(100)
+    expect(result.badge).toBe('Kit')
+    // O preço do kit segue nos metadados para a sacola aplicar o desconto
+    expect(result.kitPrice).toBe(90)
   })
 })
 

@@ -24,9 +24,13 @@ describe('POST /api/auth/verify-email', () => {
             userId: 'u1',
             expiresAt: new Date(Date.now() + UM_DIA),
             usedAt: null,
+            // A rota usa a loja do usuário para criar o lembrete de assinatura
+            user: { storeId: 'loja-teste' },
           })),
           update: vi.fn(async () => ({})),
         },
+        // Lembrete de ativação criado após a verificação (fire and forget)
+        notification: { upsert: vi.fn(async () => ({})) },
       })
     )
 

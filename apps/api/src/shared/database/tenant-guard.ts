@@ -91,7 +91,15 @@ function protegeModelo(modelo: object, nomeModelo: string): object {
       const valor = Reflect.get(alvo, propriedade)
       if (typeof propriedade !== 'string' || typeof valor !== 'function') return valor
       return (...argumentos: unknown[]) => {
-        verificaOperacao(nomeModelo, propriedade, argumentos[0])
+        // A falha vira uma promise rejeitada (não um throw imediato) porque todas
+        // essas operações do Prisma devolvem promises — assim chamadas
+        // fire-and-forget com .catch(() => {}) também capturam o erro do guard,
+        // em vez de derrubar a rota inteira
+        try {
+          verificaOperacao(nomeModelo, propriedade, argumentos[0])
+        } catch (erro) {
+          return Promise.reject(erro)
+        }
         return (valor as (...a: unknown[]) => unknown).apply(alvo, argumentos)
       }
     },

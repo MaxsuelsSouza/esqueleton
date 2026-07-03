@@ -35,10 +35,11 @@ describe('POST /api/lojas/:slug/customers', () => {
     // Nome e telefone não voltam na resposta pública
     expect(body.name).toBeUndefined()
     expect(body.phone).toBeUndefined()
-    // O telefone identifica o cliente DENTRO da loja — chave composta loja + telefone
+    // O telefone identifica o cliente DENTRO da loja — chave composta loja + telefone.
+    // O número é salvo normalizado com o código do Brasil (55) para links wa.me
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { storeId_phone: { storeId: LOJA_TESTE.id, phone: '81999999999' } },
+        where: { storeId_phone: { storeId: LOJA_TESTE.id, phone: '5581999999999' } },
       })
     )
   })

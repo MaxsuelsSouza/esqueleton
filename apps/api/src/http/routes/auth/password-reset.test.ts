@@ -14,7 +14,7 @@ describe('POST /api/auth/forgot-password', () => {
   })
 
   it('cria o token de redefinição quando o e-mail existe', async () => {
-    const tokenCreate = vi.fn(async () => ({}))
+    const tokenCreate = vi.fn(async (_args: unknown) => ({}))
     app = await buildTestApp(
       createPrismaFake({
         user: { findUnique: vi.fn(async () => USUARIO) },
@@ -69,7 +69,7 @@ describe('POST /api/auth/reset-password', () => {
     usedAt: Date | null
     expiresAt: Date
   }) {
-    const userUpdate = vi.fn(async () => ({}))
+    const userUpdate = vi.fn(async (_args: unknown) => ({}))
     const tokenUpdate = vi.fn(async () => ({}))
     const builtApp = await buildTestApp(
       createPrismaFake({

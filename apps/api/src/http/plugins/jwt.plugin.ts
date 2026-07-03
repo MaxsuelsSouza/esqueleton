@@ -56,8 +56,9 @@ const plugin: FastifyPluginAsync = async (app) => {
 
       // Após 7 dias sem verificar o e-mail, o painel é bloqueado (403) —
       // exceto nas rotas marcadas com skipEmailVerification (reenvio do link).
-      // Em desenvolvimento local a verificação é ignorada para não travar o painel.
-      const isDev = process.env.NODE_ENV !== 'production'
+      // Em desenvolvimento local a verificação é ignorada para não travar o painel;
+      // nos testes (NODE_ENV=test) ela vale como em produção, para a regra ser testável.
+      const isDev = process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test'
       if (!isDev && !request.routeOptions.config.skipEmailVerification) {
         await requireVerifiedEmail(request, reply)
       }
