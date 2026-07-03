@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import type { UserRole } from '@esqueleton/shared'
+import { clearAdminSession } from '@/shared/services/admin-session'
 import { authService } from '../services/auth.service'
 
 // Páginas do admin acessíveis SEM login — quem chega nelas por link de e-mail
@@ -48,16 +49,6 @@ function isTokenExpired(payload: Record<string, unknown>): boolean {
   return exp * 1000 <= Date.now()
 }
 
-// Remove todas as chaves de sessão do admin do navegador
-function clearAdminSession() {
-  localStorage.removeItem('admin_token')
-  localStorage.removeItem('admin_store_slug')
-  localStorage.removeItem('admin_store_name')
-  localStorage.removeItem('admin_email_verified')
-  // Limpa chaves legadas que versões anteriores salvavam
-  localStorage.removeItem('admin_role')
-  localStorage.removeItem('admin_is_super_admin')
-}
 
 export function useAdminAuth() {
   const [token, setToken] = useState<string | null>(null)

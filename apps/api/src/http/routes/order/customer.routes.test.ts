@@ -56,6 +56,21 @@ describe('POST /api/lojas/:slug/customers', () => {
     expect(response.statusCode).toBe(400)
   })
 
+  it('rejeita telefone sem DDD ou incompleto (formato estrito — LGPD)', async () => {
+    const upsert = vi.fn(async () => cliente)
+    app = await buildTestApp(createPrismaFake({ customer: { upsert } }))
+
+    // 8 dígitos sem DDD — número incompleto não pode virar cadastro de terceiro
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/lojas/loja-teste/customers',
+      payload: { name: 'Maria Silva', phone: '99999999' },
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(upsert).not.toHaveBeenCalled()
+  })
+
   it('rejeita nome muito curto', async () => {
     app = await buildTestApp(createPrismaFake({}))
 

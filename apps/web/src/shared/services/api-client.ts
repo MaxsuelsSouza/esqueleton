@@ -1,15 +1,7 @@
 // Cliente HTTP base — todas as chamadas para a API passam por aqui
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+import { redirectToLoginSessionExpired } from './admin-session'
 
-// Sessão do admin expirou ou o token foi rejeitado — limpa o navegador e manda
-// para o login com aviso, em vez de deixar cada tela falhar com erro genérico
-function handleAdminSessionExpired() {
-  localStorage.removeItem('admin_token')
-  localStorage.removeItem('admin_store_slug')
-  localStorage.removeItem('admin_store_name')
-  localStorage.removeItem('admin_email_verified')
-  window.location.href = '/admin/login?sessao=expirada'
-}
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}/api${path}`, {
@@ -17,11 +9,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   })
 
-  // 401 numa chamada autenticada dentro do painel = sessão expirada
+  // 401 numa chamada autenticada dentro do painel = sessão expirada ou
+  // revogada (LGPD, Fase 4.2) — limpa o navegador e volta ao login com aviso,
+  // em vez de deixar cada tela falhar com erro genérico.
+  // A página de login fica de fora: lá o 401 significa "senha errada".
   if (res.status === 401 && typeof window !== 'undefined') {
     const sentToken = Boolean((init?.headers as Record<string, string> | undefined)?.Authorization)
-    if (sentToken && window.location.pathname.startsWith('/admin')) {
-      handleAdminSessionExpired()
+    const isAdminPage = window.location.pathname.startsWith('/admin')
+    const isLoginPage = window.location.pathname.startsWith('/admin/login')
+    if (sentToken && isAdminPage && !isLoginPage) {
+      redirectToLoginSessionExpired()
     }
   }
 

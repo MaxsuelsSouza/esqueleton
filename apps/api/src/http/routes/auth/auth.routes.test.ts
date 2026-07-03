@@ -179,6 +179,33 @@ describe('POST /api/auth/register (cadastro público de loja)', () => {
     expect(response.statusCode).toBe(400)
   })
 
+  it('rejeita senha muito comum mesmo com 8+ caracteres (LGPD)', async () => {
+    const userCreate = vi.fn(async () => ({}))
+    app = await buildTestApp(
+      createPrismaFake({
+        user: { findUnique: vi.fn(async () => null), create: userCreate },
+        store: { findUnique: vi.fn(async () => null), create: vi.fn(async () => ({})) },
+        storeProfile: { create: vi.fn(async () => ({})) },
+      })
+    )
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: {
+        email: 'ana@loja.com',
+        password: '12345678',
+        storeName: 'Perfumaria Ana',
+        storeSlug: 'perfumaria-ana',
+        whatsapp: '5511999999999',
+        acceptedTerms: true,
+      },
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(userCreate).not.toHaveBeenCalled()
+  })
+
   it('rejeita cadastro sem o aceite dos termos (LGPD)', async () => {
     const userCreate = vi.fn(async () => ({}))
     app = await buildTestApp(

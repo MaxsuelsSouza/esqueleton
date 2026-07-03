@@ -3,6 +3,7 @@ import crypto from 'crypto'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import { shortText, slugSchema, phoneSchema } from '../../../shared/validation/schemas'
+import { isSenhaMuitoComum } from '../../../shared/validation/weak-passwords'
 import { requireOwner } from '../../../domain/identity/guards/role.guard'
 import { emailVerificationEmail } from '../../../shared/email/templates'
 import { resolveClientKey } from '../../../shared/security/client-ip'
@@ -14,6 +15,12 @@ export const passwordSchema = z
   .string()
   .min(8, 'Senha deve ter no mínimo 8 caracteres')
   .max(72, 'Senha muito longa')
+  // LGPD (Fase 4.5): senhas famosas de vazamentos são as primeiras tentadas
+  // em ataques — bloqueadas no cadastro, na troca e na redefinição
+  .refine(
+    (senha) => !isSenhaMuitoComum(senha),
+    'Senha muito comum — escolha uma senha mais difícil de adivinhar',
+  )
 
 // Cadastro de uma loja nova — pede os dados da loja junto com os do usuário
 const registerStoreSchema = z.object({
