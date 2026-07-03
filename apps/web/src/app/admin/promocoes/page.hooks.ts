@@ -133,6 +133,23 @@ export function usePromocoesPage() {
       setFormError('O desconto não pode passar de 100%.')
       return
     }
+    // Impede salvar uma promoção que promete desconto mas não desconta nada
+    if (form.type === 'percentage' && !form.discountPercent) {
+      setFormError('Informe o percentual de desconto.')
+      return
+    }
+    if (form.type === 'fixed' && !form.discountValue) {
+      setFormError('Informe o valor do desconto.')
+      return
+    }
+    if (form.type === 'kit' && !form.kitPrice) {
+      setFormError('Informe o preço do kit.')
+      return
+    }
+    if (form.type === 'buy_x_get_y' && (!form.buyQuantity || !form.getQuantity)) {
+      setFormError('Informe as quantidades do Compre X Leve Y.')
+      return
+    }
 
     setIsSaving(true)
     setFormError(null)
@@ -150,14 +167,22 @@ export function usePromocoesPage() {
         .map((p) => p.id)
     }
 
+    // Campos opcionais vazios vão como null — é o que faz a API LIMPAR o valor
+    // no banco (undefined seria descartado do JSON e o valor antigo voltaria)
     const payload = {
       ...form,
       name: form.name.trim(),
+      description: form.description?.trim() || null,
+      discountPercent: form.discountPercent ?? null,
+      discountValue: form.discountValue ?? null,
+      buyQuantity: form.buyQuantity ?? null,
+      getQuantity: form.getQuantity ?? null,
+      kitPrice: form.kitPrice ?? null,
       productIds: resolvedProductIds,
-      startTime: hasTimeWindow ? form.startTime : undefined,
-      endTime: hasTimeWindow ? form.endTime : undefined,
-      startDate: hasDateRange ? form.startDate : undefined,
-      endDate: hasDateRange ? form.endDate : undefined,
+      startTime: hasTimeWindow ? form.startTime ?? null : null,
+      endTime: hasTimeWindow ? form.endTime ?? null : null,
+      startDate: hasDateRange ? form.startDate ?? null : null,
+      endDate: hasDateRange ? form.endDate ?? null : null,
       // Quando o toggle de cor está desligado, envia null para limpar no banco
       color: hasColor ? form.color : null,
     }
@@ -186,8 +211,9 @@ export function usePromocoesPage() {
       }
       setModalOpen(false)
       loadData()
-    } catch {
-      setFormError('Erro ao salvar. Tente novamente.')
+    } catch (err: unknown) {
+      // Mostra a mensagem real da API quando existir
+      setFormError((err as Error)?.message || 'Erro ao salvar. Tente novamente.')
     } finally {
       setIsSaving(false)
     }
@@ -213,6 +239,10 @@ export function usePromocoesPage() {
       await promotionsService.deletePromotion(deletingPromotion.id, token)
       setDeletingPromotion(null)
       loadData()
+    } catch {
+      // Mantém o modal aberto e avisa — fechar sem mensagem faria o lojista
+      // acreditar que a promoção foi excluída
+      alert('Não foi possível excluir a promoção. Tente novamente.')
     } finally {
       setIsDeleting(false)
     }
@@ -232,8 +262,12 @@ export function usePromocoesPage() {
     }
 
     const token = localStorage.getItem('admin_token') ?? ''
-    await promotionsService.updatePromotion(id, { active: !promo.active }, token)
-    loadData()
+    try {
+      await promotionsService.updatePromotion(id, { active: !promo.active }, token)
+      loadData()
+    } catch {
+      alert('Não foi possível alterar o status da promoção. Tente novamente.')
+    }
   }
 
   // ── Drag-and-drop para reordenar prioridade ──
@@ -268,10 +302,16 @@ export function usePromocoesPage() {
     setPromotions(reordered)
     handleDragEnd()
 
-    // Persiste no servidor
+    // Persiste no servidor — se falhar, recarrega para a ordem visual não
+    // ficar diferente da ordem realmente salva
     if (!USE_MOCK_DATA) {
       const token = localStorage.getItem('admin_token') ?? ''
-      await promotionsService.reorderPromotions(reordered.map((p) => p.id), token)
+      try {
+        await promotionsService.reorderPromotions(reordered.map((p) => p.id), token)
+      } catch {
+        alert('Não foi possível salvar a nova ordem. A lista foi restaurada.')
+        loadData()
+      }
     }
   }
 

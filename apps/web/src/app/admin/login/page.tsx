@@ -3,9 +3,19 @@
 // Tela de login da área administrativa
 // Também permite criar uma loja nova ("Criar minha loja") com nome, endereço, e-mail e senha
 import Link from 'next/link'
+import { Suspense } from 'react'
 import { useLoginPage } from './page.hooks'
 
+// Suspense necessário porque useSearchParams() (aviso de sessão expirada) precisa de um boundary
 export default function AdminLoginPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-white" />}>
+      <LoginPageContent />
+    </Suspense>
+  )
+}
+
+function LoginPageContent() {
   const {
     mode,
     email,
@@ -16,6 +26,8 @@ export default function AdminLoginPage() {
     storeSlug,
     whatsapp,
     setWhatsapp,
+    acceptedTerms,
+    setAcceptedTerms,
     error,
     isLoading,
     handleStoreNameChange,
@@ -142,6 +154,29 @@ export default function AdminLoginPage() {
               </Link>
             )}
           </div>
+
+          {/* Aceite dos termos — obrigatório para criar a loja (LGPD) */}
+          {mode === 'register' && (
+            <label className="flex items-start gap-2.5 text-xs text-gray-500">
+              <input
+                type="checkbox"
+                checked={acceptedTerms}
+                onChange={(e) => setAcceptedTerms(e.target.checked)}
+                required
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 accent-gray-900"
+              />
+              <span>
+                Li e aceito os{' '}
+                <Link href="/termos" target="_blank" className="font-medium text-gray-700 underline hover:text-gray-900">
+                  Termos de Uso
+                </Link>{' '}
+                e a{' '}
+                <Link href="/privacidade" target="_blank" className="font-medium text-gray-700 underline hover:text-gray-900">
+                  Política de Privacidade
+                </Link>
+              </span>
+            </label>
+          )}
 
           {error && (
             <p className="rounded-lg bg-red-50 px-3.5 py-2.5 text-sm text-red-500">{error}</p>

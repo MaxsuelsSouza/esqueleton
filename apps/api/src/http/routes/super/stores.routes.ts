@@ -143,6 +143,17 @@ export const superStoresRoutes: FastifyPluginAsync = async (app) => {
       app.log.info({ storeId: id, planId }, 'Super-admin alterou o plano da loja')
     }
 
+    // Auditoria (LGPD): ação de plataforma sobre uma loja (status e/ou plano)
+    app.audit({
+      action: 'PLATAFORMA_LOJA_ALTERADA',
+      storeId: id,
+      userId: request.user.sub,
+      detail: [status && `status → ${status}`, planId && `plano → ${planId}`]
+        .filter(Boolean)
+        .join('; '),
+      ip: request.ip,
+    })
+
     return { message: 'Loja atualizada com sucesso' }
   })
 }

@@ -46,6 +46,23 @@ export const changePasswordRoutes: FastifyPluginAsync = async (app) => {
         data: { password: hashed, mustChangePassword: false },
       })
 
+      // Revogação de sessão (LGPD, Fase 4.4): a senha mudou — todas as sessões
+      // abertas com a senha antiga (inclusive esta) deixam de valer.
+      // O painel redireciona para o login após a troca.
+      try {
+        await app.sessionStore.setRevogacao(user.id, Math.floor(Date.now() / 1000))
+      } catch (error) {
+        app.log.error({ error, userId: user.id }, 'Falha ao revogar sessões na troca de senha')
+      }
+
+      // Auditoria (LGPD): troca de senha pelo próprio usuário
+      app.audit({
+        action: 'TROCA_DE_SENHA',
+        storeId: request.user.storeId,
+        userId: user.id,
+        ip: request.ip,
+      })
+
       return { message: 'Senha alterada com sucesso' }
     }
   )

@@ -33,8 +33,8 @@ export interface ProductVariant {
 
 export interface Product {
   id: string
-  // Nome da marca (ex: Dior, Chanel, L'Occitane)
-  brand?: string
+  // Nome da marca (ex: Dior, Chanel, L'Occitane) — null quando removida
+  brand?: string | null
   name: string
   description: string | null
   price: number
@@ -60,7 +60,7 @@ export interface Product {
 export interface ProductOption {
   id: string
   name: string
-  brand?: string
+  brand?: string | null
   price: number
   categoryIds?: string[]
 }
@@ -130,12 +130,12 @@ export interface Featured {
   tag: string
   // Produtos exibidos na seção
   productIds: string[]
-  // Período de vigência — opcional
-  startDate?: string
-  endDate?: string
-  // Janela de horário diária — opcional
-  startTime?: string
-  endTime?: string
+  // Período de vigência — opcional (null quando limpo)
+  startDate?: string | null
+  endDate?: string | null
+  // Janela de horário diária — opcional (null quando limpo)
+  startTime?: string | null
+  endTime?: string | null
   active: boolean
   // Exibe os produtos em carrossel automático (4 por vez) em vez de grade estática
   carousel: boolean
@@ -149,25 +149,26 @@ export interface Promotion {
   id: string
   name: string
   type: PromotionType
+  // Campos opcionais podem vir null quando limpos no painel.
   // Desconto percentual (ex: 20 = 20% off)
-  discountPercent?: number
+  discountPercent?: number | null
   // Desconto em valor fixo (ex: 50 = R$ 50,00 off)
-  discountValue?: number
+  discountValue?: number | null
   // Regra "compre X leve Y" (ex: compre 2 leve 3)
-  buyQuantity?: number
-  getQuantity?: number
+  buyQuantity?: number | null
+  getQuantity?: number | null
   // Preço especial do kit
-  kitPrice?: number
+  kitPrice?: number | null
   // Produtos incluídos na promoção
   productIds: string[]
   // Janela de horário diária recorrente — ex: válido das 08:00 às 12:00
-  startTime?: string
-  endTime?: string
+  startTime?: string | null
+  endTime?: string | null
   // Período de vigência — ex: só em janeiro
-  startDate?: string
-  endDate?: string
+  startDate?: string | null
+  endDate?: string | null
   // Texto livre para descrever qualquer regra que não caiba nos campos acima
-  description?: string
+  description?: string | null
   // Cor da borda exibida ao redor do card do produto no catálogo (hex, ex: "#f97316")
   // null significa que a borda colorida está desativada
   color?: string | null
@@ -181,22 +182,23 @@ export interface Coupon {
   id: string
   // Código que o cliente digita no checkout (ex: VERAO20)
   code: string
-  description?: string
+  // Campos opcionais podem vir null quando limpos no painel.
+  description?: string | null
   // Tipo de desconto
   discountType: 'percentage' | 'fixed'
-  discountPercent?: number
-  discountValue?: number
+  discountPercent?: number | null
+  discountValue?: number | null
   // Valor mínimo do pedido para o cupom ser válido
-  minimumOrderValue?: number
+  minimumOrderValue?: number | null
   // Limite total de usos — null significa ilimitado
-  maxUses?: number
+  maxUses?: number | null
   usedCount: number
   // Limite de usos por pessoa
-  maxUsesPerUser?: number
+  maxUsesPerUser?: number | null
   // Se vazio, aplica a todos os produtos
   productIds?: string[]
-  startDate?: string
-  endDate?: string
+  startDate?: string | null
+  endDate?: string | null
   active: boolean
   createdAt: string
 }
@@ -206,13 +208,14 @@ export interface StoreProfile {
   id: string
   // Nome exibido no cabeçalho e em mensagens do WhatsApp
   storeName: string
-  address?: string
+  // Campos opcionais podem vir null quando limpos no painel.
+  address?: string | null
   // Número no formato internacional sem espaços (ex: "5511999999999")
-  whatsapp?: string
+  whatsapp?: string | null
   // Arroba sem @ (ex: "minhaloja")
-  instagram?: string
+  instagram?: string | null
   // URL da logo exibida no cabeçalho
-  logoUrl?: string
+  logoUrl?: string | null
   // Cor principal do tema em hex (ex: "#e11d48") — usada nos botões e acentos do catálogo
   themeColor: string
   // Mensagens exibidas na barra acima do cabeçalho, uma por vez em rotação

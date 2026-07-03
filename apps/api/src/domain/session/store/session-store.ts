@@ -28,6 +28,10 @@ type RedisClient = {
   quit: () => Promise<unknown>
 }
 
+// Revogação de sessão (LGPD, Fase 4.4): a marca vive pelo tempo de vida do
+// token (1 dia) — depois disso o próprio token já expirou e a marca é inútil
+const REVOGACAO_TTL_SECONDS = 24 * 60 * 60
+
 // Contrato que as rotas usam — tanto o Redis quanto o Map em memória implementam
 export interface SessionStore {
   getCart(storeId: string, sessionToken: string): Promise<CartRedisItem[]>
@@ -37,6 +41,12 @@ export interface SessionStore {
   getFavorites(storeId: string, sessionToken: string): Promise<string[]>
   setFavorites(storeId: string, sessionToken: string, productIds: string[]): Promise<void>
   deleteFavorites(storeId: string, sessionToken: string): Promise<void>
+
+  // Revogação de sessão: tokens emitidos ANTES da marca (timestamp em segundos,
+  // como o iat do JWT) deixam de valer — usada no logout, na troca de senha e
+  // na remoção de membro da equipe
+  setRevogacao(userId: string, timestampSegundos: number): Promise<void>
+  getRevogacao(userId: string): Promise<number | null>
 
   close(): Promise<void>
 }
@@ -87,6 +97,17 @@ class RedisSessionStore implements SessionStore {
 
   async deleteFavorites(storeId: string, sessionToken: string): Promise<void> {
     await this.redis.del(this.favKey(storeId, sessionToken))
+  }
+
+  async setRevogacao(userId: string, timestampSegundos: number): Promise<void> {
+    await this.redis.set(`revogacao:${userId}`, String(timestampSegundos), 'EX', REVOGACAO_TTL_SECONDS)
+  }
+
+  async getRevogacao(userId: string): Promise<number | null> {
+    const data = await this.redis.get(`revogacao:${userId}`)
+    if (!data) return null
+    const timestamp = Number(data)
+    return Number.isFinite(timestamp) ? timestamp : null
   }
 
   async close(): Promise<void> {
@@ -145,6 +166,21 @@ class InMemorySessionStore implements SessionStore {
 
   async deleteFavorites(storeId: string, sessionToken: string): Promise<void> {
     this.del(`fav:${storeId}:${sessionToken}`)
+  }
+
+  async setRevogacao(userId: string, timestampSegundos: number): Promise<void> {
+    // Marca expira junto com o token (1 dia) — a limpeza preguiçosa do get resolve
+    this.data.set(`revogacao:${userId}`, {
+      value: String(timestampSegundos),
+      expiresAt: Date.now() + REVOGACAO_TTL_SECONDS * 1000,
+    })
+  }
+
+  async getRevogacao(userId: string): Promise<number | null> {
+    const data = this.get(`revogacao:${userId}`)
+    if (!data) return null
+    const timestamp = Number(data)
+    return Number.isFinite(timestamp) ? timestamp : null
   }
 
   async close(): Promise<void> {

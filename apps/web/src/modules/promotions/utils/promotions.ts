@@ -1,13 +1,14 @@
 // Funções para aplicar promoções ativas aos produtos no catálogo
 import type { Product, Promotion, PromotionType } from '@esqueleton/shared'
+import { getStoreDateTime } from '@/shared/utils/store-time'
 
 // Verifica se uma promoção está ativa agora — considera flag, período e janela de horário
 export function isPromotionActive(promotion: Promotion): boolean {
   if (!promotion.active) return false
 
-  const now = new Date()
-  const today = now.toISOString().split('T')[0]
-  const currentTime = now.toTimeString().slice(0, 5) // "HH:mm"
+  // Data e hora no fuso da loja — o mesmo cálculo usado pela API,
+  // para a promoção nunca "virar o dia" em horário diferente nos dois lados
+  const { date: today, time: currentTime } = getStoreDateTime()
 
   if (promotion.startDate && today < promotion.startDate) return false
   if (promotion.endDate && today > promotion.endDate) return false
@@ -58,16 +59,17 @@ export interface PromotedProduct {
 // Aplica uma promoção ao produto — modifica preço e define badge conforme o tipo
 export function applyPromotionToProduct(product: Product, promotion: Promotion): PromotedProduct {
   const badgeColor = promotion.color ?? undefined
-  // Metadados da promoção passados adiante para analytics e exibição pública
+  // Metadados da promoção passados adiante para analytics e exibição pública.
+  // Campos opcionais podem vir null do banco — normaliza para undefined aqui.
   const promoMeta = {
     promotionId: promotion.id,
     promotionName: promotion.name,
-    promotionDescription: promotion.description,
+    promotionDescription: promotion.description ?? undefined,
     promotionType: promotion.type,
     promotionProductIds: promotion.productIds,
-    buyQuantity: promotion.buyQuantity,
-    getQuantity: promotion.getQuantity,
-    kitPrice: promotion.kitPrice,
+    buyQuantity: promotion.buyQuantity ?? undefined,
+    getQuantity: promotion.getQuantity ?? undefined,
+    kitPrice: promotion.kitPrice ?? undefined,
   }
 
   switch (promotion.type) {
@@ -108,17 +110,10 @@ export function applyPromotionToProduct(product: Product, promotion: Promotion):
     }
 
     case 'kit': {
-      if (!promotion.kitPrice) break
-      const pricePerItem = Math.round((promotion.kitPrice / promotion.productIds.length) * 100) / 100
-      const percent = Math.round(((product.price - pricePerItem) / product.price) * 100)
-      return {
-        product: { ...product, price: pricePerItem },
-        badge: 'Kit',
-        badgeColor,
-        originalPrice: product.price,
-        discountPercent: percent > 0 ? percent : undefined,
-        ...promoMeta,
-      }
+      // O preço do kit só vale quando TODOS os produtos do kit são comprados juntos —
+      // o desconto é calculado na sacola. O produto avulso mantém o preço normal;
+      // aqui só entra o badge para o cliente saber que o produto participa de um kit.
+      return { product, badge: 'Kit', badgeColor, ...promoMeta }
     }
 
     case 'custom': {

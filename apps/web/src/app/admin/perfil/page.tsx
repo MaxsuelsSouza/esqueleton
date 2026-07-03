@@ -4,6 +4,7 @@
 import { useRef, useState } from 'react'
 import { ImagePlus, Camera, X, Save, Store, Plus, Megaphone } from 'lucide-react'
 import { compressImage } from '@/modules/catalog/utils/image'
+import { ContaSection } from '@/modules/account'
 import { usePerfilPage } from './page.hooks'
 
 // Cores predefinidas para o tema
@@ -270,6 +271,9 @@ export default function AdminPerfilPage() {
         <Save size={16} />
         {isSaving ? 'Salvando...' : 'Salvar perfil'}
       </button>
+
+      {/* Dados e conta (LGPD) — exportar tudo e excluir a loja (OWNER only) */}
+      <ContaSection />
     </div>
   )
 }

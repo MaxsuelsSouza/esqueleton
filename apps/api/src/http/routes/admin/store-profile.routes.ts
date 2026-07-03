@@ -61,8 +61,9 @@ export const storeProfileAdminRoutes: FastifyPluginAsync = async (app) => {
     const storeId = request.user.storeId
     const data = storeProfileSchema.partial().parse(request.body)
 
-    // Faz upload do logo para o R2 se for base64
-    if (data.logoUrl !== undefined) {
+    // Faz upload do logo para o R2 se for base64.
+    // null significa "remover o logo" — passa direto para o banco sem upload.
+    if (data.logoUrl != null) {
       data.logoUrl = await uploadImage(app.storage, request.log, data.logoUrl, storeId, 'stores', storeId)
     }
 

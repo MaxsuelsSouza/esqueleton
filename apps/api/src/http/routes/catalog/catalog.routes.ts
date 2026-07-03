@@ -164,8 +164,9 @@ export const catalogAdminRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
-    // Faz upload das imagens para o R2 antes da transação
-    if (fields.imageUrl !== undefined) {
+    // Faz upload das imagens para o R2 antes da transação.
+    // null significa "limpar a imagem" — passa direto para o banco sem upload.
+    if (fields.imageUrl != null) {
       fields.imageUrl = await uploadImage(app.storage, request.log, fields.imageUrl, storeId, 'products', id)
     }
     if (fields.images !== undefined) {
@@ -180,21 +181,43 @@ export const catalogAdminRoutes: FastifyPluginAsync = async (app) => {
         })
       }
 
-      // Recria as variantes (apaga todas e insere as novas)
+      // Atualiza as variantes preservando os IDs existentes — sacolas de clientes
+      // guardam o variantId por dias; recriar tudo deixaria esses IDs órfãos e a
+      // sacola voltaria a cobrar o preço base do produto em vez do preço da variante
       if (variants !== undefined) {
-        await tx.productVariant.deleteMany({ where: { productId: id, storeId } })
-        if (variants.length > 0) {
-          const variantsData = await Promise.all(
-            variants.map(async (v) => ({
-              productId: id,
-              options: v.options,
-              price: v.price,
-              imageUrl: (await uploadImage(app.storage, request.log, v.imageUrl, storeId, 'products', id)) ?? null,
-              active: v.active,
-              storeId,
-            })),
-          )
-          await tx.productVariant.createMany({ data: variantsData })
+        const existentes = await tx.productVariant.findMany({
+          where: { productId: id, storeId },
+          select: { id: true },
+        })
+        const idsExistentes = new Set(existentes.map((v) => v.id))
+        const idsMantidos = variants
+          .filter((v) => v.id && idsExistentes.has(v.id))
+          .map((v) => v.id!)
+
+        // Remove apenas as variantes que saíram do formulário
+        await tx.productVariant.deleteMany({
+          where: { productId: id, storeId, id: { notIn: idsMantidos } },
+        })
+
+        for (const v of variants) {
+          const variantImageUrl =
+            (await uploadImage(app.storage, request.log, v.imageUrl, storeId, 'products', id)) ?? null
+          const dadosDaVariante = {
+            options: v.options,
+            price: v.price,
+            imageUrl: variantImageUrl,
+            active: v.active,
+          }
+          if (v.id && idsExistentes.has(v.id)) {
+            await tx.productVariant.updateMany({
+              where: { id: v.id, productId: id, storeId },
+              data: dadosDaVariante,
+            })
+          } else {
+            await tx.productVariant.create({
+              data: { ...dadosDaVariante, productId: id, storeId },
+            })
+          }
         }
       }
 

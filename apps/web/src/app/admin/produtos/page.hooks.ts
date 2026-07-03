@@ -1,7 +1,7 @@
 'use client'
 
 // Hook que centraliza toda a lógica de estado e dados da página de produtos
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { catalogService } from '@/modules/catalog/services/catalog.service'
 import { categoriesService } from '@/modules/categories/services/categories.service'
 import { getMockProducts, setMockProducts } from '@/modules/catalog/mocks/products-store'
@@ -18,6 +18,9 @@ const PAGE_SIZE = 24
 
 // Dados de uma variante no formulário
 export type VariantFormData = {
+  // ID da variante já salva — preservá-lo evita que a API recrie as variantes
+  // (sacolas de clientes guardam o variantId por dias)
+  id?: string
   options: Record<string, string>
   price: string
   imageUrl: string
@@ -81,51 +84,37 @@ export function useProdutosPage() {
   // ID do produto sendo alternado entre disponível/indisponível (loading individual)
   const [togglingId, setTogglingId] = useState<string | null>(null)
 
-  // Filtros da listagem (aplicados client-side)
+  // Filtros da listagem (aplicados no servidor)
   const [search, setSearch] = useState('')
   const [filterCategory, setFilterCategory] = useState('')
   const [sortBy, setSortBy] = useState('newest')
   const [searchFocused, setSearchFocused] = useState(false)
+
+  // Controla se o skeleton de primeiro carregamento já foi exibido — usa ref
+  // para não depender do valor de products (que pode voltar a 0 após um filtro vazio)
+  const hasLoadedRef = useRef(false)
 
   // Carrega a lista de categorias uma única vez (para o filtro e o formulário)
   useEffect(() => {
     loadCategories()
   }, [])
 
-  // Recarrega os produtos sempre que a página, os filtros ou o modal mudarem.
-  // O pequeno atraso (debounce) evita uma requisição a cada tecla digitada na busca.
-  // Incluir modalOpen garante que a listagem seja restaurada ao fechar o modal.
-  useEffect(() => {
-    const timer = setTimeout(() => { loadProducts() }, 300)
-    return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, search, filterCategory, sortBy, modalOpen])
-
-  async function loadCategories() {
-    if (USE_MOCK_DATA) {
-      setCategories(buildCategoryTree(getMockCategories()))
-      return
-    }
-    try {
-      const cats = await categoriesService.listCategories(localStorage.getItem('admin_token') ?? '')
-      // A API retorna lista plana — monta a árvore para exibir os checkboxes corretamente
-      setCategories(buildCategoryTree(cats))
-    } catch {
-      // Sem categorias o filtro apenas não aparece — não bloqueia a página
-    }
-  }
-
-  async function loadProducts() {
+  const loadProducts = useCallback(async () => {
     if (USE_MOCK_DATA) {
       const all = getMockProducts()
       setProducts(all)
       setTotal(all.length)
       setTotalPages(1)
       setIsLoading(false)
+      hasLoadedRef.current = true
       return
     }
 
-    setIsLoading(true)
+    // Skeleton só no primeiro carregamento — nos seguintes os dados anteriores
+    // continuam visíveis enquanto a nova requisição acontece em segundo plano
+    if (!hasLoadedRef.current) {
+      setIsLoading(true)
+    }
     setError(null)
     try {
       // Paginação no servidor — carrega apenas a página atual, não todos os produtos de uma vez
@@ -139,10 +128,39 @@ export function useProdutosPage() {
       setProducts(result.data)
       setTotal(result.total)
       setTotalPages(result.totalPages)
+      hasLoadedRef.current = true
     } catch {
       setError('Não foi possível carregar os produtos.')
     } finally {
       setIsLoading(false)
+    }
+  }, [page, search, filterCategory, sortBy])
+
+  // Recarrega os produtos sempre que a página ou os filtros mudarem.
+  // O pequeno atraso (debounce) evita uma requisição a cada tecla digitada na busca.
+  useEffect(() => {
+    const timer = setTimeout(() => { loadProducts() }, 300)
+    return () => clearTimeout(timer)
+  }, [loadProducts])
+
+  // Mudou a busca, a categoria ou a ordenação → volta para a primeira página.
+  // Sem isso, uma busca feita na página 3 mostraria "nenhum produto encontrado"
+  // mesmo havendo resultados (que estão na página 1).
+  useEffect(() => {
+    setPage(1)
+  }, [search, filterCategory, sortBy])
+
+  async function loadCategories() {
+    if (USE_MOCK_DATA) {
+      setCategories(buildCategoryTree(getMockCategories()))
+      return
+    }
+    try {
+      const cats = await categoriesService.listCategories(localStorage.getItem('admin_token') ?? '')
+      // A API retorna lista plana — monta a árvore para exibir os checkboxes corretamente
+      setCategories(buildCategoryTree(cats))
+    } catch {
+      // Sem categorias o filtro apenas não aparece — não bloqueia a página
     }
   }
 
@@ -167,6 +185,7 @@ export function useProdutosPage() {
       categoryIds: product.categoryIds ?? [],
       characteristics: product.characteristics ?? [],
       variants: (product.variants ?? []).map((v) => ({
+        id: v.id,
         options: v.options,
         price: String(v.price),
         imageUrl: v.imageUrl ?? '',
@@ -196,18 +215,22 @@ export function useProdutosPage() {
       (c) => c.name.trim() && c.value.trim(),
     ).map((c) => ({ name: c.name.trim(), value: c.value.trim() }))
 
-    // Filtra variantes com pelo menos uma opção e preço válido
+    // Filtra variantes com pelo menos uma opção e preço válido.
+    // Mantém o id das variantes existentes para a API atualizar no lugar em vez de recriar.
     const variantsLimpos = formData.variants
       .filter((v) => Object.keys(v.options).length > 0 && v.price && !isNaN(Number(v.price)))
       .map((v) => ({
+        id: v.id,
         options: v.options,
         price: Number(v.price),
-        imageUrl: v.imageUrl.trim() || undefined,
+        imageUrl: v.imageUrl.trim() || null,
         active: v.active,
       }))
 
+    // Campos opcionais vazios vão como null — é o que faz a API LIMPAR o valor
+    // no banco (undefined seria descartado do JSON e o valor antigo voltaria)
     const payload = {
-      brand: formData.brand.trim() || undefined,
+      brand: formData.brand.trim() || null,
       name: formData.name.trim(),
       description: formData.description.trim() || null,
       price: preco,
@@ -239,16 +262,31 @@ export function useProdutosPage() {
     const token = localStorage.getItem('admin_token') ?? ''
     try {
       if (editingProduct) {
-        const diff = buildDiff(editingProduct as unknown as Record<string, unknown>, payload)
+        // Normaliza as variantes do produto original para o MESMO formato do payload —
+        // sem isso o diff sempre acusaria mudança (a resposta da API tem campos extras)
+        // e toda edição reenviaria as variantes desnecessariamente
+        const originalForDiff = {
+          ...(editingProduct as unknown as Record<string, unknown>),
+          variants: (editingProduct.variants ?? []).map((v) => ({
+            id: v.id,
+            options: v.options,
+            price: v.price,
+            imageUrl: v.imageUrl ?? null,
+            active: v.active,
+          })),
+          characteristics: editingProduct.characteristics ?? [],
+        }
+        const diff = buildDiff(originalForDiff, payload)
         if (Object.keys(diff).length === 0) { setIsSaving(false); setModalOpen(false); return }
         await catalogService.updateProduct(editingProduct.id, diff as Partial<Product>, token)
       } else {
-        await catalogService.createProduct(payload as Omit<Product, 'id' | 'createdAt' | 'updatedAt'>, token)
+        await catalogService.createProduct(payload as unknown as Omit<Product, 'id' | 'createdAt' | 'updatedAt'>, token)
       }
       setModalOpen(false)
       loadProducts()
-    } catch {
-      setFormError('Erro ao salvar o produto. Tente novamente.')
+    } catch (err: unknown) {
+      // Mostra a mensagem real da API quando existir — ex: limite de produtos do plano
+      setFormError((err as Error)?.message || 'Erro ao salvar o produto. Tente novamente.')
     } finally {
       setIsSaving(false)
     }
@@ -272,7 +310,9 @@ export function useProdutosPage() {
       setDeletingProduct(null)
       loadProducts()
     } catch {
-      setDeletingProduct(null)
+      // Mantém o modal aberto e avisa — fechar sem mensagem faria o lojista
+      // acreditar que o produto foi excluído
+      setError('Não foi possível excluir o produto. Tente novamente.')
     } finally {
       setIsDeleting(false)
     }

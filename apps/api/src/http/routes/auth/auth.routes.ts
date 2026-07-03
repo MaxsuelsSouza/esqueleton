@@ -3,8 +3,10 @@ import crypto from 'crypto'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import { shortText, slugSchema, phoneSchema } from '../../../shared/validation/schemas'
+import { isSenhaMuitoComum } from '../../../shared/validation/weak-passwords'
 import { requireOwner } from '../../../domain/identity/guards/role.guard'
 import { emailVerificationEmail } from '../../../shared/email/templates'
+import { resolveClientKey } from '../../../shared/security/client-ip'
 import { registerStore, registerStaff } from '../../../domain/identity/services/auth.service'
 
 export const emailSchema = z.string().email('Email inválido').max(254, 'Email muito longo')
@@ -13,6 +15,12 @@ export const passwordSchema = z
   .string()
   .min(8, 'Senha deve ter no mínimo 8 caracteres')
   .max(72, 'Senha muito longa')
+  // LGPD (Fase 4.5): senhas famosas de vazamentos são as primeiras tentadas
+  // em ataques — bloqueadas no cadastro, na troca e na redefinição
+  .refine(
+    (senha) => !isSenhaMuitoComum(senha),
+    'Senha muito comum — escolha uma senha mais difícil de adivinhar',
+  )
 
 // Cadastro de uma loja nova — pede os dados da loja junto com os do usuário
 const registerStoreSchema = z.object({
@@ -21,6 +29,11 @@ const registerStoreSchema = z.object({
   storeName: shortText(80, 'Nome da loja é obrigatório'),
   storeSlug: slugSchema,
   whatsapp: phoneSchema.describe('WhatsApp é obrigatório para receber pedidos'),
+  // LGPD: o aceite dos Termos de Uso e da Política de Privacidade é obrigatório
+  // no cadastro — a data e a versão aceitas ficam gravadas no usuário
+  acceptedTerms: z
+    .boolean({ invalid_type_error: 'É preciso aceitar os Termos de Uso e a Política de Privacidade' })
+    .refine((value) => value === true, 'É preciso aceitar os Termos de Uso e a Política de Privacidade'),
 })
 
 // Cadastro de mais um usuário em uma loja que já existe (feito por um admin autenticado)
@@ -86,11 +99,21 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
           name,
         })
 
+        // Auditoria (LGPD): membro convidado para a equipe
+        app.audit({
+          action: 'MEMBRO_CONVIDADO',
+          storeId: request.user.storeId,
+          userId: request.user.sub,
+          detail: `Convidou ${email}`,
+          ip: request.ip,
+        })
+
         return reply.status(201).send(user)
       }
 
       // ── Modo 1: cadastro público — cria a loja e o primeiro usuário ──
       const { email, password, storeName, storeSlug, whatsapp } = registerStoreSchema.parse(request.body)
+      // O schema garante que acceptedTerms veio como true — daqui em diante só gravamos o registro
 
       const [existingUser, existingStore] = await Promise.all([
         app.prisma.user.findUnique({ where: { email } }),
@@ -148,31 +171,40 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   //   1. Por IP (config abaixo): barra muitas tentativas vindas de um mesmo endereço.
   //   2. Por email (preHandler abaixo): barra ataques distribuídos — muitos IPs
   //      diferentes tentando senhas contra uma MESMA conta.
+  //
+  // O limite por email usa app.createRateLimit (contador manual) em vez de
+  // app.rateLimit: o plugin marca a requisição como "já limitada" depois que o
+  // limite por IP roda, e um segundo app.rateLimit seria pulado em silêncio —
+  // o contador por conta nunca contaria.
+  const contadorPorConta = app.createRateLimit({
+    max: 10,
+    timeWindow: '15 minutes',
+    // Conta as tentativas pelo email informado, não pelo IP — em minúsculas,
+    // para "Ana@loja.com" e "ana@loja.com" contarem como a mesma conta
+    keyGenerator: (request) => {
+      const body = request.body as { email?: unknown } | null
+      const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
+      // Sem email no corpo a validação rejeita a requisição de qualquer
+      // forma — o IP (resistente a spoofing) serve apenas como chave reserva
+      return email ? `email:${email}` : resolveClientKey(request)
+    },
+  })
+
   app.post(
     '/login',
     {
       config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
-      preHandler: app.rateLimit({
-        max: 10,
-        timeWindow: '15 minutes',
-        // Conta as tentativas pelo email informado, não pelo IP — em minúsculas,
-        // para "Ana@loja.com" e "ana@loja.com" contarem como a mesma conta
-        keyGenerator: (request) => {
-          const body = request.body as { email?: unknown } | null
-          const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
-          // Sem email no corpo a validação rejeita a requisição de qualquer
-          // forma — o IP serve apenas como chave reserva para o contador
-          return email ? `email:${email}` : request.ip
-        },
-        // Registra no log quando uma conta passa do limite — ajuda a perceber ataques
-        onExceeded: (request, key) => {
-          app.log.warn({ key, ip: request.ip }, 'Limite de tentativas de login por conta excedido')
-        },
-        errorResponseBuilder: () => ({
-          statusCode: 429,
-          message: 'Muitas tentativas de login para esta conta. Aguarde alguns minutos e tente novamente.',
-        }),
-      }),
+      preHandler: async (request, reply) => {
+        const limite = await contadorPorConta(request)
+        if (!limite.isAllowed && limite.isExceeded) {
+          // Registra no log quando uma conta passa do limite — ajuda a perceber ataques
+          app.log.warn({ key: limite.key, ip: request.ip }, 'Limite de tentativas de login por conta excedido')
+          return reply.status(429).send({
+            statusCode: 429,
+            message: 'Muitas tentativas de login para esta conta. Aguarde alguns minutos e tente novamente.',
+          })
+        }
+      },
     },
     async (request, reply) => {
       const { email, password } = loginSchema.parse(request.body)
@@ -192,6 +224,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       const valid = await bcrypt.compare(password, user.password)
       if (!valid) {
         app.log.warn({ email, ip: request.ip }, 'Tentativa de login com senha incorreta')
+        // Auditoria (LGPD): tentativa com senha errada em conta existente
+        app.audit({ action: 'LOGIN_FALHOU', storeId: user.storeId, userId: user.id, ip: request.ip })
         return reply.status(401).send({ message: 'Credenciais inválidas' })
       }
 
@@ -201,6 +235,9 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         app.log.error({ userId: user.id }, 'Usuário sem loja correspondente no banco')
         return reply.status(401).send({ message: 'Credenciais inválidas' })
       }
+
+      // Auditoria (LGPD): login bem-sucedido
+      app.audit({ action: 'LOGIN', storeId: user.storeId, userId: user.id, ip: request.ip })
 
       // O token carrega a loja e o papel — toda consulta do admin usa o storeId do token
       const token = app.jwt.sign({
@@ -219,6 +256,33 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         mustChangePassword: user.mustChangePassword,
         store: { slug: store.slug, name: store.name },
       }
+    }
+  )
+
+  // Logout — revogação de sessão no servidor (LGPD, Fase 4.4).
+  // Antes, "sair" apenas limpava o navegador e o token continuava válido até
+  // expirar; agora a marca de revogação invalida o token imediatamente.
+  app.post(
+    '/logout',
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const agoraEmSegundos = Math.floor(Date.now() / 1000)
+      try {
+        await app.sessionStore.setRevogacao(request.user.sub, agoraEmSegundos)
+      } catch (error) {
+        // Sem Redis o logout do navegador ainda funciona — apenas registra a falha
+        app.log.error({ error, userId: request.user.sub }, 'Falha ao gravar a revogação de sessão no logout')
+      }
+
+      // Auditoria (LGPD): encerramento de sessão
+      app.audit({
+        action: 'LOGOUT',
+        storeId: request.user.storeId,
+        userId: request.user.sub,
+        ip: request.ip,
+      })
+
+      return reply.status(204).send()
     }
   )
 }

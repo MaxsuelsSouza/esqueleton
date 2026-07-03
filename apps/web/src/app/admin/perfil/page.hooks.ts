@@ -64,7 +64,18 @@ export function usePerfilPage() {
       themeColor: profile.themeColor,
       announcements: profile.announcements ?? [],
     })
+    // Restaura a cor salva como cor efetiva do tema — evita que uma prévia
+    // descartada (sem salvar) continue aplicada após recarregar/sair da página
+    document.documentElement.style.setProperty('--color-primary', profile.themeColor)
   }, [profile])
+
+  // Ao desmontar a página, volta a cor efetiva para a salva no perfil —
+  // assim uma prévia não salva não "vaza" para o resto do painel
+  useEffect(() => {
+    return () => {
+      document.documentElement.style.setProperty('--color-primary', profile.themeColor)
+    }
+  }, [profile.themeColor])
 
   function set<K extends keyof FormData>(key: K, value: FormData[K]) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -97,12 +108,15 @@ export function usePerfilPage() {
 
     const token = localStorage.getItem('admin_token') ?? ''
     try {
+      // Campos opcionais vazios vão como null — é o que faz a API LIMPAR o valor
+      // no banco (undefined seria descartado do JSON e o valor antigo voltaria).
+      // whatsapp é obrigatório no schema (não pode ser limpo): só entra quando preenchido.
       const payload = {
         storeName: form.storeName.trim(),
-        address: form.address.trim() || undefined,
+        address: form.address.trim() || null,
         whatsapp: form.whatsapp.trim() || undefined,
-        instagram: form.instagram.replace('@', '').trim() || undefined,
-        logoUrl: form.logoUrl.trim() || undefined,
+        instagram: form.instagram.replace('@', '').trim() || null,
+        logoUrl: form.logoUrl.trim() || null,
         themeColor: form.themeColor,
         announcements: form.announcements,
       }
