@@ -65,7 +65,14 @@ export function buildApp(options: BuildAppOptions = {}) {
   }
   // Multi-tenant: cada loja pode ter subdomínio próprio, então liberamos o
   // domínio raiz E seus subdomínios (veja shared/security/cors-origin.ts).
-  app.register(cors, { origin: createCorsOrigin(process.env.CORS_ORIGIN) })
+  //
+  // O @fastify/cors 11 mudou o default de métodos para apenas 'GET,HEAD,POST',
+  // o que bloquearia editar (PUT/PATCH) e excluir (DELETE) no preflight. Por
+  // isso listamos explicitamente todos os métodos que a API usa.
+  app.register(cors, {
+    origin: createCorsOrigin(process.env.CORS_ORIGIN),
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  })
 
   // Limite global de requisições por IP — protege contra abuso e sobrecarga.
   // Rotas sensíveis (login, cadastro, pedidos) têm limites mais rígidos definidos na própria rota.
