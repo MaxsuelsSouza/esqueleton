@@ -4,6 +4,7 @@ import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
 import { createRateLimitRedis } from './shared/cache/rate-limit-redis'
 import { resolveClientKey } from './shared/security/client-ip'
+import { createCorsOrigin } from './shared/security/cors-origin'
 import { prismaPlugin } from './shared/database/prisma.plugin'
 import { resendPlugin } from './shared/email/resend.plugin'
 import { r2Plugin } from './shared/storage/r2.plugin'
@@ -63,7 +64,16 @@ export function buildApp(options: BuildAppOptions = {}) {
   if (!process.env.CORS_ORIGIN) {
     app.log.warn('CORS_ORIGIN não definido — a API aceitará requisições de qualquer origem')
   }
-  app.register(cors, { origin: process.env.CORS_ORIGIN ?? '*' })
+  // Multi-tenant: cada loja pode ter subdomínio próprio, então liberamos o
+  // domínio raiz E seus subdomínios (veja shared/security/cors-origin.ts).
+  //
+  // O @fastify/cors 11 mudou o default de métodos para apenas 'GET,HEAD,POST',
+  // o que bloquearia editar (PUT/PATCH) e excluir (DELETE) no preflight. Por
+  // isso listamos explicitamente todos os métodos que a API usa.
+  app.register(cors, {
+    origin: createCorsOrigin(process.env.CORS_ORIGIN),
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  })
 
   // Limite global de requisições por IP — protege contra abuso e sobrecarga.
   // Rotas sensíveis (login, cadastro, pedidos) têm limites mais rígidos definidos na própria rota.
