@@ -82,4 +82,25 @@ describe('apiClient', () => {
 
     await expect(apiClient.delete('/products/p1', 'meu-token')).resolves.toBeUndefined()
   })
+
+  it('DELETE sem corpo não envia Content-Type (evita erro de JSON vazio no Fastify)', async () => {
+    fetchFake.mockResolvedValue({ ok: true, status: 204, statusText: 'No Content', json: async () => null })
+
+    await apiClient.delete('/promotions/p1', 'meu-token')
+
+    const [, options] = fetchFake.mock.calls[0]
+    expect(options.body).toBeUndefined()
+    expect(options.headers['Content-Type']).toBeUndefined()
+    expect(options.headers.Authorization).toBe('Bearer meu-token')
+  })
+
+  it('DELETE com corpo envia Content-Type application/json', async () => {
+    fetchFake.mockResolvedValue({ ok: true, status: 204, statusText: 'No Content', json: async () => null })
+
+    await apiClient.delete('/users/u1', 'meu-token', { password: 'segredo' })
+
+    const [, options] = fetchFake.mock.calls[0]
+    expect(JSON.parse(options.body)).toEqual({ password: 'segredo' })
+    expect(options.headers['Content-Type']).toBe('application/json')
+  })
 })

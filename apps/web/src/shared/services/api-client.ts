@@ -84,7 +84,10 @@ export const apiClient = {
       method: 'DELETE',
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       headers: {
-        'Content-Type': 'application/json',
+        // Só declara JSON quando há corpo. Enviar "Content-Type: application/json"
+        // num DELETE sem corpo faz o Fastify rejeitar com
+        // "Body cannot be empty when content-type is set to 'application/json'".
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     }),
