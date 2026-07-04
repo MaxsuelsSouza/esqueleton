@@ -9,3 +9,5 @@ dist/
 .next/
 *.tsbuildinfo
 .vercel/
+# Grafos de código gerados pelo graphify (recriáveis com: graphify update <path>)
+graphify-out/
