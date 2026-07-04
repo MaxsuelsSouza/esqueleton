@@ -71,8 +71,10 @@ export default function AdminProdutosPage() {
         </button>
       </div>
 
-      {/* Barra de filtros */}
-      {!isLoading && products.length > 0 && (
+      {/* Barra de filtros — fica fixa enquanto houver produtos OU filtros ativos.
+          Sem a condição de filtros ativos, um filtro sem resultado esconderia o
+          próprio card, deixando o usuário sem como limpar a busca (a não ser recarregar). */}
+      {!isLoading && (products.length > 0 || activeFilterCount > 0) && (
         <div className="flex flex-col gap-2 rounded-2xl border border-gray-100 bg-white p-3 sm:p-4">
           <div className="flex flex-col gap-2">
 
@@ -170,12 +172,17 @@ export default function AdminProdutosPage() {
           <p className="text-sm">
             {activeFilterCount > 0 ? 'Nenhum produto corresponde aos filtros.' : 'Nenhum produto cadastrado ainda.'}
           </p>
-          <button
-            onClick={openCreateModal}
-            className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
-          >
-            Cadastrar primeiro produto
-          </button>
+          {/* O botão só faz sentido quando a loja está realmente vazia.
+              Com um filtro ativo, a loja tem produtos — mostrar "primeiro produto"
+              confundiria; o usuário deve ajustar/limpar o filtro no card acima. */}
+          {activeFilterCount === 0 && (
+            <button
+              onClick={openCreateModal}
+              className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
+            >
+              Cadastrar primeiro produto
+            </button>
+          )}
         </div>
       )}
 
