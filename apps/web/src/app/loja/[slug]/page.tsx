@@ -8,7 +8,7 @@ import { DisplayToggle } from '@/modules/catalog/components/DisplayToggle'
 import { FeaturedSection } from '@/modules/featured/components/FeaturedSection'
 import { ProductCard } from '@/modules/catalog/components/ProductCard'
 import type { Product, DisplayMode, PromotionType } from '@esqueleton/shared'
-import { PackageSearch, ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react'
+import { PackageSearch, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useCatalogoPage } from './page.hooks'
 
 export default function CatalogPage() {
@@ -16,8 +16,6 @@ export default function CatalogPage() {
     filters,
     categories,
     displayMode,
-    filtersOpen,
-    setFiltersOpen,
     isLoading,
     error,
     total,
@@ -39,50 +37,13 @@ export default function CatalogPage() {
     <main className="min-h-screen bg-gray-50">
 
       {/* ── Barra superior mobile ─────────────────────────────────────────────
-          Visível apenas abaixo de lg. Contém busca + botão de filtros + alternador. */}
+          Visível apenas abaixo de lg. Contém busca + alternador de exibição.
+          A navegação por categorias e promoções fica no menu lateral do header. */}
       <div className="border-b border-gray-100 bg-white px-4 py-3 lg:hidden">
         <div className="flex items-center gap-2">
           <CatalogSearch value={filters.searchTerm} onChange={handleSearchChange} />
-
-          {/* Botão que abre/fecha o painel de filtros no mobile */}
-          <button
-            onClick={() => setFiltersOpen((prev) => !prev)}
-            aria-label="Abrir filtros"
-            className={`relative flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-sm font-medium transition-colors ${
-              filtersOpen || activeFilterCount > 0
-                ? 'border-black bg-black text-white'
-                : 'border-gray-200 text-gray-600 hover:border-gray-400'
-            }`}
-          >
-            <SlidersHorizontal size={15} />
-            Filtros
-            {activeFilterCount > 0 && (
-              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] font-bold text-black">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
-
           <DisplayToggle current={displayMode} onChange={handleDisplayChange} />
         </div>
-
-        {/* Painel de filtros colapsável no mobile */}
-        {filtersOpen && (
-          <div className="mt-3 border-t border-gray-100 pt-3">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Filtros</span>
-              {activeFilterCount > 0 && (
-                <button
-                  onClick={clearFilters}
-                  className="text-xs font-medium text-gray-400 transition-colors hover:text-gray-700"
-                >
-                  Limpar
-                </button>
-              )}
-            </div>
-            <CatalogFilters filters={filters} categories={categories} onFiltersChange={handleFiltersChange} />
-          </div>
-        )}
       </div>
 
       {/* ── Área principal ────────────────────────────────────────────────── */}

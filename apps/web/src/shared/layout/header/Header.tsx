@@ -2,16 +2,17 @@
 
 // Cabeçalho principal da loja — fundo sempre branco
 // Desktop: logo | pesquisa | ofertas | favoritos | sacola
-// Mobile:  logo | ícone de busca | favoritos | sacola  (busca expande abaixo)
+// Mobile:  menu (3 traços) | logo grande no meio | ícones à direita (busca expande abaixo)
 // Existe apenas dentro do site público da loja (/loja/[slug]/...)
 // Ao rolar para baixo o header fica mais compacto (padding reduzido)
 import { useState, useEffect } from 'react'
-import { Search, X } from 'lucide-react'
+import { Menu, Search, X } from 'lucide-react'
 import { LogoArea } from './LogoArea'
 import { SearchBar } from './SearchBar'
 import { FavoritesButton } from './FavoritesButton'
 import { BagButton } from './BagButton'
 import { CustomerButton } from './CustomerButton'
+import { MobileMenuDrawer } from './MobileMenuDrawer'
 
 interface HeaderProps {
   logoUrl?: string
@@ -20,6 +21,8 @@ interface HeaderProps {
 
 export function Header({ logoUrl, storeName }: HeaderProps) {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
+  // Controla o menu lateral de categorias e promoções (somente mobile)
+  const [menuOpen, setMenuOpen] = useState(false)
   // true quando o usuário rolou mais de 40px — ativa o modo compacto
   const [scrolled, setScrolled] = useState(false)
 
@@ -33,12 +36,25 @@ export function Header({ logoUrl, storeName }: HeaderProps) {
 
   return (
     <header className={`sticky top-0 z-50 border-b bg-white shadow-sm transition-all duration-300 ${scrolled ? 'shadow-md' : ''}`}>
+      {/* No mobile a logo (quando existe) é absoluta — o espaçador dentro da
+          LogoArea reserva a altura dela; sem logo o header fica na altura natural */}
       <div
-        className={`mx-auto flex max-w-screen-xl items-center justify-between px-4 sm:px-6 transition-all duration-300 ${
+        className={`relative mx-auto flex max-w-screen-xl items-center justify-between px-4 sm:px-6 transition-all duration-300 ${
           scrolled ? 'py-1.5' : 'py-3'
         }`}
       >
-        <LogoArea imageUrl={logoUrl} storeName={storeName} compact={scrolled} />
+        {/* Grupo da esquerda: menu (mobile) + logo/nome da loja */}
+        <div className="flex min-w-0 items-center gap-2">
+          <button
+            onClick={() => setMenuOpen(true)}
+            aria-label="Abrir menu de categorias e promoções"
+            className="text-gray-700 hover:text-black md:hidden"
+          >
+            <Menu size={24} />
+          </button>
+
+          <LogoArea imageUrl={logoUrl} storeName={storeName} compact={scrolled} />
+        </div>
 
         <div className="flex items-center gap-3 sm:gap-6">
 
@@ -66,6 +82,9 @@ export function Header({ logoUrl, storeName }: HeaderProps) {
           <SearchBar autoFocus />
         </div>
       )}
+
+      {/* Menu lateral com categorias e promoções (mobile) */}
+      <MobileMenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
     </header>
   )
 }

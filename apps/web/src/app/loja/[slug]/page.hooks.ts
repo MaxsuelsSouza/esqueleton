@@ -45,10 +45,26 @@ export function useCatalogoPage() {
 
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [filters, setFilters] = useState<CatalogFiltersType>(DEFAULT_FILTERS)
+  // A URL pode chegar com ?categoria=ID (vindo do menu do header) —
+  // nesse caso a página já abre com a categoria selecionada no filtro
+  const [filters, setFilters] = useState<CatalogFiltersType>(() => {
+    const categoria = searchParams.get('categoria')
+    return categoria ? { ...DEFAULT_FILTERS, categories: [categoria] } : DEFAULT_FILTERS
+  })
   const [displayMode, setDisplayMode] = useState<DisplayMode>('grid')
-  // Controla se o painel de filtros está aberto no mobile
-  const [filtersOpen, setFiltersOpen] = useState(false)
+
+  // Reage à troca de categoria pelo menu do header enquanto a página já está aberta
+  // (ex: usuário abre o menu e escolhe outra categoria sem sair do catálogo)
+  const categoriaParam = searchParams.get('categoria')
+  useEffect(() => {
+    if (!categoriaParam) return
+    setFilters((current) =>
+      current.categories.length === 1 && current.categories[0] === categoriaParam
+        ? current
+        : { ...current, categories: [categoriaParam] },
+    )
+    setPage(1)
+  }, [categoriaParam])
 
   // Carrega categorias, promoções e destaques da loja uma única vez
   useEffect(() => {
@@ -168,8 +184,6 @@ export function useCatalogoPage() {
     filters,
     categories,
     displayMode,
-    filtersOpen,
-    setFiltersOpen,
     isLoading,
     error,
     total,
