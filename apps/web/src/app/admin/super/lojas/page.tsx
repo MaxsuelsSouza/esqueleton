@@ -1,9 +1,107 @@
 'use client'
 
 // Gestão de lojas da plataforma (super-admin) — busca, filtro por status,
-// suspender/reativar e trocar o plano de uma loja
-import { Search, Building2, Ban, CheckCircle2, Layers } from 'lucide-react'
+// suspender/reativar, trocar o plano, criar loja (venda presencial) e
+// gerar link de pagamento para o cliente cadastrar o cartão
+import { useState } from 'react'
+import { Search, Building2, Ban, CheckCircle2, Layers, Plus, Link2, Copy, Check, X } from 'lucide-react'
+import type { SuperPlan, SuperStoreCreateInput } from '@esqueleton/shared'
 import { useSuperLojasPage } from './page.hooks'
+
+// Formata centavos como "R$ 49,90" para exibir nos seletores de plano
+function formatarPreco(centavos: number): string {
+  return (centavos / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+// Caixa que exibe o link de pagamento com botões de copiar e enviar por WhatsApp
+function PaymentLinkBox({ link }: { link: string | null }) {
+  const [copied, setCopied] = useState(false)
+
+  if (!link) {
+    return (
+      <p className="rounded-lg bg-yellow-50 px-3.5 py-2.5 text-sm text-yellow-700">
+        A assinatura ficou aguardando pagamento, mas o link não pôde ser gerado
+        (verifique a configuração do MercadoPago). Você pode gerar um novo link
+        pela lista de lojas.
+      </p>
+    )
+  }
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(link!)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Sem permissão de clipboard — o campo abaixo permite copiar manualmente
+    }
+  }
+
+  const mensagemWhatsApp = encodeURIComponent(
+    `Olá! Aqui está o link para ativar a assinatura da sua loja: ${link}`
+  )
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm text-gray-600">
+        Envie este link para o cliente — ao cadastrar o cartão, a assinatura é ativada automaticamente:
+      </p>
+      <div className="flex items-center gap-2">
+        <input
+          readOnly
+          value={link}
+          onFocus={(e) => e.target.select()}
+          className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700 outline-none"
+        />
+        <button
+          type="button"
+          onClick={handleCopy}
+          title="Copiar link"
+          className="rounded-lg border border-gray-200 p-2 text-gray-500 transition-colors hover:bg-gray-50"
+        >
+          {copied ? <Check size={15} className="text-green-600" /> : <Copy size={15} />}
+        </button>
+      </div>
+      <a
+        href={`https://wa.me/?text=${mensagemWhatsApp}`}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-block rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
+      >
+        Enviar pelo WhatsApp
+      </a>
+    </div>
+  )
+}
+
+// Seletor de plano usado nos dois modais
+function PlanSelect({
+  plans,
+  value,
+  onChange,
+  disabled,
+}: {
+  plans: SuperPlan[]
+  value: string
+  onChange: (planId: string) => void
+  disabled?: boolean
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-700 outline-none focus:border-gray-900 disabled:opacity-50"
+    >
+      <option value="">Escolha o plano</option>
+      {plans.map((plan) => (
+        <option key={plan.id} value={plan.id}>
+          {plan.name} — {plan.priceInCents === 0 ? 'gratuito' : `${formatarPreco(plan.priceInCents)}/${plan.billingPeriod === 'YEARLY' ? 'ano' : 'mês'}`}
+        </option>
+      ))}
+    </select>
+  )
+}
 
 export default function SuperLojasPage() {
   const {
@@ -23,6 +121,25 @@ export default function SuperLojasPage() {
     totalPages,
     handleToggleStatus,
     handleChangePlan,
+    showCreateModal,
+    openCreateModal,
+    closeCreateModal,
+    createForm,
+    updateCreateField,
+    handleCreateStore,
+    createResult,
+    isCreating,
+    createError,
+    paidPlans,
+    linkStore,
+    openLinkModal,
+    closeLinkModal,
+    linkPlanId,
+    setLinkPlanId,
+    handleGeneratePaymentLink,
+    linkResult,
+    isGeneratingLink,
+    linkError,
   } = useSuperLojasPage()
 
   if (isChecking || loading) {
@@ -31,9 +148,18 @@ export default function SuperLojasPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <div className="mb-6">
-        <h1 className="text-lg font-semibold text-gray-900">Lojas da plataforma</h1>
-        <p className="text-sm text-gray-400">{total} loja{total === 1 ? '' : 's'} cadastrada{total === 1 ? '' : 's'}.</p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-lg font-semibold text-gray-900">Lojas da plataforma</h1>
+          <p className="text-sm text-gray-400">{total} loja{total === 1 ? '' : 's'} cadastrada{total === 1 ? '' : 's'}.</p>
+        </div>
+        {/* Venda presencial: o vendedor cadastra a loja do cliente na hora */}
+        <button
+          onClick={openCreateModal}
+          className="flex items-center gap-1.5 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+        >
+          <Plus size={15} /> Nova loja
+        </button>
       </div>
 
       {error && (
@@ -119,6 +245,17 @@ export default function SuperLojasPage() {
                   <td className="px-4 py-3 text-gray-600">{store.usersCount}</td>
                   <td className="px-4 py-3 text-gray-600">{store.productsCount}</td>
                   <td className="px-4 py-3 text-right">
+                    {/* Link de pagamento — só faz sentido quando a loja ainda não tem assinatura ativa */}
+                    {store.subscriptionStatus !== 'ACTIVE' && (
+                      <button
+                        onClick={() => openLinkModal(store)}
+                        disabled={busyId === store.id}
+                        title="Gerar link de pagamento"
+                        className="rounded-lg p-2 text-gray-300 transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:opacity-50"
+                      >
+                        <Link2 size={16} />
+                      </button>
+                    )}
                     <button
                       onClick={() => handleToggleStatus(store)}
                       disabled={busyId === store.id}
@@ -164,6 +301,152 @@ export default function SuperLojasPage() {
       <p className="mt-6 flex items-center gap-1.5 text-xs text-gray-400">
         <Layers size={13} /> Os planos disponíveis são gerenciados em Plataforma → Planos.
       </p>
+
+      {/* Modal: criar loja (venda presencial) */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeCreateModal}>
+          <div
+            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-900">
+                {createResult ? 'Loja criada' : 'Nova loja (venda presencial)'}
+              </h2>
+              <button onClick={closeCreateModal} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100">
+                <X size={16} />
+              </button>
+            </div>
+
+            {createResult ? (
+              <div className="space-y-4">
+                <div className="rounded-xl bg-green-50 px-3.5 py-2.5 text-sm text-green-700">
+                  A loja <strong>{createResult.store.name}</strong> foi criada e o acesso de{' '}
+                  <strong>{createResult.owner.email}</strong> está pronto. O dono deverá trocar a
+                  senha temporária no primeiro login.
+                </div>
+                {createResult.subscription.status === 'ACTIVE' ? (
+                  <p className="text-sm text-gray-600">
+                    O plano escolhido é gratuito — a assinatura já está ativa, sem pagamento.
+                  </p>
+                ) : (
+                  <PaymentLinkBox link={createResult.paymentLink} />
+                )}
+                <button
+                  onClick={closeCreateModal}
+                  className="w-full rounded-xl border border-gray-200 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Fechar
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleCreateStore} className="space-y-3">
+                {createError && (
+                  <p className="rounded-lg bg-red-50 px-3.5 py-2.5 text-sm text-red-500">{createError}</p>
+                )}
+
+                {([
+                  { field: 'storeName', label: 'Nome da loja', type: 'text', placeholder: 'Perfumaria da Ana' },
+                  { field: 'storeSlug', label: 'Endereço (slug)', type: 'text', placeholder: 'perfumaria-da-ana' },
+                  { field: 'whatsapp', label: 'WhatsApp da loja', type: 'tel', placeholder: '(81) 99999-8888' },
+                  { field: 'email', label: 'E-mail do dono', type: 'email', placeholder: 'dono@email.com' },
+                  { field: 'password', label: 'Senha temporária', type: 'text', placeholder: 'Mínimo 8 caracteres' },
+                ] as Array<{ field: keyof SuperStoreCreateInput; label: string; type: string; placeholder: string }>).map(({ field, label, type, placeholder }) => (
+                  <div key={field}>
+                    <label className="mb-1 block text-xs font-medium text-gray-500">{label}</label>
+                    <input
+                      type={type}
+                      required
+                      value={createForm[field]}
+                      onChange={(e) => updateCreateField(field, e.target.value)}
+                      placeholder={placeholder}
+                      className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition placeholder:text-gray-300 focus:border-gray-900"
+                    />
+                  </div>
+                ))}
+
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-500">Plano</label>
+                  <PlanSelect
+                    plans={plans.filter((p) => p.active)}
+                    value={createForm.planId}
+                    onChange={(planId) => updateCreateField('planId', planId)}
+                    disabled={isCreating}
+                  />
+                </div>
+
+                <p className="text-xs text-gray-400">
+                  Plano pago: a loja é criada e você recebe um link de pagamento para enviar ao
+                  cliente — a assinatura ativa quando ele cadastrar o cartão.
+                </p>
+
+                <button
+                  type="submit"
+                  disabled={isCreating}
+                  className="w-full rounded-xl bg-gray-900 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
+                >
+                  {isCreating ? 'Criando...' : 'Criar loja'}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: gerar link de pagamento para loja existente */}
+      {linkStore && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeLinkModal}>
+          <div
+            className="w-full max-w-md rounded-2xl bg-white p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-900">Link de pagamento</h2>
+              <button onClick={closeLinkModal} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100">
+                <X size={16} />
+              </button>
+            </div>
+
+            {linkResult ? (
+              <div className="space-y-4">
+                <PaymentLinkBox link={linkResult.paymentLink} />
+                <button
+                  onClick={closeLinkModal}
+                  className="w-full rounded-xl border border-gray-200 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Fechar
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">
+                  Gerar cobrança para a loja <strong>{linkStore.name}</strong>. O link substitui
+                  qualquer cobrança pendente anterior.
+                </p>
+
+                {linkError && (
+                  <p className="rounded-lg bg-red-50 px-3.5 py-2.5 text-sm text-red-500">{linkError}</p>
+                )}
+
+                <PlanSelect
+                  plans={paidPlans}
+                  value={linkPlanId}
+                  onChange={setLinkPlanId}
+                  disabled={isGeneratingLink}
+                />
+
+                <button
+                  onClick={handleGeneratePaymentLink}
+                  disabled={isGeneratingLink}
+                  className="w-full rounded-xl bg-gray-900 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
+                >
+                  {isGeneratingLink ? 'Gerando...' : 'Gerar link de pagamento'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -22,6 +22,8 @@ export type AuditAction =
   | 'LOJA_EXPORTADA'
   | 'LOJA_EXCLUIDA'
   | 'PLATAFORMA_LOJA_ALTERADA'
+  | 'PLATAFORMA_LOJA_CRIADA'
+  | 'PLATAFORMA_LINK_PAGAMENTO_GERADO'
 
 export type AuditEntry = {
   action: AuditAction

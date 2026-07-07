@@ -12,6 +12,13 @@ type RegisterStoreParams = {
   storeName: string
   storeSlug: string
   whatsapp: string
+  // Venda presencial (super-admin): a senha é temporária e o dono
+  // é obrigado a trocá-la no primeiro acesso
+  mustChangePassword?: boolean
+  // LGPD: no cadastro público o próprio dono aceita os termos (true).
+  // Na venda presencial quem cadastra é o vendedor — não gravamos um
+  // aceite que o dono não fez (false deixa os campos vazios).
+  termosAceitosPeloDono?: boolean
 }
 
 type RegisterStoreResult = {
@@ -38,9 +45,12 @@ export async function registerStore(
         password: params.hashedPassword,
         storeId: store.id,
         role: 'OWNER',
+        mustChangePassword: params.mustChangePassword ?? false,
         // LGPD: registra quando e qual versão dos termos foi aceita no cadastro
-        acceptedTermsAt: new Date(),
-        acceptedTermsVersion: VERSAO_TERMOS_ATUAL,
+        // (apenas quando o próprio dono fez o cadastro — padrão true)
+        ...(params.termosAceitosPeloDono ?? true
+          ? { acceptedTermsAt: new Date(), acceptedTermsVersion: VERSAO_TERMOS_ATUAL }
+          : {}),
       },
       select: { id: true, email: true, role: true, storeId: true, createdAt: true },
     })

@@ -1,6 +1,7 @@
 // Validações das rotas super-admin — gestão de lojas e planos da plataforma
 import { z } from 'zod'
-import { idSchema, slugSchema, shortText } from '../../shared/validation/schemas'
+import { idSchema, slugSchema, shortText, phoneSchema } from '../../shared/validation/schemas'
+import { isSenhaMuitoComum } from '../../shared/validation/weak-passwords'
 
 // Filtros da listagem de lojas (e de usuários): página, busca e status
 export const listStoresQuerySchema = z.object({
@@ -19,6 +20,30 @@ export const updateStoreSchema = z
   .refine((data) => data.status !== undefined || data.planId !== undefined, {
     message: 'Informe o status ou o plano a alterar',
   })
+
+// Criação de loja pelo super-admin (venda presencial) — loja, dono e plano em um passo só.
+// A senha é temporária: o dono é obrigado a trocá-la no primeiro acesso.
+export const createStoreSchema = z.object({
+  storeName: shortText(80, 'Nome da loja é obrigatório'),
+  storeSlug: slugSchema,
+  whatsapp: phoneSchema,
+  email: z.string().email('Email inválido').max(254, 'Email muito longo'),
+  password: z
+    .string()
+    .min(8, 'Senha deve ter no mínimo 8 caracteres')
+    .max(72, 'Senha muito longa')
+    .refine(
+      (senha) => !isSenhaMuitoComum(senha),
+      'Senha muito comum — escolha uma senha mais difícil de adivinhar',
+    ),
+  planId: idSchema,
+})
+
+// Geração de link de pagamento para uma loja que já existe —
+// o cliente abre o link, cadastra o cartão e o webhook ativa a assinatura
+export const paymentLinkSchema = z.object({
+  planId: idSchema,
+})
 
 // Limites de um plano — null ou ausente significa ilimitado
 const planLimitsSchema = z.object({

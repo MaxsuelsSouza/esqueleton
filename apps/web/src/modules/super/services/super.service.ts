@@ -4,6 +4,9 @@ import type {
   PaginatedResponse,
   SuperStore,
   SuperStoreDetail,
+  SuperStoreCreateInput,
+  SuperStoreCreateResult,
+  SuperPaymentLinkResult,
   SuperUser,
   SuperPlan,
   PlanInput,
@@ -27,6 +30,14 @@ export const superService = {
   // Altera o status (suspender/reativar) e/ou troca o plano da loja
   updateStore: (id: string, data: { status?: string; planId?: string }, token: string) =>
     apiClient.patch<{ message: string }>(`/super/stores/${id}`, data, token),
+
+  // Venda presencial: cria loja + dono + plano e devolve o link de pagamento
+  createStore: (data: SuperStoreCreateInput, token: string) =>
+    apiClient.post<SuperStoreCreateResult>('/super/stores', data, token),
+
+  // Gera (ou regenera) o link de pagamento de uma loja existente
+  createPaymentLink: (storeId: string, planId: string, token: string) =>
+    apiClient.post<SuperPaymentLinkResult>(`/super/stores/${storeId}/payment-link`, { planId }, token),
 
   // ── Planos ──
   listPlans: (token: string) =>
