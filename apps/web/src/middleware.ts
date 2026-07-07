@@ -23,6 +23,13 @@ const SUBDOMAINS_RESERVADOS = new Set([
   'staging',
   'dev',
   'beta',
+  // Subdomínios de imagem — o antigo img.esqueleton.com.br (custom domain do R2)
+  // cai no wildcard *.esqueleton.com.br da Vercel; sem esta reserva, cada
+  // requisição de imagem perdida renderizava uma página de loja inteira
+  'img',
+  'imagens',
+  'pub',
+  'media',
 ])
 
 /**
@@ -98,6 +105,8 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     // Ignora assets estáticos do Next.js e arquivos comuns da raiz
-    '/((?!_next/static|_next/image|favicon\\.ico|robots\\.txt|sitemap\\.xml|manifest\\.json|.*\\.png$|.*\\.jpg$|.*\\.svg$).*)',
+    // (inclui todos os formatos de imagem — requisição de imagem nunca deve
+    // virar renderização de página de loja)
+    '/((?!_next/static|_next/image|favicon\\.ico|robots\\.txt|sitemap\\.xml|manifest\\.json|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.webp$|.*\\.gif$|.*\\.avif$|.*\\.ico$|.*\\.svg$).*)',
   ],
 }
