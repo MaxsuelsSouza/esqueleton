@@ -4,7 +4,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { Package, Tag, BadgePercent, Ticket, Sparkles, LogOut, Store, LayoutDashboard, Bell, ExternalLink, Users, UsersRound, CreditCard, Building2, Layers, UserCog, BarChart3, ShoppingBag } from 'lucide-react'
+import { Package, Tag, BadgePercent, Ticket, Sparkles, LogOut, Store, LayoutDashboard, Bell, ExternalLink, Users, UsersRound, CreditCard, Building2, Layers, UserCog, BarChart3, ShoppingBag, ChevronDown } from 'lucide-react'
 import { useAdminAuth, isAdminPublicPage } from '@/modules/auth/hooks/useAdminAuth'
 import { NotificationBell } from '@/modules/notifications/components/NotificationBell'
 import { PendingOrdersPopup } from '@/shared/components/PendingOrdersPopup'
@@ -48,6 +48,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [scrolled, setScrolled] = useState(false)
   // Endereço (slug) da loja do admin, salvo no login — usado no link "Ver minha loja"
   const [storeSlug, setStoreSlug] = useState<string | null>(null)
+  // Super-admin: os itens da própria loja ficam recolhidos atrás de "Minha loja"
+  // para dar destaque à gestão da plataforma
+  const [showStoreMenu, setShowStoreMenu] = useState(false)
+
+  // Abre "Minha loja" automaticamente quando o super-admin está em uma página
+  // da loja — assim o item ativo nunca fica escondido
+  useEffect(() => {
+    if (isSuperAdmin && !pathname.startsWith('/admin/super')) {
+      setShowStoreMenu(true)
+    }
+  }, [pathname, isSuperAdmin])
 
   useEffect(() => {
     function handleScroll() {
@@ -89,27 +100,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <NotificationBell />
         </div>
 
-        {/* Links de navegação */}
+        {/* Links de navegação.
+            Super-admin: a gestão da plataforma vem primeiro e os itens da
+            própria loja ficam recolhidos atrás de "Minha loja". */}
         <nav className="flex flex-1 flex-col gap-1 p-3">
-          {navLinks.map(({ href, label, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
-                pathname.startsWith(href)
-                  ? 'bg-gray-900 text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-              }`}
-            >
-              <Icon size={16} />
-              {label}
-            </Link>
-          ))}
-
-          {/* Seção da plataforma — só para super-admins */}
-          {isSuperAdmin && (
+          {isSuperAdmin ? (
             <>
-              <p className="mt-4 px-3 pb-1 text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+              <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-widest text-gray-400">
                 Plataforma
               </p>
               {SUPER_LINKS.map(({ href, label, icon: Icon }) => (
@@ -126,8 +123,39 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   {label}
                 </Link>
               ))}
+
+              {/* Itens da loja do super-admin — escondidos até clicar */}
+              <button
+                onClick={() => setShowStoreMenu((atual) => !atual)}
+                className="mt-4 flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
+              >
+                <span className="flex items-center gap-3">
+                  <Store size={16} />
+                  Minha loja
+                </span>
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform ${showStoreMenu ? 'rotate-180' : ''}`}
+                />
+              </button>
             </>
-          )}
+          ) : null}
+
+          {(!isSuperAdmin || showStoreMenu) &&
+            navLinks.map(({ href, label, icon: Icon }) => (
+              <Link
+                key={href}
+                href={href}
+                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
+                  pathname.startsWith(href)
+                    ? 'bg-gray-900 text-white'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                } ${isSuperAdmin ? 'ml-3' : ''}`}
+              >
+                <Icon size={16} />
+                {label}
+              </Link>
+            ))}
         </nav>
 
         {/* Link discreto para abrir o site público da loja em outra aba */}
@@ -185,9 +213,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
 
           {/* Carrossel de navegação — rola dentro do cabeçalho sem mover a página.
-              No mobile os links da plataforma (super-admin) entram no fim do carrossel. */}
+              Super-admin: plataforma primeiro; os itens da loja aparecem só
+              depois de tocar em "Minha loja". */}
           <nav className={`flex w-full gap-1 overflow-x-auto px-3 [&::-webkit-scrollbar]:hidden transition-all duration-300 ${scrolled ? 'pb-1.5' : 'pb-3'}`} style={{ WebkitOverflowScrolling: 'touch' }}>
-            {[...navLinks, ...(isSuperAdmin ? SUPER_LINKS : [])].map(({ href, label, icon: Icon }) => (
+            {(isSuperAdmin ? SUPER_LINKS : navLinks).map(({ href, label, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}
@@ -201,6 +230,37 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 {label}
               </Link>
             ))}
+
+            {isSuperAdmin && (
+              <>
+                <button
+                  onClick={() => setShowStoreMenu((atual) => !atual)}
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
+                >
+                  <Store size={14} />
+                  Minha loja
+                  <ChevronDown
+                    size={12}
+                    className={`transition-transform ${showStoreMenu ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                {showStoreMenu &&
+                  navLinks.map(({ href, label, icon: Icon }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                        pathname.startsWith(href)
+                          ? 'bg-gray-900 text-white'
+                          : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+                      }`}
+                    >
+                      <Icon size={14} />
+                      {label}
+                    </Link>
+                  ))}
+              </>
+            )}
           </nav>
         </header>
 
