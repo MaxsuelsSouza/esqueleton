@@ -2,6 +2,26 @@
 // para calcular funil de conversão, top produtos, desempenho de promoções e cupons.
 import type { PrismaClient } from '@prisma/client'
 
+// ── Teto diário de eventos por loja ─────────────────────────────────────────
+// O limite por IP da rota pública não segura um ataque distribuído (muitos IPs
+// mandando poucos eventos cada). Este teto protege o banco e as métricas da
+// loja: passou do limite, os eventos do restante do dia são descartados.
+// 10 mil eventos/dia é folga para uma loja de catálogo legítima (~7 eventos
+// por minuto o dia inteiro).
+export const LIMITE_DIARIO_DE_EVENTOS_POR_LOJA = 10_000
+
+// Início do dia atual em UTC — o teto diário zera à meia-noite UTC
+export function inicioDoDiaUtc(agora: Date = new Date()): Date {
+  return new Date(Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate()))
+}
+
+// Conta quantos eventos a loja já registrou hoje (dia UTC)
+export async function contarEventosDeHoje(prisma: PrismaClient, storeId: string): Promise<number> {
+  return prisma.productEvent.count({
+    where: { storeId, createdAt: { gte: inicioDoDiaUtc() } },
+  })
+}
+
 type ProductEntry = {
   productId: string
   productName: string

@@ -329,6 +329,8 @@ model ProductEvent {
   createdAt     DateTime @default(now())
 
   @@index([storeId])
+  // Usado pelo teto diário de eventos: conta os eventos da loja desde a meia-noite
+  @@index([storeId, createdAt])
   @@index([productId])
   @@index([eventType])
   @@index([createdAt])

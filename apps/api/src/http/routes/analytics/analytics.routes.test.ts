@@ -1,6 +1,7 @@
 // Testes das rotas de analytics — registro público validado e métricas protegidas
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { createPrismaFake, buildTestApp, createTestToken, LOJA_TESTE } from '../../../test/test-helpers'
+import { LIMITE_DIARIO_DE_EVENTOS_POR_LOJA } from '../../../domain/analytics/services/analytics.service'
 
 type TestApp = Awaited<ReturnType<typeof buildTestApp>>
 
@@ -13,7 +14,8 @@ describe('POST /api/lojas/:slug/analytics/events', () => {
 
   it('registra um evento válido na loja do slug', async () => {
     const create = vi.fn(async () => ({}))
-    app = await buildTestApp(createPrismaFake({ productEvent: { create } }))
+    const count = vi.fn(async () => 0)
+    app = await buildTestApp(createPrismaFake({ productEvent: { create, count } }))
 
     const response = await app.inject({
       method: 'POST',
@@ -26,6 +28,41 @@ describe('POST /api/lojas/:slug/analytics/events', () => {
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ storeId: LOJA_TESTE.id }) })
     )
+    // O teto diário conta apenas os eventos da própria loja
+    expect(count).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ storeId: LOJA_TESTE.id }) })
+    )
+  })
+
+  it('descarta o evento quando a loja atinge o teto diário, sem revelar o bloqueio', async () => {
+    const create = vi.fn(async () => ({}))
+    // A loja já registrou o máximo de eventos permitido hoje
+    const count = vi.fn(async () => LIMITE_DIARIO_DE_EVENTOS_POR_LOJA)
+    app = await buildTestApp(createPrismaFake({ productEvent: { create, count } }))
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/lojas/loja-teste/analytics/events',
+      payload: { productId: 'p1', productName: 'Perfume Teste', eventType: 'PRODUCT_VIEW' },
+    })
+
+    // Responde sucesso (o atacante não descobre o bloqueio), mas nada é gravado
+    expect(response.statusCode).toBe(201)
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it('usa a contagem em cache — não consulta o banco a cada evento', async () => {
+    const create = vi.fn(async () => ({}))
+    const count = vi.fn(async () => 0)
+    app = await buildTestApp(createPrismaFake({ productEvent: { create, count } }))
+
+    const payload = { productId: 'p1', productName: 'Perfume Teste', eventType: 'PRODUCT_VIEW' }
+    await app.inject({ method: 'POST', url: '/api/lojas/loja-teste/analytics/events', payload })
+    await app.inject({ method: 'POST', url: '/api/lojas/loja-teste/analytics/events', payload })
+
+    // Dois eventos gravados, mas o banco só foi contado uma vez (cache de 60s)
+    expect(create).toHaveBeenCalledTimes(2)
+    expect(count).toHaveBeenCalledTimes(1)
   })
 
   it('rejeita tipo de evento desconhecido', async () => {
