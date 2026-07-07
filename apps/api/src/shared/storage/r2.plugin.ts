@@ -66,6 +66,9 @@ const plugin: FastifyPluginAsync = async (app) => {
           Key: key,
           Body: buffer,
           ContentType: contentType,
+          // Cache eterno: cada key tem UUID e nunca é sobrescrita, então o
+          // navegador e o CDN da Cloudflare podem guardar a imagem para sempre
+          CacheControl: 'public, max-age=31536000, immutable',
         }),
       )
       return `${baseUrl}/${key}`

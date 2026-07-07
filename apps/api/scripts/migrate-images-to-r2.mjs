@@ -69,7 +69,16 @@ function buildKey(storeId, entityType, entityId, ext) {
 }
 
 async function uploadToR2(key, buffer, contentType) {
-  await s3.send(new PutObjectCommand({ Bucket: bucketName, Key: key, Body: buffer, ContentType: contentType }))
+  // Cache eterno: cada key tem UUID e nunca é sobrescrita (mesmo header do r2.plugin.ts)
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
+      CacheControl: 'public, max-age=31536000, immutable',
+    }),
+  )
   return `${publicUrl}/${key}`
 }
 
