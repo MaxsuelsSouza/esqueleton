@@ -26,6 +26,9 @@ const CAMPOS_PUBLICOS = [
   'whatsapp',
   'instagram',
   'logoUrl',
+  'bannerUrl',
+  'bannerMobileUrl',
+  'bannerLink',
   'themeColor',
   'announcements',
   'updatedAt',
@@ -111,6 +114,14 @@ export const storeProfileAdminRoutes: FastifyPluginAsync = async (app) => {
     // null significa "remover o logo" — passa direto para o banco sem upload.
     if (data.logoUrl != null) {
       data.logoUrl = await uploadImage(app.storage, request.log, data.logoUrl, storeId, 'stores', storeId)
+    }
+
+    // Mesmo tratamento para os banners do catálogo — null remove, base64 vai para o R2
+    if (data.bannerUrl != null) {
+      data.bannerUrl = await uploadImage(app.storage, request.log, data.bannerUrl, storeId, 'stores', storeId)
+    }
+    if (data.bannerMobileUrl != null) {
+      data.bannerMobileUrl = await uploadImage(app.storage, request.log, data.bannerMobileUrl, storeId, 'stores', storeId)
     }
 
     const profile = await app.prisma.storeProfile.upsert({

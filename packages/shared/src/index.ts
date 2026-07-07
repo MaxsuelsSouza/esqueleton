@@ -216,6 +216,12 @@ export interface StoreProfile {
   instagram?: string | null
   // URL da logo exibida no cabeçalho
   logoUrl?: string | null
+  // URL do banner exibido abaixo do cabeçalho no catálogo público (desktop)
+  bannerUrl?: string | null
+  // Versão do banner para telas de celular — sem ela, o banner de desktop é usado
+  bannerMobileUrl?: string | null
+  // Link aberto ao clicar no banner — URL externa (https://...) ou caminho interno da loja (/...)
+  bannerLink?: string | null
   // Cor principal do tema em hex (ex: "#e11d48") — usada nos botões e acentos do catálogo
   themeColor: string
   // Mensagens exibidas na barra acima do cabeçalho, uma por vez em rotação
@@ -568,6 +574,33 @@ export interface PlanInput {
   billingPeriod: 'MONTHLY' | 'YEARLY'
   sortOrder: number
   active: boolean
+}
+
+// Dados para o super-admin criar uma loja (venda presencial) —
+// loja, dono (senha temporária) e plano em um passo só
+export interface SuperStoreCreateInput {
+  storeName: string
+  storeSlug: string
+  whatsapp: string
+  email: string
+  password: string
+  planId: string
+}
+
+// Resultado da criação de loja pelo super-admin. paymentLink é o link do
+// MercadoPago para o cliente cadastrar o cartão (null para plano gratuito
+// ou em dev sem MercadoPago configurado)
+export interface SuperStoreCreateResult {
+  store: { id: string; slug: string; name: string }
+  owner: { id: string; email: string }
+  subscription: { id: string; status: SubscriptionStatus }
+  paymentLink: string | null
+}
+
+// Resultado da geração de link de pagamento para uma loja existente
+export interface SuperPaymentLinkResult {
+  subscription: { id: string; status: SubscriptionStatus }
+  paymentLink: string | null
 }
 
 // Métricas gerais da plataforma

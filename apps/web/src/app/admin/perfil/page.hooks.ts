@@ -12,6 +12,9 @@ type FormData = {
   whatsapp: string
   instagram: string
   logoUrl: string
+  bannerUrl: string
+  bannerMobileUrl: string
+  bannerLink: string
   themeColor: string
   announcements: string[]
   // Integração WhatsApp Business
@@ -41,6 +44,9 @@ export function usePerfilPage() {
     whatsapp: '',
     instagram: '',
     logoUrl: '',
+    bannerUrl: '',
+    bannerMobileUrl: '',
+    bannerLink: '',
     themeColor: '#000000',
     announcements: [],
     metaAccessToken: '',
@@ -83,6 +89,9 @@ export function usePerfilPage() {
       whatsapp: profile.whatsapp ?? '',
       instagram: profile.instagram ?? '',
       logoUrl: profile.logoUrl ?? '',
+      bannerUrl: profile.bannerUrl ?? '',
+      bannerMobileUrl: profile.bannerMobileUrl ?? '',
+      bannerLink: profile.bannerLink ?? '',
       themeColor: profile.themeColor,
       announcements: profile.announcements ?? [],
       metaAccessToken: '',
@@ -168,6 +177,9 @@ export function usePerfilPage() {
         whatsapp: form.whatsapp.trim() || undefined,
         instagram: form.instagram.replace('@', '').trim() || null,
         logoUrl: form.logoUrl.trim() || null,
+        bannerUrl: form.bannerUrl.trim() || null,
+        bannerMobileUrl: form.bannerMobileUrl.trim() || null,
+        bannerLink: form.bannerLink.trim() || null,
         themeColor: form.themeColor,
         announcements: form.announcements,
         // Token é write-only: só entra no payload quando o usuário digitou um novo

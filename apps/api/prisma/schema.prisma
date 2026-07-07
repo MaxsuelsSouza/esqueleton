@@ -247,6 +247,12 @@ model StoreProfile {
   whatsapp   String?
   instagram  String?
   logoUrl    String?
+  // Imagem de banner exibida abaixo do cabeçalho no catálogo público (desktop)
+  bannerUrl  String?
+  // Versão do banner para telas de celular — sem ela, o banner de desktop é usado
+  bannerMobileUrl String?
+  // Link aberto ao clicar no banner — URL externa (https://...) ou caminho interno da loja (/...)
+  bannerLink String?
   // Cor principal do tema em hex (ex: "#e11d48") — usada nos botões e acentos do catálogo
   themeColor    String   @default("#000000")
   // Mensagens exibidas na barra acima do cabeçalho em rotação

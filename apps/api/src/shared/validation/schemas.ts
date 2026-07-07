@@ -40,6 +40,20 @@ export const httpUrlSchema = z
   .url('URL inválida')
   .regex(/^https?:\/\//, 'A URL deve começar com http:// ou https://')
 
+// Link clicável configurado pelo lojista (ex: banner do catálogo).
+// Aceita DUAS formas:
+//   1. URL http/https completa — site externo ou qualquer página
+//   2. Caminho interno começando com "/" — página da própria loja (ex: "/loja/minha-loja?busca=perfume")
+// Bloqueia "javascript:", "data:" e "//host" (URL de protocolo relativo, que sairia do site).
+export const linkUrlSchema = z
+  .string()
+  .trim()
+  .max(2048, 'Link muito longo')
+  .refine(
+    (value) => /^https?:\/\/.+/i.test(value) || /^\/(?!\/)/.test(value),
+    'Link inválido — use um endereço https:// ou um caminho da loja começando com /',
+  )
+
 // Tamanho máximo de uma imagem enviada embutida (base64) — cerca de 3 MB já codificada.
 // Imagens maiores devem ser otimizadas antes do envio (ou, no futuro, ir para um storage externo).
 const MAX_IMAGE_DATA_URL_LENGTH = 3 * 1024 * 1024

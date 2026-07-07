@@ -13,6 +13,9 @@ const PERFIL_COM_WHATSAPP = {
   whatsapp: '5511999999999',
   instagram: 'lojateste',
   logoUrl: 'https://img.example.com/logo.webp',
+  bannerUrl: 'https://img.example.com/banner.webp',
+  bannerMobileUrl: 'https://img.example.com/banner-mobile.webp',
+  bannerLink: 'https://instagram.com/lojateste',
   themeColor: '#000000',
   announcements: [],
   metaAccessToken: 'token-super-secreto',
@@ -173,6 +176,10 @@ describe('GET /api/lojas/:slug/store-profile (público) — allowlist', () => {
     expect(response.statusCode).toBe(200)
     const body = response.json()
     expect(body.storeName).toBe('Loja Teste')
+    // Os banners são públicos — precisam sair no catálogo
+    expect(body.bannerUrl).toBe('https://img.example.com/banner.webp')
+    expect(body.bannerMobileUrl).toBe('https://img.example.com/banner-mobile.webp')
+    expect(body.bannerLink).toBe('https://instagram.com/lojateste')
     expect(body.metaAccessToken).toBeUndefined()
     expect(body.metaCatalogId).toBeUndefined()
     expect(body.metaWabaId).toBeUndefined()

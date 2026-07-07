@@ -2,7 +2,7 @@
 
 // Página de configurações da loja — nome, contato, logo e cor do tema
 import { useRef, useState } from 'react'
-import { ImagePlus, Camera, X, Save, Store, Plus, Megaphone, MessageCircle, RefreshCw, CheckCircle2, XCircle, AlertTriangle, ExternalLink, ChevronDown } from 'lucide-react'
+import { ImagePlus, Camera, X, Save, Store, Plus, Megaphone, MessageCircle, RefreshCw, CheckCircle2, XCircle, AlertTriangle, ExternalLink, ChevronDown, Monitor, Smartphone } from 'lucide-react'
 import { compressImage } from '@/modules/catalog/utils/image'
 import { ContaSection } from '@/modules/account'
 import { usePerfilPage } from './page.hooks'
@@ -168,6 +168,71 @@ export default function AdminPerfilPage() {
           onChange={(url) => set('logoUrl', url)}
         />
       </Section>
+
+      {/* ── Banner (colapsável para não poluir a página) ── */}
+      <CollapsibleSection
+        title="Banner"
+        hint="Exibido abaixo do cabeçalho no catálogo. Se só uma versão for enviada, ela vale para os dois aparelhos."
+        badge={[form.bannerUrl, form.bannerMobileUrl].filter(Boolean).length}
+      >
+        <div className="flex flex-col gap-4">
+
+          {/* ── Link ao clicar no banner ── */}
+          <FormField
+            label="Link ao clicar"
+            optional
+            hint="Para onde o cliente vai ao clicar no banner. Pode ser uma página da sua loja (cole o endereço de um produto, busca ou categoria) ou um site externo — links externos abrem em nova aba."
+          >
+            <input
+              type="text"
+              value={form.bannerLink}
+              onChange={(e) => set('bannerLink', e.target.value)}
+              placeholder="Ex: https://minhaloja.com/loja/minha-loja?busca=perfume"
+              className={inputClass}
+            />
+          </FormField>
+
+          {/* ── Versão para computador ── */}
+          <div className="flex flex-col gap-2.5 rounded-xl border border-gray-100 p-3">
+            <div className="flex items-center gap-1.5">
+              <Monitor size={14} className="text-gray-400" />
+              <p className="text-xs font-semibold text-gray-600">Computador</p>
+              <span className="ml-auto text-[10px] text-gray-400">Ideal: 1600×800</span>
+            </div>
+            <BannerUploader
+              label="banner para computador"
+              value={form.bannerUrl}
+              onChange={(url) => set('bannerUrl', url)}
+            />
+            <BannerPreview
+              device="desktop"
+              image={form.bannerUrl || form.bannerMobileUrl}
+              storeName={form.storeName || 'Minha Loja'}
+              themeColor={form.themeColor}
+            />
+          </div>
+
+          {/* ── Versão para celular ── */}
+          <div className="flex flex-col gap-2.5 rounded-xl border border-gray-100 p-3">
+            <div className="flex items-center gap-1.5">
+              <Smartphone size={14} className="text-gray-400" />
+              <p className="text-xs font-semibold text-gray-600">Celular</p>
+              <span className="ml-auto text-[10px] text-gray-400">Ideal: 800×1000</span>
+            </div>
+            <BannerUploader
+              label="banner para celular"
+              value={form.bannerMobileUrl}
+              onChange={(url) => set('bannerMobileUrl', url)}
+            />
+            <BannerPreview
+              device="mobile"
+              image={form.bannerMobileUrl || form.bannerUrl}
+              storeName={form.storeName || 'Minha Loja'}
+              themeColor={form.themeColor}
+            />
+          </div>
+        </div>
+      </CollapsibleSection>
 
       {/* ── Informações da loja ── */}
       <Section title="Informações">
@@ -682,6 +747,59 @@ function Section({
   )
 }
 
+// Seção que abre e fecha ao clicar no cabeçalho — usada para conteúdos grandes
+// (ex: banners) ficarem recolhidos e a página menos poluída. O selo numérico
+// indica quantos itens já estão configurados mesmo com a seção fechada.
+function CollapsibleSection({
+  title,
+  hint,
+  badge,
+  children,
+}: {
+  title: string
+  hint?: string
+  badge?: number
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="flex flex-col rounded-2xl border border-gray-100 bg-white">
+      {/* Cabeçalho clicável — sempre visível */}
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex items-center justify-between gap-3 p-4 text-left"
+      >
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">{title}</p>
+          {hint && <p className="mt-0.5 text-xs text-gray-400">{hint}</p>}
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {typeof badge === 'number' && badge > 0 && (
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-gray-900 px-1.5 text-[10px] font-bold text-white">
+              {badge}
+            </span>
+          )}
+          <ChevronDown
+            size={16}
+            className={`text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          />
+        </div>
+      </button>
+
+      {/* Conteúdo expansível */}
+      <div
+        className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+      >
+        <div className="overflow-hidden">
+          <div className="border-t border-gray-100 p-4">{children}</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function FormField({
   label,
   optional,
@@ -818,6 +936,186 @@ function LogoUploader({
         </div>
       )}
     </>
+  )
+}
+
+// Campo de upload de banner — usado nos blocos "Computador" e "Celular".
+// Aceita clique (galeria/câmera) e arrastar-e-soltar a imagem no campo.
+function BannerUploader({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: string
+  onChange: (url: string) => void
+}) {
+  const galleryInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const [chooserOpen, setChooserOpen] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+
+  async function processFile(file: File | undefined) {
+    if (!file || !file.type.startsWith('image/')) return
+    try {
+      // Comprime e redimensiona antes de enviar — mantém o tamanho dentro do limite da API
+      onChange(await compressImage(file))
+    } catch {
+      // Se a compressão falhar, envia o arquivo original como base64
+      const reader = new FileReader()
+      reader.onload = () => onChange(reader.result as string)
+      reader.readAsDataURL(file)
+    }
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    processFile(e.target.files?.[0])
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setIsDragging(false)
+    processFile(e.dataTransfer.files?.[0])
+  }
+
+  function handleRemove(e: React.MouseEvent) {
+    e.stopPropagation()
+    onChange('')
+    if (galleryInputRef.current) galleryInputRef.current.value = ''
+    if (cameraInputRef.current) cameraInputRef.current.value = ''
+  }
+
+  return (
+    <>
+      <input ref={galleryInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileChange} />
+
+      {/* Campo de upload — clique para escolher ou solte uma imagem aqui */}
+      <div
+        onClick={() => setChooserOpen(true)}
+        onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={handleDrop}
+        className={`relative flex h-16 w-full cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-dashed transition-colors ${
+          isDragging ? 'border-gray-900 bg-gray-100' : 'border-gray-200 bg-gray-50 hover:border-gray-400'
+        }`}
+      >
+        {value ? (
+          <>
+            <img src={value} alt={`Imagem do ${label}`} className="h-full w-full object-cover" />
+            <button
+              onClick={handleRemove}
+              aria-label={`Remover ${label}`}
+              className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70"
+            >
+              <X size={12} />
+            </button>
+          </>
+        ) : (
+          <div className="pointer-events-none flex items-center gap-2 px-2 text-gray-400">
+            <ImagePlus size={16} strokeWidth={1.5} />
+            <span className="text-[11px]">{isDragging ? 'Solte a imagem' : 'Clique ou arraste a imagem aqui'}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Seletor de origem */}
+      {chooserOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center"
+          onClick={() => setChooserOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm overflow-hidden rounded-t-2xl bg-white sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="border-b px-5 py-4 text-sm font-semibold text-gray-700">
+              Como deseja adicionar o banner?
+            </p>
+            <div className="flex flex-col divide-y">
+              <button
+                onClick={() => { setChooserOpen(false); galleryInputRef.current?.click() }}
+                className="flex items-center gap-3 px-5 py-4 text-sm text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                <ImagePlus size={18} className="text-gray-400" />
+                Escolher da galeria
+              </button>
+              <button
+                onClick={() => { setChooserOpen(false); cameraInputRef.current?.click() }}
+                className="flex items-center gap-3 px-5 py-4 text-sm text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                <Camera size={18} className="text-gray-400" />
+                Tirar uma foto
+              </button>
+              <button
+                onClick={() => setChooserOpen(false)}
+                className="px-5 py-4 text-sm font-medium text-gray-400 transition-colors hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+// Miniatura de como o banner vai aparecer no catálogo público: cabeçalho da loja
+// com a cor do tema, banner cortado até a "metade da tela" e início do catálogo
+// ilustrativo. Some quando não há imagem para exibir.
+function BannerPreview({
+  device,
+  image,
+  storeName,
+  themeColor,
+}: {
+  device: 'desktop' | 'mobile'
+  image: string
+  storeName: string
+  themeColor: string
+}) {
+  if (!image) return null
+
+  const isDesktop = device === 'desktop'
+  const textColor = isLight(themeColor) ? '#111827' : '#ffffff'
+
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400">Como vai ficar</p>
+      <div className={`overflow-hidden rounded-lg border border-gray-200 ${isDesktop ? 'w-full' : 'mx-auto w-36'}`}>
+
+        {/* Cabeçalho da loja em miniatura */}
+        <div
+          className="flex items-center justify-between px-2.5 py-1.5"
+          style={{ backgroundColor: themeColor, color: textColor }}
+        >
+          <span className="max-w-[60%] truncate text-[8px] font-semibold">{storeName}</span>
+          {isDesktop && (
+            <span className="flex gap-2 text-[7px] opacity-80">
+              <span>Ofertas</span>
+              <span>Favoritos</span>
+              <span>Sacola</span>
+            </span>
+          )}
+        </div>
+
+        {/* Banner cortado — ocupa até a "metade da tela" da miniatura */}
+        <div className={isDesktop ? 'h-16' : 'h-24'}>
+          <img src={image} alt={`Prévia do banner no ${isDesktop ? 'computador' : 'celular'}`} className="h-full w-full object-cover" />
+        </div>
+
+        {/* Início do catálogo, apenas ilustrativo */}
+        <div className={`grid gap-1.5 bg-gray-50 p-2 ${isDesktop ? 'grid-cols-4' : 'grid-cols-2'}`}>
+          {Array.from({ length: isDesktop ? 4 : 2 }).map((_, i) => (
+            <div key={i} className="flex flex-col gap-1">
+              <div className="h-8 rounded bg-gray-200" />
+              <div className="h-1.5 w-3/4 rounded bg-gray-200" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 

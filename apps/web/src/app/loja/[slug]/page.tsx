@@ -6,6 +6,7 @@ import { CatalogSearch } from '@/modules/catalog/components/CatalogSearch'
 import { CatalogFilters } from '@/modules/catalog/components/CatalogFilters'
 import { DisplayToggle } from '@/modules/catalog/components/DisplayToggle'
 import { FeaturedSection } from '@/modules/featured/components/FeaturedSection'
+import { StoreBanner } from '@/modules/store-profile'
 import { ProductCard } from '@/modules/catalog/components/ProductCard'
 import type { Product, DisplayMode, PromotionType } from '@esqueleton/shared'
 import { PackageSearch, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -35,6 +36,9 @@ export default function CatalogPage() {
 
   return (
     <main className="min-h-screen bg-gray-50">
+
+      {/* ── Banner da loja — abaixo do header até metade da tela ───────────── */}
+      <StoreBanner />
 
       {/* ── Barra superior mobile ─────────────────────────────────────────────
           Visível apenas abaixo de lg. Contém busca + alternador de exibição.
