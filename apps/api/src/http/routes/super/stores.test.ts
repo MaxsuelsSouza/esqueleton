@@ -72,9 +72,26 @@ describe('POST /api/super/stores (venda presencial)', () => {
     await app?.close()
   })
 
-  type PlanoDeTeste = { id: string; name: string; active: boolean; priceInCents: number; mercadoPagoPreapprovalPlanId: string | null }
+  type PlanoDeTeste = {
+    id: string
+    name: string
+    active: boolean
+    priceInCents: number
+    mercadoPagoPreapprovalPlanId: string | null
+    salesModality?: string
+    setupFeeInCents?: number
+  }
   const PLANO_PAGO: PlanoDeTeste = { id: 'plan-pago', name: 'Pro', active: true, priceInCents: 4990, mercadoPagoPreapprovalPlanId: 'mp-plan-1' }
   const PLANO_GRATUITO: PlanoDeTeste = { id: 'plan-free', name: 'Gratuito', active: true, priceInCents: 0, mercadoPagoPreapprovalPlanId: null }
+  const PLANO_PRESENCIAL: PlanoDeTeste = {
+    id: 'plan-presencial',
+    name: 'Presencial',
+    active: true,
+    priceInCents: 9700,
+    mercadoPagoPreapprovalPlanId: 'mp-plan-presencial',
+    salesModality: 'PRESENCIAL',
+    setupFeeInCents: 37800,
+  }
 
   const PAYLOAD_LOJA_NOVA = {
     storeName: 'Loja Nova',
@@ -206,6 +223,31 @@ describe('POST /api/super/stores (venda presencial)', () => {
 
     expect(response.statusCode).toBe(404)
   })
+
+  it('cria loja com plano PRESENCIAL — assinatura nasce PENDING_SETUP, sem link, aguardando confirmação da implantação', async () => {
+    const prismaFake = fakeParaCriacao(PLANO_PRESENCIAL)
+    app = await buildTestApp(prismaFake)
+    const token = await createTestToken(app, undefined, { isSuperAdmin: true })
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/super/stores',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { ...PAYLOAD_LOJA_NOVA, planId: 'plan-presencial' },
+    })
+
+    expect(response.statusCode).toBe(201)
+    const body = response.json()
+    expect(body.subscription.status).toBe('PENDING_SETUP')
+    expect(body.paymentLink).toBeNull()
+
+    const subscriptionCreate = (prismaFake as unknown as { subscription: { create: ReturnType<typeof vi.fn> } }).subscription.create
+    expect(subscriptionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { storeId: 'loja-nova-id', planId: 'plan-presencial', status: 'PENDING_SETUP' },
+      })
+    )
+  })
 })
 
 describe('POST /api/super/stores/:id/payment-link', () => {
@@ -287,6 +329,101 @@ describe('POST /api/super/stores/:id/payment-link', () => {
     })
 
     expect(response.statusCode).toBe(400)
+  })
+
+  it('plano PRESENCIAL responde 400 — não usa link de pagamento', async () => {
+    app = await buildTestApp(
+      createPrismaFake({
+        store: { findUnique: vi.fn(async () => ({ id: 'loja-1', name: 'Loja Um' })) },
+        plan: {
+          findUnique: vi.fn(async () => ({ ...PLANO_PAGO, salesModality: 'PRESENCIAL', setupFeeInCents: 37800 })),
+        },
+      })
+    )
+    const token = await createTestToken(app, undefined, { isSuperAdmin: true })
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/super/stores/loja-1/payment-link',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { planId: 'plan-pago' },
+    })
+
+    expect(response.statusCode).toBe(400)
+  })
+})
+
+describe('POST /api/super/stores/:id/confirm-setup-fee', () => {
+  let app: TestApp
+
+  afterEach(async () => {
+    await app?.close()
+  })
+
+  const PLANO_PRESENCIAL = { id: 'plan-presencial', priceInCents: 9700, mercadoPagoPreapprovalPlanId: null }
+
+  it('confirma a implantação e ativa a loja imediatamente', async () => {
+    const subscriptionUpdateMany = vi.fn(async () => ({ count: 1 }))
+    app = await buildTestApp(
+      createPrismaFake({
+        store: { findUnique: vi.fn(async () => ({ id: 'loja-1', name: 'Loja Um' })) },
+        subscription: {
+          findFirst: vi.fn(async () => ({ id: 'sub-1', storeId: 'loja-1', status: 'PENDING_SETUP', plan: PLANO_PRESENCIAL })),
+          updateMany: subscriptionUpdateMany,
+        },
+      })
+    )
+    const token = await createTestToken(app, undefined, { isSuperAdmin: true })
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/super/stores/loja-1/confirm-setup-fee',
+      headers: { authorization: `Bearer ${token}` },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json().subscription.status).toBe('ACTIVE')
+    expect(subscriptionUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'sub-1', storeId: 'loja-1' },
+        data: expect.objectContaining({ status: 'ACTIVE' }),
+      })
+    )
+  })
+
+  it('sem implantação pendente responde 400', async () => {
+    app = await buildTestApp(
+      createPrismaFake({
+        store: { findUnique: vi.fn(async () => ({ id: 'loja-1', name: 'Loja Um' })) },
+        subscription: { findFirst: vi.fn(async () => null) },
+      })
+    )
+    const token = await createTestToken(app, undefined, { isSuperAdmin: true })
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/super/stores/loja-1/confirm-setup-fee',
+      headers: { authorization: `Bearer ${token}` },
+    })
+
+    expect(response.statusCode).toBe(400)
+  })
+
+  it('loja inexistente responde 404', async () => {
+    app = await buildTestApp(
+      createPrismaFake({
+        store: { findUnique: vi.fn(async () => null) },
+      })
+    )
+    const token = await createTestToken(app, undefined, { isSuperAdmin: true })
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/super/stores/loja-1/confirm-setup-fee',
+      headers: { authorization: `Bearer ${token}` },
+    })
+
+    expect(response.statusCode).toBe(404)
   })
 })
 

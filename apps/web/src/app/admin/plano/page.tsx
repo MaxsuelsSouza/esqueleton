@@ -38,6 +38,9 @@ export default function PlanoPage() {
     return <div className="flex min-h-[50vh] items-center justify-center" />
   }
 
+  // Planos PRESENCIAL são vendidos por um representante — não aparecem no autoatendimento
+  const onlinePlans = plans.filter((plan) => plan.salesModality !== 'PRESENCIAL')
+
   return (
     <div className="mx-auto max-w-3xl">
 
@@ -73,6 +76,8 @@ export default function PlanoPage() {
                 {subscription.status === 'PENDING' && 'Aguardando confirmação do pagamento'}
                 {subscription.status === 'PAUSED' && 'Pagamento pendente — assinatura pausada'}
                 {subscription.status === 'CANCELLED' && 'Assinatura cancelada'}
+                {subscription.status === 'PENDING_SETUP' &&
+                  'Aguardando a confirmação da taxa de implantação com o nosso representante'}
               </p>
             )}
           </div>
@@ -112,10 +117,10 @@ export default function PlanoPage() {
         )}
       </div>
 
-      {/* Planos disponíveis */}
+      {/* Planos disponíveis — planos PRESENCIAL são vendidos por um representante, não aparecem aqui */}
       <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-400">Planos disponíveis</p>
       <div className="grid gap-4 sm:grid-cols-2">
-        {plans.map((plan) => {
+        {onlinePlans.map((plan) => {
           const isCurrent = plan.id === currentPlan?.id && subscription?.status === 'ACTIVE'
           return (
             <div
@@ -171,7 +176,7 @@ export default function PlanoPage() {
             </div>
           )
         })}
-        {plans.length === 0 && (
+        {onlinePlans.length === 0 && (
           <p className="text-sm text-gray-400">Nenhum plano disponível no momento.</p>
         )}
       </div>

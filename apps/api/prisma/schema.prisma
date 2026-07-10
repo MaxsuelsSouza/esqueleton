@@ -405,6 +405,11 @@ model Plan {
   priceInCents                 Int      @default(0)
   // Período de cobrança: MONTHLY ou YEARLY
   billingPeriod                String   @default("MONTHLY")
+  // Modalidade de venda: ONLINE (autoatendimento, cobrança recorrente desde o cadastro) ou
+  // PRESENCIAL (vendida por um representante — cobra implantação única antes da recorrência)
+  salesModality                String   @default("ONLINE")
+  // Taxa única de implantação em centavos, cobrada manualmente/fora do sistema — 0 = sem taxa
+  setupFeeInCents              Int      @default(0)
   // ID do plano de recorrência no MercadoPago (preenchido ao criar plano pago)
   mercadoPagoPreapprovalPlanId String?
   active                       Boolean  @default(true)
@@ -424,9 +429,13 @@ model Subscription {
   planId                     String
   plan                       Plan      @relation(fields: [planId], references: [id])
   // ACTIVE = em dia | PAUSED = pagamento pendente | CANCELLED = cancelada | PENDING = aguardando pagamento
+  // PENDING_SETUP = plano PRESENCIAL aguardando confirmação manual da taxa de implantação
   status                     String    @default("PENDING")
   // ID da assinatura recorrente no MercadoPago
   mercadoPagoPreapprovalId   String?
+  // Quando a taxa de implantação (cobrada manualmente) foi confirmada — só em planos PRESENCIAL.
+  // A loja só fica disponível ao público depois desta confirmação.
+  setupFeeConfirmedAt        DateTime?
   currentPeriodStart         DateTime?
   currentPeriodEnd           DateTime?
   createdAt                  DateTime  @default(now())

@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAdminAuth } from '@/modules/auth/hooks/useAdminAuth'
 import { superService } from '@/modules/super/services/super.service'
-import type { SuperPlan, PlanInput } from '@esqueleton/shared'
+import type { SuperPlan, PlanInput, SalesModality } from '@esqueleton/shared'
 
 // Campos do formulário — preço em reais como texto, convertido ao salvar
 type PlanFormData = {
@@ -17,6 +17,9 @@ type PlanFormData = {
   maxOrdersPerMonth: string
   priceInReais: string
   billingPeriod: 'MONTHLY' | 'YEARLY'
+  salesModality: SalesModality
+  // Taxa de implantação em reais (texto) — só usada quando salesModality é PRESENCIAL
+  setupFeeInReais: string
   sortOrder: string
   active: boolean
 }
@@ -29,6 +32,8 @@ const EMPTY_FORM: PlanFormData = {
   maxOrdersPerMonth: '',
   priceInReais: '',
   billingPeriod: 'MONTHLY',
+  salesModality: 'ONLINE',
+  setupFeeInReais: '0',
   sortOrder: '0',
   active: true,
 }
@@ -91,6 +96,8 @@ export function useSuperPlanosPage() {
       maxOrdersPerMonth: plan.limits.maxOrdersPerMonth != null ? String(plan.limits.maxOrdersPerMonth) : '',
       priceInReais: plan.priceInCents > 0 ? String(plan.priceInCents / 100) : '0',
       billingPeriod: plan.billingPeriod,
+      salesModality: plan.salesModality,
+      setupFeeInReais: plan.setupFeeInCents > 0 ? String(plan.setupFeeInCents / 100) : '0',
       sortOrder: String(plan.sortOrder),
       active: plan.active,
     })
@@ -111,6 +118,11 @@ export function useSuperPlanosPage() {
       setFormError('Informe um preço válido (0 para gratuito).')
       return
     }
+    const taxaImplantacao = Number(formData.setupFeeInReais.replace(',', '.'))
+    if (isNaN(taxaImplantacao) || taxaImplantacao < 0) {
+      setFormError('Informe uma taxa de implantação válida (0 para nenhuma).')
+      return
+    }
 
     // Campos vazios de limite significam ilimitado (null)
     const payload: PlanInput = {
@@ -123,6 +135,9 @@ export function useSuperPlanosPage() {
       },
       priceInCents: Math.round(preco * 100),
       billingPeriod: formData.billingPeriod,
+      salesModality: formData.salesModality,
+      // Taxa de implantação só faz sentido em planos PRESENCIAL
+      setupFeeInCents: formData.salesModality === 'PRESENCIAL' ? Math.round(taxaImplantacao * 100) : 0,
       sortOrder: Number(formData.sortOrder) || 0,
       active: formData.active,
     }

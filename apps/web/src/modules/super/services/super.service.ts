@@ -7,6 +7,7 @@ import type {
   SuperStoreCreateInput,
   SuperStoreCreateResult,
   SuperPaymentLinkResult,
+  SuperConfirmSetupFeeResult,
   SuperUser,
   SuperPlan,
   PlanInput,
@@ -38,6 +39,11 @@ export const superService = {
   // Gera (ou regenera) o link de pagamento de uma loja existente
   createPaymentLink: (storeId: string, planId: string, token: string) =>
     apiClient.post<SuperPaymentLinkResult>(`/super/stores/${storeId}/payment-link`, { planId }, token),
+
+  // Confirma que a taxa de implantação (venda presencial, cobrada manualmente) foi recebida —
+  // ativa a loja e agenda a recorrência mensal para começar em 30 dias
+  confirmSetupFee: (storeId: string, token: string) =>
+    apiClient.post<SuperConfirmSetupFeeResult>(`/super/stores/${storeId}/confirm-setup-fee`, {}, token),
 
   // ── Planos ──
   listPlans: (token: string) =>

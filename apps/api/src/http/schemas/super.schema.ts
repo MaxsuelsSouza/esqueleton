@@ -60,6 +60,11 @@ export const planSchema = z.object({
   // Preço em centavos — 0 = gratuito
   priceInCents: z.number().int('Preço deve ser um número inteiro em centavos').nonnegative('Preço não pode ser negativo').max(100000000, 'Preço muito alto'),
   billingPeriod: z.enum(['MONTHLY', 'YEARLY']).default('MONTHLY'),
+  // ONLINE = autoatendimento (cobrança recorrente desde o cadastro)
+  // PRESENCIAL = vendido por um representante — cobra implantação única (setupFeeInCents) antes da recorrência
+  salesModality: z.enum(['ONLINE', 'PRESENCIAL']).default('ONLINE'),
+  // Taxa única de implantação em centavos, cobrada manualmente/fora do sistema — 0 = sem taxa
+  setupFeeInCents: z.number().int('Taxa de implantação deve ser um número inteiro em centavos').nonnegative('Taxa de implantação não pode ser negativa').max(100000000, 'Taxa muito alta').default(0),
   sortOrder: z.number().int().min(0).max(1000).default(0),
   active: z.boolean().default(true),
 })

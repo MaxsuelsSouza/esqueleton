@@ -19,6 +19,8 @@ export interface MercadoPagoService {
     payerEmail: string
     externalReference: string
     backUrl: string
+    /** Adia a primeira cobrança recorrente para esta data (ex: planos PRESENCIAL, 30 dias após a implantação) */
+    startDate?: Date
   }): Promise<{ id: string; initPoint: string } | null>
 
   /** Cancela uma assinatura existente */
@@ -73,7 +75,7 @@ export const mercadopagoPlugin = fp(async (app: FastifyInstance) => {
         : null
     },
 
-    async createSubscription({ planId, payerEmail, externalReference, backUrl }) {
+    async createSubscription({ planId, payerEmail, externalReference, backUrl, startDate }) {
       const response = await subscriptionClient.create({
         body: {
           preapproval_plan_id: planId,
@@ -81,6 +83,11 @@ export const mercadopagoPlugin = fp(async (app: FastifyInstance) => {
           external_reference: externalReference,
           back_url: backUrl,
           reason: 'Assinatura Esqueleton',
+          // Planos PRESENCIAL adiam a primeira cobrança — o restante da recorrência
+          // (valor, frequência, moeda) continua herdado do plano no MercadoPago
+          ...(startDate
+            ? { auto_recurring: { frequency: 1, frequency_type: 'months', currency_id: 'BRL', start_date: startDate.toISOString() } }
+            : {}),
         },
       })
       return response.id

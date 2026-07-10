@@ -11,6 +11,7 @@ import type {
   SuperStoreCreateInput,
   SuperStoreCreateResult,
   SuperPaymentLinkResult,
+  SuperConfirmSetupFeeResult,
 } from '@esqueleton/shared'
 
 // Formulário vazio da criação de loja (venda presencial)
@@ -213,6 +214,37 @@ export function useSuperLojasPage() {
     }
   }
 
+  // ── Confirmação da implantação (venda presencial) ───────────────
+  const [setupFeeStore, setSetupFeeStore] = useState<SuperStore | null>(null)
+  const [setupFeeResult, setSetupFeeResult] = useState<SuperConfirmSetupFeeResult | null>(null)
+  const [isConfirmingSetupFee, setIsConfirmingSetupFee] = useState(false)
+  const [setupFeeError, setSetupFeeError] = useState<string | null>(null)
+
+  function openSetupFeeModal(store: SuperStore) {
+    setSetupFeeStore(store)
+    setSetupFeeResult(null)
+    setSetupFeeError(null)
+  }
+
+  function closeSetupFeeModal() {
+    setSetupFeeStore(null)
+  }
+
+  async function handleConfirmSetupFee() {
+    if (!token || !setupFeeStore) return
+    setSetupFeeError(null)
+    setIsConfirmingSetupFee(true)
+    try {
+      const result = await superService.confirmSetupFee(setupFeeStore.id, token)
+      setSetupFeeResult(result)
+      await loadStores()
+    } catch (err: unknown) {
+      setSetupFeeError((err as { message?: string })?.message || 'Erro ao confirmar a implantação.')
+    } finally {
+      setIsConfirmingSetupFee(false)
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / perPage))
 
   return {
@@ -253,5 +285,13 @@ export function useSuperLojasPage() {
     linkResult,
     isGeneratingLink,
     linkError,
+    // Confirmação da implantação (venda presencial)
+    setupFeeStore,
+    openSetupFeeModal,
+    closeSetupFeeModal,
+    handleConfirmSetupFee,
+    setupFeeResult,
+    isConfirmingSetupFee,
+    setupFeeError,
   }
 }

@@ -458,6 +458,9 @@ export interface PlanLimits {
   maxOrdersPerMonth?: number | null
 }
 
+// Modalidade de venda de um plano — ver SalesModality
+export type SalesModality = 'ONLINE' | 'PRESENCIAL'
+
 // Plano de assinatura da plataforma — criado pelo super-admin
 export interface Plan {
   id: string
@@ -469,12 +472,18 @@ export interface Plan {
   priceInCents: number
   // Período de cobrança
   billingPeriod: 'MONTHLY' | 'YEARLY'
+  // ONLINE = autoatendimento (recorrência desde o cadastro) | PRESENCIAL = vendido por
+  // um representante, cobra implantação única (setupFeeInCents) antes da recorrência
+  salesModality: SalesModality
+  // Taxa única de implantação em centavos, cobrada manualmente/fora do sistema — 0 = sem taxa
+  setupFeeInCents: number
   sortOrder: number
   active?: boolean
 }
 
 // ACTIVE = em dia | PAUSED = pagamento pendente | CANCELLED = cancelada | PENDING = aguardando pagamento
-export type SubscriptionStatus = 'ACTIVE' | 'PAUSED' | 'CANCELLED' | 'PENDING'
+// PENDING_SETUP = plano PRESENCIAL aguardando confirmação manual da taxa de implantação
+export type SubscriptionStatus = 'ACTIVE' | 'PAUSED' | 'CANCELLED' | 'PENDING' | 'PENDING_SETUP'
 
 // Assinatura da loja a um plano
 export interface Subscription {
@@ -483,6 +492,8 @@ export interface Subscription {
   status: SubscriptionStatus
   currentPeriodStart?: string | null
   currentPeriodEnd?: string | null
+  // Quando a taxa de implantação (plano PRESENCIAL) foi confirmada — null até a confirmação
+  setupFeeConfirmedAt?: string | null
   createdAt: string
   plan: Plan
 }
@@ -572,6 +583,8 @@ export interface PlanInput {
   limits: PlanLimits
   priceInCents: number
   billingPeriod: 'MONTHLY' | 'YEARLY'
+  salesModality: SalesModality
+  setupFeeInCents: number
   sortOrder: number
   active: boolean
 }
@@ -599,6 +612,13 @@ export interface SuperStoreCreateResult {
 
 // Resultado da geração de link de pagamento para uma loja existente
 export interface SuperPaymentLinkResult {
+  subscription: { id: string; status: SubscriptionStatus }
+  paymentLink: string | null
+}
+
+// Resultado da confirmação da taxa de implantação de um plano PRESENCIAL —
+// paymentLink é o link do MercadoPago para o dono cadastrar o cartão da recorrência
+export interface SuperConfirmSetupFeeResult {
   subscription: { id: string; status: SubscriptionStatus }
   paymentLink: string | null
 }

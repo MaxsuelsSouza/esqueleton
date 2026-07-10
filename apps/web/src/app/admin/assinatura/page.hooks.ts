@@ -24,8 +24,9 @@ export function useAssinaturaPage() {
         billingService.listPlans(),
       ])
       setBilling(currentData)
-      // O onboarding oferece apenas planos pagos — o modelo é "pagou, usou"
-      setPlans(plansData.filter((plan) => plan.priceInCents > 0))
+      // O onboarding oferece apenas planos pagos e autoatendimento — planos PRESENCIAL
+      // são vendidos por um representante, não aparecem aqui
+      setPlans(plansData.filter((plan) => plan.priceInCents > 0 && plan.salesModality !== 'PRESENCIAL'))
     } catch {
       setError('Não foi possível carregar as informações. Recarregue a página.')
     } finally {
@@ -62,6 +63,8 @@ export function useAssinaturaPage() {
   const trial = billing?.trial ?? null
   const hasActiveSubscription = subscription?.status === 'ACTIVE'
   const isPending = subscription?.status === 'PENDING'
+  // Venda presencial aguardando a confirmação manual da taxa de implantação
+  const isPendingSetup = subscription?.status === 'PENDING_SETUP'
 
   return {
     isChecking,
@@ -76,6 +79,7 @@ export function useAssinaturaPage() {
     trial,
     hasActiveSubscription,
     isPending,
+    isPendingSetup,
     handleSubscribe,
   }
 }

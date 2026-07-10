@@ -32,17 +32,22 @@ Plugin Fastify que registra `app.mercadopago`. **Sem `MERCADOPAGO_ACCESS_TOKEN`,
 | Método | O que faz | Retorna |
 |--------|-----------|---------|
 | `createPlan(params)` | Cria plano de recorrência no MercadoPago | `{ id, initPoint }` ou `null` |
-| `createSubscription(params)` | Cria assinatura vinculada a um plano | `{ id, initPoint }` ou `null` |
+| `createSubscription(params)` | Cria assinatura vinculada a um plano (aceita `startDate?` para adiar a 1ª cobrança) | `{ id, initPoint }` ou `null` |
 | `cancelSubscription(id)` | Cancela assinatura existente | `boolean` |
 | `isConfigured` | Se o MercadoPago está configurado | `boolean` |
 
 **`createPlan`:** converte `amountInCents` para reais (÷ 100), período `MONTHLY` = frequência 1 mês, `YEARLY` = 12 meses.
 
-**`createSubscription`:** redireciona o lojista para o checkout via `initPoint`. A assinatura fica `PENDING` até o webhook confirmar pagamento.
+**`createSubscription`:** redireciona o lojista para o checkout via `initPoint`. A assinatura fica `PENDING` até o webhook confirmar pagamento. Quando `startDate` é informado (planos PRESENCIAL), envia `auto_recurring.start_date` — a recorrência é autorizada já, mas a primeira cobrança só acontece naquela data.
 
 **`cancelSubscription`:** atualiza status para `cancelled` no MercadoPago. Retorna `false` se der erro (logado mas não lançado).
 
-## Fluxo de assinatura
+## Duas modalidades (`Plan.salesModality`)
+
+- **ONLINE** — fluxo abaixo, ponta a ponta pelo MercadoPago.
+- **PRESENCIAL** — a assinatura nasce `PENDING_SETUP` (sem tocar o MercadoPago); só quando `POST /api/super/stores/:id/confirm-setup-fee` confirma a implantação (cobrada manualmente) é que a assinatura vira `ACTIVE` e a recorrência do MercadoPago é criada com `startDate` = confirmação + 30 dias. Ver `docs/notion/08-billing.md` para o fluxo completo.
+
+## Fluxo de assinatura (ONLINE)
 
 ```
 Lojista clica "Assinar" no painel

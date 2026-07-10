@@ -15,23 +15,37 @@ import {
 } from '../../schemas/super.schema'
 
 const LOJAS_POR_PAGINA = 20
+// Prazo entre a confirmação da implantação (venda presencial) e a primeira cobrança recorrente
+const TRINTA_DIAS_MS = 30 * 24 * 60 * 60 * 1000
 
 type PlanoEscolhido = {
   id: string
   priceInCents: number
   mercadoPagoPreapprovalPlanId: string | null
+  salesModality: string
+  setupFeeInCents: number
 }
 
 // Cria a assinatura da loja no plano escolhido e, se for pago, gera o link de
 // pagamento do MercadoPago (init_point). O cliente abre o link, cadastra o
 // cartão e o webhook muda a assinatura de PENDING para ACTIVE.
 // Plano gratuito nasce ACTIVE direto, sem link.
+// Plano PRESENCIAL (com taxa de implantação) nasce PENDING_SETUP, sem link —
+// a loja só entra no ar quando alguém confirmar a implantação manualmente
+// (POST /:id/confirm-setup-fee), que é quando a recorrência no MercadoPago é criada.
 async function criarAssinaturaComLink(
   app: FastifyInstance,
   storeId: string,
   plan: PlanoEscolhido,
   payerEmail: string,
 ): Promise<{ subscription: { id: string; status: string }; paymentLink: string | null }> {
+  if (plan.salesModality === 'PRESENCIAL' && plan.setupFeeInCents > 0) {
+    const subscription = await app.prisma.subscription.create({
+      data: { storeId, planId: plan.id, status: 'PENDING_SETUP' },
+    })
+    return { subscription, paymentLink: null }
+  }
+
   if (plan.priceInCents === 0) {
     const subscription = await app.prisma.subscription.create({
       data: { storeId, planId: plan.id, status: 'ACTIVE' },
@@ -274,6 +288,11 @@ export const superStoresRoutes: FastifyPluginAsync = async (app) => {
         message: 'Plano gratuito não precisa de link de pagamento — use a troca de plano na lista de lojas.',
       })
     }
+    if (plan.salesModality === 'PRESENCIAL' && plan.setupFeeInCents > 0) {
+      return reply.status(400).send({
+        message: 'Planos de venda presencial não usam link de pagamento — confirme a implantação em "Confirmar implantação" após receber o pagamento.',
+      })
+    }
     if (app.mercadopago.isConfigured && !plan.mercadoPagoPreapprovalPlanId) {
       return reply.status(400).send({
         message: 'Plano não configurado para cobrança. Edite o plano em Plataforma → Planos.',
@@ -328,6 +347,88 @@ export const superStoresRoutes: FastifyPluginAsync = async (app) => {
 
     return {
       subscription: { id: subscription.id, status: subscription.status },
+      paymentLink,
+    }
+  })
+
+  // POST /api/super/stores/:id/confirm-setup-fee — confirma que a taxa de implantação
+  // de um plano PRESENCIAL (cobrada manualmente/fora do sistema — ex: em dinheiro ou
+  // PIX na hora da venda) foi recebida. A loja entra no ar imediatamente; a
+  // recorrência mensal do plano é criada no MercadoPago com a primeira cobrança
+  // adiada para 30 dias a partir de agora — o dono ainda precisa abrir o link
+  // devolvido para cadastrar o cartão.
+  app.post('/:id/confirm-setup-fee', async (request, reply) => {
+    const { id } = idParamSchema.parse(request.params)
+
+    const store = await app.prismaRaw.store.findUnique({ where: { id } })
+    if (!store) {
+      return reply.status(404).send({ message: 'Loja não encontrada' })
+    }
+
+    const subscription = await app.prisma.subscription.findFirst({
+      where: { storeId: id, status: 'PENDING_SETUP' },
+      orderBy: { createdAt: 'desc' },
+      include: { plan: true },
+    })
+    if (!subscription) {
+      return reply.status(400).send({
+        message: 'Esta loja não tem uma implantação pendente de confirmação.',
+      })
+    }
+
+    const agora = new Date()
+
+    // A loja entra no ar imediatamente, independente do cadastro do cartão da recorrência
+    await app.prisma.subscription.updateMany({
+      where: { id: subscription.id, storeId: id },
+      data: { status: 'ACTIVE', setupFeeConfirmedAt: agora, currentPeriodStart: agora },
+    })
+
+    let paymentLink: string | null = null
+
+    // Plano pago: cria a recorrência no MercadoPago com a 1ª cobrança em 30 dias
+    if (subscription.plan.priceInCents > 0 && app.mercadopago.isConfigured) {
+      if (!subscription.plan.mercadoPagoPreapprovalPlanId) {
+        app.log.warn(
+          { storeId: id, planId: subscription.plan.id },
+          'Plano PRESENCIAL sem recorrência configurada no MercadoPago — implantação confirmada sem gerar cobrança recorrente',
+        )
+      } else {
+        const owner = await app.prismaRaw.user.findFirst({
+          where: { storeId: id, role: 'OWNER' },
+          orderBy: { createdAt: 'asc' },
+        })
+        if (owner) {
+          const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000'
+          const mpResult = await app.mercadopago.createSubscription({
+            planId: subscription.plan.mercadoPagoPreapprovalPlanId,
+            payerEmail: owner.email,
+            externalReference: subscription.id,
+            backUrl: `${frontendUrl}/admin/plano`,
+            startDate: new Date(agora.getTime() + TRINTA_DIAS_MS),
+          })
+          if (mpResult) {
+            await app.prisma.subscription.updateMany({
+              where: { id: subscription.id, storeId: id },
+              data: { mercadoPagoPreapprovalId: mpResult.id },
+            })
+            paymentLink = mpResult.initPoint
+          }
+        }
+      }
+    }
+
+    // Auditoria (LGPD): confirmação de pagamento manual de implantação
+    app.audit({
+      action: 'PLATAFORMA_IMPLANTACAO_CONFIRMADA',
+      storeId: id,
+      userId: request.user.sub,
+      detail: `Implantação do plano ${subscription.plan.id} confirmada para "${store.name}" — recorrência inicia em 30 dias`,
+      ip: request.ip,
+    })
+
+    return {
+      subscription: { id: subscription.id, status: 'ACTIVE' },
       paymentLink,
     }
   })

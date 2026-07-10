@@ -110,6 +110,31 @@ export default function SuperPlanosPage() {
               </select>
             </label>
             <label className="text-xs font-medium text-gray-500">
+              Modalidade de venda
+              <select
+                value={formData.salesModality}
+                onChange={(e) => setFormData((f) => ({ ...f, salesModality: e.target.value as 'ONLINE' | 'PRESENCIAL' }))}
+                className={`mt-1 ${inputClass}`}
+              >
+                <option value="ONLINE">Online (autoatendimento)</option>
+                <option value="PRESENCIAL">Presencial (vendido por um representante)</option>
+              </select>
+            </label>
+            {formData.salesModality === 'PRESENCIAL' && (
+              <label className="text-xs font-medium text-gray-500">
+                Taxa de implantação (R$, cobrada manualmente)
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.setupFeeInReais}
+                  onChange={(e) => setFormData((f) => ({ ...f, setupFeeInReais: e.target.value }))}
+                  placeholder="0,00"
+                  className={`mt-1 ${inputClass}`}
+                />
+              </label>
+            )}
+            <label className="text-xs font-medium text-gray-500">
               Limite de produtos (vazio = ilimitado)
               <input
                 type="number" min="0" step="1"
@@ -191,9 +216,13 @@ export default function SuperPlanosPage() {
                     {!plan.active && (
                       <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-500">Inativo</span>
                     )}
+                    {plan.salesModality === 'PRESENCIAL' && (
+                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-600">Presencial</span>
+                    )}
                   </div>
                   <p className="text-xs text-gray-400">
                     {plan.priceInCents === 0 ? 'Gratuito' : `${formatPrice(plan.priceInCents)} / ${plan.billingPeriod === 'YEARLY' ? 'ano' : 'mês'}`}
+                    {plan.salesModality === 'PRESENCIAL' && plan.setupFeeInCents > 0 && ` + ${formatPrice(plan.setupFeeInCents)} de implantação`}
                     {' · '}
                     {plan.activeSubscriptions} loja{plan.activeSubscriptions === 1 ? '' : 's'}
                     {' · '}

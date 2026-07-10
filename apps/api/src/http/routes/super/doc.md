@@ -14,6 +14,9 @@ Rotas exclusivas do administrador da plataforma. Todas exigem `app.authenticate`
 |------|-----------|
 | `GET /` | Lista todas as lojas com busca, paginação e filtro por status |
 | `GET /:id` | Detalhe da loja (com perfil, assinatura, contagens) |
+| `POST /` | Venda presencial: cria loja + dono + assinatura em um passo (plano ONLINE gera link MercadoPago; plano PRESENCIAL nasce `PENDING_SETUP`, sem link) |
+| `POST /:id/payment-link` | Gera/regenera o link de pagamento MercadoPago de uma loja existente — só para planos ONLINE |
+| `POST /:id/confirm-setup-fee` | Confirma a taxa de implantação (cobrada manualmente) de um plano PRESENCIAL — ativa a loja na hora e cria a recorrência no MercadoPago com a 1ª cobrança em 30 dias |
 | `PATCH /:id` | Atualiza status (ACTIVE/SUSPENDED) ou plano da loja |
 
 ### `plans.routes.ts`
@@ -23,7 +26,7 @@ Rotas exclusivas do administrador da plataforma. Todas exigem `app.authenticate`
 | Rota | O que faz |
 |------|-----------|
 | `GET /` | Lista todos os planos |
-| `POST /` | Cria plano (com criação de preapproval plan no MercadoPago) |
+| `POST /` | Cria plano — planos ONLINE pagos ganham preapproval plan no MercadoPago; `salesModality`/`setupFeeInCents` definem a modalidade PRESENCIAL |
 | `PUT /:id` | Atualiza plano |
 | `DELETE /:id` | Remove plano (bloqueado se há assinaturas ACTIVE/PENDING/PAUSED) |
 

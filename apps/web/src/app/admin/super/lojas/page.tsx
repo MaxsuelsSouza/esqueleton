@@ -4,7 +4,7 @@
 // suspender/reativar, trocar o plano, criar loja (venda presencial) e
 // gerar link de pagamento para o cliente cadastrar o cartão
 import { useState } from 'react'
-import { Search, Building2, Ban, CheckCircle2, Layers, Plus, Link2, Copy, Check, X } from 'lucide-react'
+import { Search, Building2, Ban, CheckCircle2, Layers, Plus, Link2, Copy, Check, X, HandCoins } from 'lucide-react'
 import type { SuperPlan, SuperStoreCreateInput } from '@esqueleton/shared'
 import { useSuperLojasPage } from './page.hooks'
 
@@ -140,6 +140,13 @@ export default function SuperLojasPage() {
     linkResult,
     isGeneratingLink,
     linkError,
+    setupFeeStore,
+    openSetupFeeModal,
+    closeSetupFeeModal,
+    handleConfirmSetupFee,
+    setupFeeResult,
+    isConfirmingSetupFee,
+    setupFeeError,
   } = useSuperLojasPage()
 
   if (isChecking || loading) {
@@ -227,6 +234,11 @@ export default function SuperLojasPage() {
                     ) : (
                       <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-600">Suspensa</span>
                     )}
+                    {store.subscriptionStatus === 'PENDING_SETUP' && (
+                      <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                        Aguardando implantação
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     {/* Seletor de plano — trocar aqui cancela a cobrança atual */}
@@ -245,8 +257,18 @@ export default function SuperLojasPage() {
                   <td className="px-4 py-3 text-gray-600">{store.usersCount}</td>
                   <td className="px-4 py-3 text-gray-600">{store.productsCount}</td>
                   <td className="px-4 py-3 text-right">
+                    {/* Venda presencial aguardando a confirmação manual da taxa de implantação */}
+                    {store.subscriptionStatus === 'PENDING_SETUP' && (
+                      <button
+                        onClick={() => openSetupFeeModal(store)}
+                        title="Confirmar implantação recebida"
+                        className="rounded-lg p-2 text-gray-300 transition-colors hover:bg-amber-50 hover:text-amber-600"
+                      >
+                        <HandCoins size={16} />
+                      </button>
+                    )}
                     {/* Link de pagamento — só faz sentido quando a loja ainda não tem assinatura ativa */}
-                    {store.subscriptionStatus !== 'ACTIVE' && (
+                    {store.subscriptionStatus !== 'ACTIVE' && store.subscriptionStatus !== 'PENDING_SETUP' && (
                       <button
                         onClick={() => openLinkModal(store)}
                         disabled={busyId === store.id}
@@ -328,6 +350,12 @@ export default function SuperLojasPage() {
                 {createResult.subscription.status === 'ACTIVE' ? (
                   <p className="text-sm text-gray-600">
                     O plano escolhido é gratuito — a assinatura já está ativa, sem pagamento.
+                  </p>
+                ) : createResult.subscription.status === 'PENDING_SETUP' ? (
+                  <p className="text-sm text-gray-600">
+                    Este é um plano presencial: a loja fica fora do ar até você confirmar o
+                    recebimento da taxa de implantação na lista de lojas (ícone de "Confirmar
+                    implantação"). A mensalidade só começa a ser cobrada 30 dias depois disso.
                   </p>
                 ) : (
                   <PaymentLinkBox link={createResult.paymentLink} />
@@ -441,6 +469,59 @@ export default function SuperLojasPage() {
                   className="w-full rounded-xl bg-gray-900 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
                 >
                   {isGeneratingLink ? 'Gerando...' : 'Gerar link de pagamento'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: confirmar a implantação (venda presencial) */}
+      {setupFeeStore && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeSetupFeeModal}>
+          <div
+            className="w-full max-w-md rounded-2xl bg-white p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-900">Confirmar implantação</h2>
+              <button onClick={closeSetupFeeModal} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100">
+                <X size={16} />
+              </button>
+            </div>
+
+            {setupFeeResult ? (
+              <div className="space-y-4">
+                <div className="rounded-xl bg-green-50 px-3.5 py-2.5 text-sm text-green-700">
+                  Implantação confirmada — a loja <strong>{setupFeeStore.name}</strong> já está no ar.
+                  A cobrança mensal começa a valer em 30 dias.
+                </div>
+                <PaymentLinkBox link={setupFeeResult.paymentLink} />
+                <button
+                  onClick={closeSetupFeeModal}
+                  className="w-full rounded-xl border border-gray-200 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Fechar
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">
+                  Confirme apenas depois de receber a taxa de implantação da loja{' '}
+                  <strong>{setupFeeStore.name}</strong>. A loja entra no ar imediatamente e a
+                  mensalidade passa a ser cobrada automaticamente a partir do 30º dia.
+                </p>
+
+                {setupFeeError && (
+                  <p className="rounded-lg bg-red-50 px-3.5 py-2.5 text-sm text-red-500">{setupFeeError}</p>
+                )}
+
+                <button
+                  onClick={handleConfirmSetupFee}
+                  disabled={isConfirmingSetupFee}
+                  className="w-full rounded-xl bg-gray-900 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
+                >
+                  {isConfirmingSetupFee ? 'Confirmando...' : 'Confirmar implantação recebida'}
                 </button>
               </div>
             )}

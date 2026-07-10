@@ -5,6 +5,7 @@ import type { FastifyPluginAsync } from 'fastify'
 import { subscribeSchema } from '../../schemas/billing.schema'
 import { requireOwner } from '../../../domain/identity/guards/role.guard'
 import { trialStatus } from '../../../domain/billing/trial'
+import { isStoreAvailable } from '../../../domain/store/services/store-availability.service'
 
 // ── Rota pública — lista planos disponíveis ───────────────────────
 export const billingPublicRoutes: FastifyPluginAsync = async (app) => {
@@ -47,9 +48,9 @@ export const billingAdminRoutes: FastifyPluginAsync = async (app) => {
 
     // Situação do período de teste de 7 dias, contado do cadastro da loja
     const trial = store ? trialStatus(store.createdAt) : null
-    // A loja fica no ar com assinatura ATIVA ou dentro do período de teste
-    const hasActiveSubscription = subscription?.status === 'ACTIVE'
-    const storeAvailable = hasActiveSubscription || Boolean(trial?.active)
+    // Mesma regra usada no catálogo público: assinatura ativa, trial (quando não
+    // há implantação PRESENCIAL pendente) ou nenhum dos dois
+    const storeAvailable = store ? await isStoreAvailable(app.prisma, store) : false
 
     if (!subscription) {
       return { subscription: null, usage: null, trial, storeAvailable }
@@ -91,6 +92,14 @@ export const billingAdminRoutes: FastifyPluginAsync = async (app) => {
     const plan = await app.prisma.plan.findUnique({ where: { id: planId } })
     if (!plan || !plan.active) {
       return reply.status(404).send({ message: 'Plano não encontrado.' })
+    }
+
+    // Planos PRESENCIAL (com taxa de implantação) só são vendidos por um representante —
+    // a loja não pode se auto-assinar neles pelo painel
+    if (plan.salesModality === 'PRESENCIAL') {
+      return reply.status(400).send({
+        message: 'Este plano é vendido presencialmente por um de nossos representantes. Entre em contato com o suporte.',
+      })
     }
 
     // Se já tem assinatura ativa, cancela a anterior

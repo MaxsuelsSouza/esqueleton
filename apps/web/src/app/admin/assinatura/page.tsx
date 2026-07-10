@@ -26,11 +26,27 @@ export default function AssinaturaPage() {
     trial,
     hasActiveSubscription,
     isPending,
+    isPendingSetup,
     handleSubscribe,
   } = useAssinaturaPage()
 
   if (isChecking || loading) {
     return <div className="flex min-h-[50vh] items-center justify-center" />
+  }
+
+  // Venda presencial: já existe uma assinatura aguardando a confirmação da
+  // implantação com o representante — nada para o dono fazer por aqui
+  if (isPendingSetup) {
+    return (
+      <div className="mx-auto max-w-xl text-center">
+        <Clock size={48} className="mx-auto text-amber-500" />
+        <h1 className="mt-4 text-lg font-semibold text-gray-900">Aguardando confirmação da implantação</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Sua loja foi cadastrada por um de nossos representantes. Assim que a taxa de
+          implantação for confirmada, sua loja entra no ar automaticamente.
+        </p>
+      </div>
+    )
   }
 
   // Assinatura já ativa — nada a fazer aqui
