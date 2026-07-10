@@ -15,19 +15,19 @@
     "db:studio": "node scripts/com-perfil.mjs prisma studio"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1075.0",
+    "@aws-sdk/client-s3": "^3.1084.0",
     "@esqueleton/shared": "workspace:*",
-    "@fastify/cors": "^11.2.0",
-    "@fastify/helmet": "^13.0.2",
-    "@fastify/jwt": "^10.1.0",
+    "@fastify/cors": "^11.3.0",
+    "@fastify/helmet": "^13.1.0",
+    "@fastify/jwt": "^10.2.0",
     "@fastify/rate-limit": "^10.3.0",
     "@prisma/client": "^6.19.3",
     "bcryptjs": "^2.4.3",
-    "fastify": "^5.9.0",
+    "fastify": "^5.10.0",
     "fastify-plugin": "^5.0.1",
     "ioredis": "^5.4.1",
-    "mercadopago": "^3.1.0",
-    "resend": "^6.12.4",
+    "mercadopago": "^3.2.0",
+    "resend": "^6.17.2",
     "zod": "^3.23.0"
   },
   "devDependencies": {
