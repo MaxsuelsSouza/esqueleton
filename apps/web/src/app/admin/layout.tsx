@@ -297,6 +297,21 @@ function SubscriptionBanner({ pathname }: { pathname: string }) {
   // Sem dados ainda, assinatura ativa, ou já na página de ativação: não mostra nada
   if (!billing) return null
   if (billing.subscription?.status === 'ACTIVE') return null
+
+  // Pagamento não efetuado (inadimplência) — a loja está desativada. Mensagem
+  // específica com atalho para a tela de planos, onde o lojista regulariza.
+  if (billing.subscription?.status === 'PAUSED') {
+    if (pathname.startsWith('/admin/plano')) return null
+    return (
+      <div className="border-b border-red-200 bg-red-50 px-4 py-3 text-center text-sm text-red-800">
+        <span>Pagamento não efetuado — sua loja está desativada. </span>
+        <Link href="/admin/plano" className="font-medium text-red-900 underline hover:text-red-700">
+          Ver planos
+        </Link>
+      </div>
+    )
+  }
+
   if (pathname.startsWith('/admin/assinatura')) return null
 
   if (billing.trial?.active) {

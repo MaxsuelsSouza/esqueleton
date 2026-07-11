@@ -24,7 +24,7 @@ Copie os `.env.example` antes: `apps/api/.env` e `apps/web/.env.local`.
 | `PORT` | — | porta (padrão 3001) |
 | `CORS_ORIGIN` | ✅ em prod | origem permitida |
 | `RESEND_API_KEY`, `FROM_EMAIL`, `FRONTEND_URL` | opcional | e-mails (sem key → apenas logados) |
-| `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_WEBHOOK_SECRET` | opcional | billing (sem token → no-op) |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | opcional | billing (sem token → no-op) |
 | `REDIS_URL` | recomendada em serverless | rate limit compartilhado + session store |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL` | ✅ em prod | imagens ([R2](10-imagens-r2.md)) |
 
@@ -72,7 +72,7 @@ O `docker-compose.yml` da raiz é **só para Postgres local** — não é o depl
 - [ ] `CORS_ORIGIN` correto (subdomínios de loja liberados)
 - [ ] 5 variáveis `R2_*` definidas
 - [ ] `REDIS_URL` definido (serverless)
-- [ ] `MERCADOPAGO_ACCESS_TOKEN` + `MERCADOPAGO_WEBHOOK_SECRET` definidos
+- [ ] `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` definidos
 - [ ] `RESEND_API_KEY` + `FROM_EMAIL` + `FRONTEND_URL` definidos
 - [ ] Wildcard domain + DNS para subdomínios
 - [ ] Migrações aplicadas (`db:migrate`)

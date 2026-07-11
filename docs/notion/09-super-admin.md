@@ -22,7 +22,7 @@ UPDATE "User" SET "isSuperAdmin" = true WHERE email = '...';
 | Recurso | Operações |
 |---------|-----------|
 | Lojas | listar, detalhar, PATCH de status (suspender/reativar) e de plano |
-| Planos | CRUD — a criação de plano pago cria o *preapproval plan* no MercadoPago |
+| Planos | CRUD — a criação de plano pago cria o *Product + Price* no Stripe |
 | Usuários | listagem de todos os usuários da plataforma |
 | Métricas | totais, **MRR** e assinaturas por plano |
 

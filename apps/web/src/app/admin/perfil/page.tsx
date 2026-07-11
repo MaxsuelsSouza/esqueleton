@@ -169,70 +169,79 @@ export default function AdminPerfilPage() {
         />
       </Section>
 
-      {/* ── Banner (colapsável para não poluir a página) ── */}
-      <CollapsibleSection
-        title="Banner"
-        hint="Exibido abaixo do cabeçalho no catálogo. Se só uma versão for enviada, ela vale para os dois aparelhos."
-        badge={[form.bannerUrl, form.bannerMobileUrl].filter(Boolean).length}
-      >
-        <div className="flex flex-col gap-4">
+      {/*
+        Banner temporariamente OCULTO do painel — ver ticket no Trello
+        "Melhoria da funcionalidade de banner". O bloco abaixo fica comentado
+        para ser reativado quando a funcionalidade for aprimorada. Os campos
+        bannerUrl/bannerMobileUrl/bannerLink continuam no formulário e no banco;
+        apenas a edição pelo painel está desabilitada.
+        (comentários internos convertidos para "-- --" para não fechar este bloco)
 
-          {/* ── Link ao clicar no banner ── */}
-          <FormField
-            label="Link ao clicar"
-            optional
-            hint="Para onde o cliente vai ao clicar no banner. Pode ser uma página da sua loja (cole o endereço de um produto, busca ou categoria) ou um site externo — links externos abrem em nova aba."
-          >
-            <input
-              type="text"
-              value={form.bannerLink}
-              onChange={(e) => set('bannerLink', e.target.value)}
-              placeholder="Ex: https://minhaloja.com/loja/minha-loja?busca=perfume"
-              className={inputClass}
-            />
-          </FormField>
+        -- Banner (colapsável para não poluir a página) --
+        <CollapsibleSection
+          title="Banner"
+          hint="Exibido abaixo do cabeçalho no catálogo. Se só uma versão for enviada, ela vale para os dois aparelhos."
+          badge={[form.bannerUrl, form.bannerMobileUrl].filter(Boolean).length}
+        >
+          <div className="flex flex-col gap-4">
 
-          {/* ── Versão para computador ── */}
-          <div className="flex flex-col gap-2.5 rounded-xl border border-gray-100 p-3">
-            <div className="flex items-center gap-1.5">
-              <Monitor size={14} className="text-gray-400" />
-              <p className="text-xs font-semibold text-gray-600">Computador</p>
-              <span className="ml-auto text-[10px] text-gray-400">Ideal: 1600×800</span>
+            -- Link ao clicar no banner --
+            <FormField
+              label="Link ao clicar"
+              optional
+              hint="Para onde o cliente vai ao clicar no banner. Pode ser uma página da sua loja (cole o endereço de um produto, busca ou categoria) ou um site externo — links externos abrem em nova aba."
+            >
+              <input
+                type="text"
+                value={form.bannerLink}
+                onChange={(e) => set('bannerLink', e.target.value)}
+                placeholder="Ex: https://minhaloja.com/loja/minha-loja?busca=perfume"
+                className={inputClass}
+              />
+            </FormField>
+
+            -- Versão para computador --
+            <div className="flex flex-col gap-2.5 rounded-xl border border-gray-100 p-3">
+              <div className="flex items-center gap-1.5">
+                <Monitor size={14} className="text-gray-400" />
+                <p className="text-xs font-semibold text-gray-600">Computador</p>
+                <span className="ml-auto text-[10px] text-gray-400">Ideal: 1600×800</span>
+              </div>
+              <BannerUploader
+                label="banner para computador"
+                value={form.bannerUrl}
+                onChange={(url) => set('bannerUrl', url)}
+              />
+              <BannerPreview
+                device="desktop"
+                image={form.bannerUrl || form.bannerMobileUrl}
+                storeName={form.storeName || 'Minha Loja'}
+                themeColor={form.themeColor}
+              />
             </div>
-            <BannerUploader
-              label="banner para computador"
-              value={form.bannerUrl}
-              onChange={(url) => set('bannerUrl', url)}
-            />
-            <BannerPreview
-              device="desktop"
-              image={form.bannerUrl || form.bannerMobileUrl}
-              storeName={form.storeName || 'Minha Loja'}
-              themeColor={form.themeColor}
-            />
-          </div>
 
-          {/* ── Versão para celular ── */}
-          <div className="flex flex-col gap-2.5 rounded-xl border border-gray-100 p-3">
-            <div className="flex items-center gap-1.5">
-              <Smartphone size={14} className="text-gray-400" />
-              <p className="text-xs font-semibold text-gray-600">Celular</p>
-              <span className="ml-auto text-[10px] text-gray-400">Ideal: 800×1000</span>
+            -- Versão para celular --
+            <div className="flex flex-col gap-2.5 rounded-xl border border-gray-100 p-3">
+              <div className="flex items-center gap-1.5">
+                <Smartphone size={14} className="text-gray-400" />
+                <p className="text-xs font-semibold text-gray-600">Celular</p>
+                <span className="ml-auto text-[10px] text-gray-400">Ideal: 800×1000</span>
+              </div>
+              <BannerUploader
+                label="banner para celular"
+                value={form.bannerMobileUrl}
+                onChange={(url) => set('bannerMobileUrl', url)}
+              />
+              <BannerPreview
+                device="mobile"
+                image={form.bannerMobileUrl || form.bannerUrl}
+                storeName={form.storeName || 'Minha Loja'}
+                themeColor={form.themeColor}
+              />
             </div>
-            <BannerUploader
-              label="banner para celular"
-              value={form.bannerMobileUrl}
-              onChange={(url) => set('bannerMobileUrl', url)}
-            />
-            <BannerPreview
-              device="mobile"
-              image={form.bannerMobileUrl || form.bannerUrl}
-              storeName={form.storeName || 'Minha Loja'}
-              themeColor={form.themeColor}
-            />
           </div>
-        </div>
-      </CollapsibleSection>
+        </CollapsibleSection>
+      */}
 
       {/* ── Informações da loja ── */}
       <Section title="Informações">

@@ -32,14 +32,25 @@ O preHandler `app.checkPlanLimit('<limite>')` (`http/plugins/plan-limits.plugin.
 
 Quando o uso atinge **80%** de um limite, `checkPlanLimit` faz upsert da notificação `PLAN_LIMIT_APPROACHING` (dedupada por `storeId+type+entityId`).
 
-## Fluxo de assinatura (MercadoPago)
+## Fluxo de assinatura (Stripe)
 
-1. `POST /api/billing/subscribe` (**OWNER only**) — plano pago redireciona para o checkout MercadoPago (`init_point`); a assinatura fica **`PENDING`**.
-2. O webhook `POST /api/webhooks/mercadopago` (validado por **HMAC** com `MERCADOPAGO_WEBHOOK_SECRET`) muda a assinatura para **`ACTIVE`** quando o pagamento é confirmado.
-3. Falha de pagamento → webhook muda para **`PAUSED`** + notificação `SUBSCRIPTION_PAYMENT_FAILED`.
+1. `POST /api/billing/subscribe` (**OWNER only**) — plano pago redireciona para o checkout Stripe (`session.url`); a assinatura fica **`PENDING`**.
+2. O webhook `POST /api/webhooks/stripe` (validado pela assinatura do Stripe com `STRIPE_WEBHOOK_SECRET`) muda a assinatura para **`ACTIVE`** quando o pagamento é confirmado.
+3. Falha de pagamento → webhook muda para **`PAUSED`** + notificação `SUBSCRIPTION_PAYMENT_FAILED` + **e-mail imediato** ao OWNER (`subscriptionPaymentFailedEmail`).
 4. Cancelamento (rota `POST /api/billing/cancel` ou webhook) → **`CANCELLED`** + notificação `SUBSCRIPTION_CANCELLED`.
 
-Sem `MERCADOPAGO_ACCESS_TOKEN`, as operações de pagamento são **no-ops** (dev). Adapter em `domain/billing/integrations/mercadopago.adapter.ts` (`app.mercadopago`).
+Sem `STRIPE_SECRET_KEY`, as operações de pagamento são **no-ops** (dev). Adapter em `domain/billing/integrations/stripe.adapter.ts` (`app.stripe`).
+
+## Cobrança fixa no dia 10
+
+- A cobrança recorrente acontece **sempre no dia 10**. O checkout coleta o cartão (`payment_method_collection: 'always'`), mas o **primeiro débito é ancorado no dia 10 do mês seguinte** ao cadastro (`domain/billing/billing-cycle.ts` → `proximoDiaDezUnix`, passado em `subscription_data.trial_end`). O mês vigente **não** é cobrado.
+- Na âncora, `checkout.session.completed` chega com `payment_status: 'no_payment_required'` — a loja é ativada (a par de `'paid'`). `'unpaid'` (boleto/Pix) fica **`PENDING`** até compensar.
+- **Inadimplência:** `invoice.payment_failed` → `PAUSED` (loja sai do ar) + e-mail ao lojista + banner no admin "Pagamento não efetuado — sua loja está desativada" com atalho para `/admin/plano`.
+- **Cron de reconciliação:** `GET /api/jobs/verificar-assinaturas` (auth `CRON_SECRET`, agendado `0 4 10 * *` no `vercel.json`) consulta o status real de cada assinatura no Stripe e corrige o banco — rede de segurança caso um webhook se perca.
+
+## Histórico de faturas
+
+`GET /api/billing/invoices?startingAfter=<id>` (admin) lista as faturas do `stripeCustomerId` da loja, com paginação por cursor do Stripe (`hasMore` habilita "Carregar mais"). Sem Customer → lista vazia. A seção **Faturas** em `/admin/plano` mostra Data / Total / Status e o link "Ver" abre o invoice hospedado do Stripe (`hostedInvoiceUrl`).
 
 ## Páginas web
 

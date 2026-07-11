@@ -48,7 +48,7 @@ Este diretório contém guias de teste para cada feature do sistema Esqueleton (
 ### Billing e Planos
 | # | Arquivo | Feature |
 |---|---------|---------|
-| 22 | [22-planos-e-assinatura.md](22-planos-e-assinatura.md) | Planos, limites e assinatura (MercadoPago) |
+| 22 | [22-planos-e-assinatura.md](22-planos-e-assinatura.md) | Planos, limites e assinatura (Stripe) |
 | 23 | [23-trial-7-dias.md](23-trial-7-dias.md) | Trial de 7 dias |
 
 ### Super Admin

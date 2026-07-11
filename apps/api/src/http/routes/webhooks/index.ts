@@ -1,1 +1,1 @@
-export { webhookRoutes } from './mercadopago.routes'
+export { webhookRoutes } from './stripe.routes'

@@ -73,6 +73,31 @@ export function emailVerificationEmail(verifyUrl: string, storeName: string): st
   `
 }
 
+// E-mail enviado logo após o pagamento da assinatura falhar — avisa o lojista
+// que a loja saiu do ar e leva à tela de planos para regularizar
+export function subscriptionPaymentFailedEmail(storeName: string, plansUrl: string): string {
+  return `
+    <div style="${containerStyle}">
+      <h2 style="font-size: 20px; margin-bottom: 16px;">Pagamento não efetuado</h2>
+      <p style="font-size: 14px; color: #6b7280; line-height: 1.6;">
+        Não conseguimos processar o pagamento da assinatura da sua loja
+        <strong>${storeName}</strong>. Por isso, ela está <strong>desativada</strong>
+        e fora do ar para os seus clientes até o pagamento ser regularizado.
+      </p>
+      <p style="font-size: 14px; color: #6b7280; line-height: 1.6;">
+        Verifique os dados do seu cartão e regularize a assinatura para colocar
+        a loja de volta no ar — tudo o que você cadastrou continua guardado.
+      </p>
+      <div style="margin: 24px 0;">
+        <a href="${plansUrl}" style="${buttonStyle}">Regularizar pagamento</a>
+      </div>
+      <p style="${footerStyle}">
+        Esqueleton — ${storeName}
+      </p>
+    </div>
+  `
+}
+
 // E-mail enviado ao dono de loja inativa (suspensa/cancelada há mais de 6 meses)
 // avisando que a loja será excluída em 30 dias se não for reativada (LGPD, Fase 3.5)
 export function storeDeletionWarningEmail(storeName: string, loginUrl: string): string {

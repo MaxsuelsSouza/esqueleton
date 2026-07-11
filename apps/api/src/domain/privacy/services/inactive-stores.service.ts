@@ -20,8 +20,8 @@ export const LOJA_INATIVA = {
 type Dependencias = {
   // Envia o aviso de exclusão ao dono da loja
   enviarAvisoDeExclusao: (emailDoDono: string, nomeDaLoja: string) => Promise<void>
-  // Cancela uma assinatura recorrente no MercadoPago (evita cobrar loja excluída)
-  cancelarAssinatura: (preapprovalId: string) => Promise<boolean>
+  // Cancela uma assinatura recorrente no Stripe (evita cobrar loja excluída)
+  cancelarAssinatura: (stripeSubscriptionId: string) => Promise<boolean>
   // Apaga as imagens da loja no R2 (fire-and-forget — falha não impede a exclusão)
   apagarImagensDaLoja: (storeId: string) => void
 }
@@ -72,19 +72,19 @@ export async function processarLojasInativas(prisma: PrismaClient, deps: Depende
   const lojasParaExcluir = await prisma.store.findMany({
     where: { AND: [filtroInativa, { deletionWarnedAt: { lt: corteAviso } }] },
     include: {
-      // Assinaturas ainda cobrando precisam ser canceladas no MercadoPago antes
+      // Assinaturas ainda cobrando precisam ser canceladas no Stripe antes
       subscriptions: {
         where: {
           status: { in: ['ACTIVE', 'PENDING', 'PAUSED'] },
-          mercadoPagoPreapprovalId: { not: null },
+          stripeSubscriptionId: { not: null },
         },
-        select: { mercadoPagoPreapprovalId: true },
+        select: { stripeSubscriptionId: true },
       },
     },
   })
   for (const loja of lojasParaExcluir) {
     for (const assinatura of loja.subscriptions) {
-      await deps.cancelarAssinatura(assinatura.mercadoPagoPreapprovalId!)
+      await deps.cancelarAssinatura(assinatura.stripeSubscriptionId!)
     }
     await excluirLoja(prisma, loja.id)
     deps.apagarImagensDaLoja(loja.id)

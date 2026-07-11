@@ -2,9 +2,26 @@
 //   - billingPublicRoutes: lista de planos (público, para página de preços)
 //   - billingAdminRoutes: assinatura atual, upgrade e cancelamento (JWT obrigatório)
 import type { FastifyPluginAsync } from 'fastify'
-import { subscribeSchema } from '../../schemas/billing.schema'
+import { subscribeSchema, invoicesQuerySchema } from '../../schemas/billing.schema'
 import { requireOwner } from '../../../domain/identity/guards/role.guard'
 import { trialStatus } from '../../../domain/billing/trial'
+import { proximoDiaDezUnix } from '../../../domain/billing/billing-cycle'
+
+// Quantas faturas cada página do histórico traz
+const FATURAS_POR_PAGINA = 12
+
+// Campos públicos do plano — o que o lojista pode ver. Exclui os IDs internos
+// do Stripe (stripeProductId/stripePriceId) e metadados de controle, que não têm
+// utilidade no painel e não devem vazar na resposta.
+const PLAN_PUBLIC_SELECT = {
+  id: true,
+  name: true,
+  slug: true,
+  limits: true,
+  priceInCents: true,
+  billingPeriod: true,
+  sortOrder: true,
+} as const
 
 // ── Rota pública — lista planos disponíveis ───────────────────────
 export const billingPublicRoutes: FastifyPluginAsync = async (app) => {
@@ -13,15 +30,7 @@ export const billingPublicRoutes: FastifyPluginAsync = async (app) => {
     return app.prisma.plan.findMany({
       where: { active: true },
       orderBy: { sortOrder: 'asc' },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        limits: true,
-        priceInCents: true,
-        billingPeriod: true,
-        sortOrder: true,
-      },
+      select: PLAN_PUBLIC_SELECT,
     })
   })
 }
@@ -40,7 +49,7 @@ export const billingAdminRoutes: FastifyPluginAsync = async (app) => {
       app.prisma.subscription.findFirst({
         where: { storeId },
         orderBy: { createdAt: 'desc' },
-        include: { plan: true },
+        include: { plan: { select: PLAN_PUBLIC_SELECT } },
       }),
       app.prisma.store.findUnique({ where: { id: storeId } }),
     ])
@@ -80,6 +89,41 @@ export const billingAdminRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
+  // Histórico de faturas da loja (Faturas) — apenas o que vem do Stripe.
+  // Sem Customer (nunca fez checkout pago) → lista vazia; o front mostra a
+  // mensagem de "nenhuma fatura ainda".
+  app.get('/invoices', async (request) => {
+    const { startingAfter } = invoicesQuerySchema.parse(request.query)
+
+    const store = await app.prisma.store.findUnique({
+      where: { id: request.user.storeId },
+      select: { stripeCustomerId: true },
+    })
+
+    if (!store?.stripeCustomerId) {
+      return { data: [], hasMore: false }
+    }
+
+    const { data, hasMore } = await app.stripe.listInvoices({
+      customerId: store.stripeCustomerId,
+      limit: FATURAS_POR_PAGINA,
+      startingAfter,
+    })
+
+    // Converte o unix (segundos) do Stripe para ISO — o front formata em pt-BR
+    return {
+      data: data.map((invoice) => ({
+        id: invoice.id,
+        createdAt: new Date(invoice.createdAt * 1000).toISOString(),
+        amountInCents: invoice.amountInCents,
+        currency: invoice.currency,
+        status: invoice.status,
+        hostedInvoiceUrl: invoice.hostedInvoiceUrl,
+      })),
+      hasMore,
+    }
+  })
+
   // Cria ou troca a assinatura da loja para um novo plano
   // Apenas o OWNER pode assinar ou trocar de plano
   app.post('/subscribe', { preHandler: [requireOwner] }, async (request, reply) => {
@@ -98,9 +142,9 @@ export const billingAdminRoutes: FastifyPluginAsync = async (app) => {
       where: { storeId, status: 'ACTIVE' },
     })
     if (currentSub) {
-      // Cancela no MercadoPago se existir
-      if (currentSub.mercadoPagoPreapprovalId) {
-        await app.mercadopago.cancelSubscription(currentSub.mercadoPagoPreapprovalId)
+      // Cancela no Stripe se existir
+      if (currentSub.stripeSubscriptionId) {
+        await app.stripe.cancelSubscription(currentSub.stripeSubscriptionId)
       }
       // updateMany com id + storeId: só altera se a assinatura for desta loja (tenant guard)
       await app.prisma.subscription.updateMany({
@@ -117,16 +161,16 @@ export const billingAdminRoutes: FastifyPluginAsync = async (app) => {
           planId: plan.id,
           status: 'ACTIVE',
         },
-        include: { plan: true },
+        include: { plan: { select: PLAN_PUBLIC_SELECT } },
       })
       return { subscription, checkoutUrl: null }
     }
 
-    // Plano pago: cria assinatura no MercadoPago e redireciona para checkout
+    // Plano pago: cria a sessão de checkout no Stripe e redireciona o lojista
     const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000'
 
-    // Se o plano não tem ID no MercadoPago, não é possível assinar
-    if (!plan.mercadoPagoPreapprovalPlanId && app.mercadopago.isConfigured) {
+    // Se o plano não tem preço no Stripe, não é possível assinar
+    if (!plan.stripePriceId && app.stripe.isConfigured) {
       return reply.status(400).send({
         message: 'Plano não configurado para cobrança. Entre em contato com o suporte.',
       })
@@ -139,32 +183,31 @@ export const billingAdminRoutes: FastifyPluginAsync = async (app) => {
         planId: plan.id,
         status: 'PENDING',
       },
-      include: { plan: true },
+      include: { plan: { select: PLAN_PUBLIC_SELECT } },
     })
 
-    // Se MercadoPago não está configurado (dev), retorna sem checkout
-    if (!app.mercadopago.isConfigured) {
-      app.log.warn('MercadoPago não configurado — assinatura criada como PENDING sem checkout')
+    // Se o Stripe não está configurado (dev), retorna sem checkout
+    if (!app.stripe.isConfigured) {
+      app.log.warn('Stripe não configurado — assinatura criada como PENDING sem checkout')
       return { subscription, checkoutUrl: null }
     }
 
-    // Cria a assinatura recorrente no MercadoPago
-    const mpResult = await app.mercadopago.createSubscription({
-      planId: plan.mercadoPagoPreapprovalPlanId!,
-      payerEmail: userEmail,
-      externalReference: subscription.id,
-      backUrl: `${frontendUrl}/admin/plano`,
+    // Reaproveita o Customer da loja se já existir (troca de plano); senão o Stripe
+    // cria um novo a partir do e-mail e o webhook o salva em Store.stripeCustomerId
+    const store = await app.prisma.store.findUnique({ where: { id: storeId } })
+
+    const session = await app.stripe.createCheckoutSession({
+      priceId: plan.stripePriceId!,
+      referenceId: subscription.id,
+      customerId: store?.stripeCustomerId,
+      customerEmail: userEmail,
+      // Primeiro débito no dia 10 do mês seguinte — não cobra o mês vigente
+      trialEnd: proximoDiaDezUnix(new Date()),
+      successUrl: `${frontendUrl}/admin/plano`,
+      cancelUrl: `${frontendUrl}/admin/plano`,
     })
 
-    if (mpResult) {
-      await app.prisma.subscription.updateMany({
-        where: { id: subscription.id, storeId },
-        data: { mercadoPagoPreapprovalId: mpResult.id },
-      })
-      return { subscription, checkoutUrl: mpResult.initPoint }
-    }
-
-    return { subscription, checkoutUrl: null }
+    return { subscription, checkoutUrl: session?.url ?? null }
   })
 
   // Cancela a assinatura ativa — sem assinatura, a loja sai do ar para o público
@@ -174,16 +217,16 @@ export const billingAdminRoutes: FastifyPluginAsync = async (app) => {
 
     const currentSub = await app.prisma.subscription.findFirst({
       where: { storeId, status: 'ACTIVE' },
-      include: { plan: true },
+      include: { plan: { select: PLAN_PUBLIC_SELECT } },
     })
 
     if (!currentSub) {
       return reply.status(400).send({ message: 'Nenhuma assinatura ativa encontrada.' })
     }
 
-    // Cancela no MercadoPago se existir
-    if (currentSub.mercadoPagoPreapprovalId) {
-      await app.mercadopago.cancelSubscription(currentSub.mercadoPagoPreapprovalId)
+    // Cancela no Stripe se existir
+    if (currentSub.stripeSubscriptionId) {
+      await app.stripe.cancelSubscription(currentSub.stripeSubscriptionId)
     }
 
     // Marca como cancelada — updateMany com id + storeId satisfaz o tenant guard

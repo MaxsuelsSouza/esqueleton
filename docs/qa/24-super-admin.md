@@ -46,9 +46,9 @@ Super-admin é um flag manual no banco (`User.isSuperAdmin`). Dá acesso a rotas
 1. Tentar desativar plano com lojas ACTIVE/PENDING/PAUSED
 2. **Esperado:** Bloqueado — plano tem assinaturas vinculadas.
 
-### CT-08: Criar plano com MercadoPago
+### CT-08: Criar plano com Stripe
 1. Criar plano com `priceInCents > 0`
-2. **Esperado:** Plano de preapproval criado no MercadoPago. `mercadoPagoId` salvo.
+2. **Esperado:** Product + Price criado no Stripe. `stripeSubscriptionId` salvo.
 
 ### CT-09: Lista de usuários da plataforma
 1. Acessar `/admin/super/usuarios`

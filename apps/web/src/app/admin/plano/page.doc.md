@@ -7,13 +7,13 @@ Exibe a assinatura atual da loja, o consumo dos limites do plano e os planos dis
 | Arquivo | Responsabilidade |
 |---------|-----------------|
 | `page.tsx` | Renderiza o plano atual (nome, preço, status), os cartões de uso (produtos, usuários, pedidos) com barra de progresso, e a grade de planos disponíveis com botões de assinar/cancelar. Inclui o sub-componente `UsageCard`. |
-| `page.hooks.ts` | Carrega os dados de billing (assinatura + uso) e a lista de planos via `billingService`. Gerencia as ações de assinar (com redirecionamento para checkout MercadoPago) e cancelar, além dos estados de loading, erro e feedback. |
+| `page.hooks.ts` | Carrega os dados de billing (assinatura + uso) e a lista de planos via `billingService`. Gerencia as ações de assinar (com redirecionamento para checkout Stripe) e cancelar, além dos estados de loading, erro e feedback. |
 
 ## Fluxo de dados
 
 `useAdminAuth` fornece `token` e `isOwner` → `billingService.current(token)` retorna assinatura + uso + trial → `billingService.listPlans()` retorna planos disponíveis → hook deriva `subscription`, `usage`, `currentPlan` e `isPaidPlan` → view renderiza os dados.
 
-Ao assinar: `billingService.subscribe(planId, token)` → se retorna `checkoutUrl`, redireciona para o MercadoPago; senão, recarrega os dados.
+Ao assinar: `billingService.subscribe(planId, token)` → se retorna `checkoutUrl`, redireciona para o Stripe; senão, recarrega os dados.
 
 Ao cancelar: `billingService.cancel(token)` → exibe mensagem de feedback → recarrega os dados.
 
@@ -33,7 +33,7 @@ Ao cancelar: `billingService.cancel(token)` → exibe mensagem de feedback → r
 
 | Ação | Handler | O que faz |
 |------|---------|-----------|
-| Clicar em "Assinar" num plano | `handleSubscribe(plan)` | Pede confirmação, chama `billingService.subscribe`. Se pago, redireciona para checkout MercadoPago. Se gratuito, troca e recarrega. |
+| Clicar em "Assinar" num plano | `handleSubscribe(plan)` | Pede confirmação, chama `billingService.subscribe`. Se pago, redireciona para checkout Stripe. Se gratuito, troca e recarrega. |
 | Clicar em "Cancelar assinatura" | `handleCancel` | Pede confirmação, chama `billingService.cancel`, exibe feedback e recarrega os dados. |
 
 ## Módulos utilizados

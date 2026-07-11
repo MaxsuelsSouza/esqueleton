@@ -54,7 +54,7 @@ describe('processarLojasInativas', () => {
         {
           id: 'loja-2',
           name: 'Loja Abandonada',
-          subscriptions: [{ mercadoPagoPreapprovalId: 'mp-123' }],
+          subscriptions: [{ stripeSubscriptionId: 'sub_stripe_123' }],
         },
       ]) // lojas para excluir
       .mockResolvedValueOnce([]) // lojas para avisar
@@ -62,8 +62,8 @@ describe('processarLojasInativas', () => {
     // Act
     const resultado = await processarLojasInativas(prisma, deps)
 
-    // Assert — cancela no MercadoPago ANTES de apagar, depois exclui e limpa o R2
-    expect(deps.cancelarAssinatura).toHaveBeenCalledWith('mp-123')
+    // Assert — cancela no Stripe ANTES de apagar, depois exclui e limpa o R2
+    expect(deps.cancelarAssinatura).toHaveBeenCalledWith('sub_stripe_123')
     expect(store.delete).toHaveBeenCalledWith({ where: { id: 'loja-2' } })
     expect(deps.apagarImagensDaLoja).toHaveBeenCalledWith('loja-2')
     expect(resultado.lojasExcluidas).toBe(1)

@@ -18,7 +18,7 @@ acarretar **risco ou dano relevante** aos titulares (art. 48). Exemplos neste si
 - Vazamento do banco (e-mails e hashes de senha de lojistas; nomes e telefones de clientes finais)
 - Token JWT ou `JWT_SECRET` comprometidos
 - Falha de isolamento entre lojas (dados de uma loja expostos a outra)
-- Comprometimento de suboperador (Vercel, Postgres, Upstash, Resend, R2, MercadoPago)
+- Comprometimento de suboperador (Vercel, Postgres, Upstash, Resend, R2, Stripe)
 
 ## Fluxo de resposta
 
@@ -29,13 +29,13 @@ Sinais que alimentam a detecção (Fase 5.3 — usa o `AuditLog` da Fase 4.1):
 - Picos de `LOGIN_FALHOU` no AuditLog (ataque de adivinhação de senha)
 - Picos de respostas 401/403/429 nos logs da API
 - Ações de super-admin fora do esperado (`PLATAFORMA_LOJA_ALTERADA`)
-- Falhas repetidas de validação HMAC no webhook do MercadoPago
+- Falhas repetidas de validação de assinatura no webhook do Stripe
 - Aviso de segurança de qualquer suboperador
 
 ### 2. Contenção (primeiras horas)
 
 - Rotacionar segredos comprometidos: `JWT_SECRET` (invalida todos os tokens),
-  credenciais R2, `MERCADOPAGO_WEBHOOK_SECRET`, `RESEND_API_KEY`, `REDIS_URL`
+  credenciais R2, `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`, `REDIS_URL`
 - Revogar sessões dos usuários afetados (marca de revogação — Fase 4.4)
 - Suspender lojas/contas comprometidas (`Store.status = SUSPENDED`)
 - Preservar evidências: exportar `AuditLog` e logs da Vercel do período

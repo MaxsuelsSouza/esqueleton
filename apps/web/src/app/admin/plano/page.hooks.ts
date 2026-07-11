@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAdminAuth } from '@/modules/auth/hooks/useAdminAuth'
 import { billingService } from '@/modules/billing/services/billing.service'
-import type { Plan, BillingCurrentResponse } from '@esqueleton/shared'
+import type { Plan, BillingCurrentResponse, Invoice } from '@esqueleton/shared'
 
 export function usePlanoPage() {
   const { token, isOwner, isChecking } = useAdminAuth()
@@ -19,6 +19,12 @@ export function usePlanoPage() {
   const [subscribingId, setSubscribingId] = useState<string | null>(null)
   const [cancelling, setCancelling] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
+
+  // Histórico de faturas (Faturas) — paginado por cursor do Stripe
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [invoicesLoading, setInvoicesLoading] = useState(true)
+  const [invoicesHasMore, setInvoicesHasMore] = useState(false)
+  const [loadingMoreInvoices, setLoadingMoreInvoices] = useState(false)
 
   const loadData = useCallback(async () => {
     if (!token) return
@@ -36,9 +42,43 @@ export function usePlanoPage() {
     }
   }, [token])
 
+  const loadInvoices = useCallback(async () => {
+    if (!token) return
+    try {
+      const { data, hasMore } = await billingService.listInvoices(token)
+      setInvoices(data)
+      setInvoicesHasMore(hasMore)
+    } catch {
+      // Faturas são secundárias — falha não bloqueia a página; a seção some
+      setInvoices([])
+      setInvoicesHasMore(false)
+    } finally {
+      setInvoicesLoading(false)
+    }
+  }, [token])
+
+  // Carrega mais faturas a partir da última já exibida (cursor do Stripe)
+  async function loadMoreInvoices() {
+    if (!token || invoices.length === 0) return
+    setLoadingMoreInvoices(true)
+    try {
+      const ultima = invoices[invoices.length - 1]
+      const { data, hasMore } = await billingService.listInvoices(token, ultima.id)
+      setInvoices((atuais) => [...atuais, ...data])
+      setInvoicesHasMore(hasMore)
+    } catch {
+      setInvoicesHasMore(false)
+    } finally {
+      setLoadingMoreInvoices(false)
+    }
+  }
+
   useEffect(() => {
-    if (token) loadData()
-  }, [token, loadData])
+    if (token) {
+      loadData()
+      loadInvoices()
+    }
+  }, [token, loadData, loadInvoices])
 
   async function handleSubscribe(plan: Plan) {
     if (!token) return
@@ -48,7 +88,7 @@ export function usePlanoPage() {
     setSubscribingId(plan.id)
     try {
       const result = await billingService.subscribe(plan.id, token)
-      // Plano pago: redireciona para o checkout do MercadoPago
+      // Plano pago: redireciona para o checkout do Stripe
       if (result.checkoutUrl) {
         window.location.href = result.checkoutUrl
         return
@@ -102,5 +142,11 @@ export function usePlanoPage() {
     isPaidPlan,
     handleSubscribe,
     handleCancel,
+    // Faturas
+    invoices,
+    invoicesLoading,
+    invoicesHasMore,
+    loadingMoreInvoices,
+    loadMoreInvoices,
   }
 }

@@ -1,7 +1,7 @@
 'use client'
 
 // CRUD de planos da plataforma (super-admin) — nome, identificador, limites,
-// preço e período. Planos pagos criam a recorrência no MercadoPago via API.
+// preço e período. Planos pagos criam o Product + Price no Stripe via API.
 import { Plus, Pencil, Trash2, Layers, X } from 'lucide-react'
 import { useSuperPlanosPage, formatPrice } from './page.hooks'
 

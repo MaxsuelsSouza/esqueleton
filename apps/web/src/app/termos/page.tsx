@@ -54,7 +54,7 @@ export default function TermosPage() {
         <h2>4. Planos, cobrança e disponibilidade</h2>
         <ul className="mt-3">
           <li>Novas lojas têm um período de teste gratuito; após o período, a publicação do catálogo exige assinatura ativa;</li>
-          <li>As assinaturas são cobradas de forma recorrente pelo MercadoPago e podem ser canceladas a qualquer momento pelo painel;</li>
+          <li>As assinaturas são cobradas de forma recorrente pelo Stripe e podem ser canceladas a qualquer momento pelo painel;</li>
           <li>O painel administrativo permanece acessível mesmo com o catálogo indisponível;</li>
           <li>Empregamos esforços razoáveis de disponibilidade, sem garantia de operação ininterrupta.</li>
         </ul>

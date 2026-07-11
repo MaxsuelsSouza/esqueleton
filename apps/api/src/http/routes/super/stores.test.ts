@@ -72,9 +72,9 @@ describe('POST /api/super/stores (venda presencial)', () => {
     await app?.close()
   })
 
-  type PlanoDeTeste = { id: string; name: string; active: boolean; priceInCents: number; mercadoPagoPreapprovalPlanId: string | null }
-  const PLANO_PAGO: PlanoDeTeste = { id: 'plan-pago', name: 'Pro', active: true, priceInCents: 4990, mercadoPagoPreapprovalPlanId: 'mp-plan-1' }
-  const PLANO_GRATUITO: PlanoDeTeste = { id: 'plan-free', name: 'Gratuito', active: true, priceInCents: 0, mercadoPagoPreapprovalPlanId: null }
+  type PlanoDeTeste = { id: string; name: string; active: boolean; priceInCents: number; stripePriceId: string | null }
+  const PLANO_PAGO: PlanoDeTeste = { id: 'plan-pago', name: 'Pro', active: true, priceInCents: 4990, stripePriceId: 'price_1' }
+  const PLANO_GRATUITO: PlanoDeTeste = { id: 'plan-free', name: 'Gratuito', active: true, priceInCents: 0, stripePriceId: null }
 
   const PAYLOAD_LOJA_NOVA = {
     storeName: 'Loja Nova',
@@ -143,7 +143,7 @@ describe('POST /api/super/stores (venda presencial)', () => {
     expect(response.statusCode).toBe(201)
     const body = response.json()
     expect(body.store).toMatchObject({ slug: 'loja-nova' })
-    // Sem MercadoPago configurado nos testes o link vem nulo, mas a assinatura fica aguardando pagamento
+    // Sem Stripe configurado nos testes o link vem nulo, mas a assinatura fica aguardando pagamento
     expect(body.subscription.status).toBe('PENDING')
 
     // O dono deve trocar a senha temporária no primeiro acesso e o aceite
@@ -215,7 +215,7 @@ describe('POST /api/super/stores/:id/payment-link', () => {
     await app?.close()
   })
 
-  const PLANO_PAGO = { id: 'plan-pago', name: 'Pro', active: true, priceInCents: 4990, mercadoPagoPreapprovalPlanId: 'mp-plan-1' }
+  const PLANO_PAGO = { id: 'plan-pago', name: 'Pro', active: true, priceInCents: 4990, stripePriceId: 'price_1' }
 
   it('gera assinatura PENDING para loja sem assinatura ativa', async () => {
     const subscriptionCreate = vi.fn(async (args: unknown) => ({ id: 'sub-link', ...(args as { data: Record<string, unknown> }).data }))
@@ -330,7 +330,7 @@ describe('PATCH /api/super/stores/:id', () => {
         store: { findUnique: vi.fn(async () => ({ id: 'loja-1', status: 'ACTIVE' })) },
         plan: { findUnique: vi.fn(async () => ({ id: 'plan-novo', name: 'Novo' })) },
         subscription: {
-          findFirst: vi.fn(async () => ({ id: 'sub-antiga', storeId: 'loja-1', mercadoPagoPreapprovalId: null })),
+          findFirst: vi.fn(async () => ({ id: 'sub-antiga', storeId: 'loja-1', stripeSubscriptionId: null })),
           update: subscriptionUpdate,
           create: subscriptionCreate,
         },

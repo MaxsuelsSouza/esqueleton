@@ -98,7 +98,7 @@ const cart = await app.sessionStore.getCart(storeId, sessionToken)
 2. jwtAuthPlugin     ← usa prisma para verificar email
 3. resendPlugin      ← independente
 4. storeContextPlugin ← usa prisma + isStoreAvailable
-5. mercadopagoPlugin ← independente
+5. stripePlugin ← independente
 6. planLimitsPlugin  ← usa prisma + subscription
 7. sessionPlugin     ← independente (usa Redis próprio)
 ```

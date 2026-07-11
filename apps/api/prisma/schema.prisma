@@ -23,6 +23,9 @@ model Store {
   // (suspensa/cancelada há mais de 6 meses). Sem reativação em 30 dias após o
   // aviso, o job de limpeza exclui a loja. Volta a null se a loja reativar.
   deletionWarnedAt DateTime?
+  // ID do Customer no Stripe — criado no primeiro checkout e reaproveitado em
+  // trocas de plano e cancelamentos (mantém o histórico de cobrança da loja no Stripe)
+  stripeCustomerId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -405,8 +408,10 @@ model Plan {
   priceInCents                 Int      @default(0)
   // Período de cobrança: MONTHLY ou YEARLY
   billingPeriod                String   @default("MONTHLY")
-  // ID do plano de recorrência no MercadoPago (preenchido ao criar plano pago)
-  mercadoPagoPreapprovalPlanId String?
+  // ID do Product no Stripe (preenchido ao criar plano pago)
+  stripeProductId              String?
+  // ID do Price ativo no Stripe — Price é imutável, então mudança de valor/período recria um novo
+  stripePriceId                String?
   active                       Boolean  @default(true)
   // Ordem de exibição na página de preços (menor = primeiro)
   sortOrder                    Int      @default(0)
@@ -425,8 +430,8 @@ model Subscription {
   plan                       Plan      @relation(fields: [planId], references: [id])
   // ACTIVE = em dia | PAUSED = pagamento pendente | CANCELLED = cancelada | PENDING = aguardando pagamento
   status                     String    @default("PENDING")
-  // ID da assinatura recorrente no MercadoPago
-  mercadoPagoPreapprovalId   String?
+  // ID da assinatura recorrente no Stripe
+  stripeSubscriptionId       String?
   currentPeriodStart         DateTime?
   currentPeriodEnd           DateTime?
   createdAt                  DateTime  @default(now())

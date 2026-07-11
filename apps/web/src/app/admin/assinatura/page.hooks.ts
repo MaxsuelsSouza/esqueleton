@@ -44,11 +44,11 @@ export function useAssinaturaPage() {
     try {
       const result = await billingService.subscribe(plan.id, token)
       if (result.checkoutUrl) {
-        // Vai para o checkout seguro do MercadoPago cadastrar o cartão
+        // Vai para o checkout seguro do Stripe cadastrar o cartão
         window.location.href = result.checkoutUrl
         return
       }
-      // Sem URL de checkout (ambiente sem MercadoPago): assinatura ficou pendente
+      // Sem URL de checkout (ambiente sem Stripe): assinatura ficou pendente
       setPendingMessage(true)
       await loadData()
     } catch (err: unknown) {

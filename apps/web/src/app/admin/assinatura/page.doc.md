@@ -1,19 +1,19 @@
 # Assinatura
 
-Onboarding de ativação da loja — explica o modelo "pagou, usou", mostra a situação do período de teste e leva o proprietário ao pagamento recorrente via MercadoPago.
+Onboarding de ativação da loja — explica o modelo "pagou, usou", mostra a situação do período de teste e leva o proprietário ao pagamento recorrente via Stripe.
 
 ## Arquivos
 
 | Arquivo | Responsabilidade |
 |---------|-----------------|
 | `page.tsx` | Renderiza o banner de situação (teste vigente, teste vencido ou pagamento pendente), a explicação em 3 passos de como funciona a assinatura, e a grade de planos pagos disponíveis com botão de assinar. Se já há assinatura ativa, mostra tela de sucesso com link para `/admin/plano`. |
-| `page.hooks.ts` | Carrega dados de billing e lista de planos (filtrando apenas pagos), gerencia a ação de assinar com redirecionamento para o checkout MercadoPago, e deriva estados como `hasActiveSubscription`, `isPending` e `trial`. |
+| `page.hooks.ts` | Carrega dados de billing e lista de planos (filtrando apenas pagos), gerencia a ação de assinar com redirecionamento para o checkout Stripe, e deriva estados como `hasActiveSubscription`, `isPending` e `trial`. |
 
 ## Fluxo de dados
 
 `useAdminAuth` fornece `token` e `isOwner` → `billingService.current(token)` retorna assinatura + trial → `billingService.listPlans()` retorna todos os planos, filtrados para manter apenas `priceInCents > 0` → hook deriva `trial`, `hasActiveSubscription`, `isPending` → view renderiza o banner adequado e os planos.
 
-Ao assinar: `billingService.subscribe(planId, token)` → se retorna `checkoutUrl`, redireciona para o MercadoPago; senão, marca `pendingMessage` como true e recarrega os dados.
+Ao assinar: `billingService.subscribe(planId, token)` → se retorna `checkoutUrl`, redireciona para o Stripe; senão, marca `pendingMessage` como true e recarrega os dados.
 
 ## Estados gerenciados
 
@@ -30,7 +30,7 @@ Ao assinar: `billingService.subscribe(planId, token)` → se retorna `checkoutUr
 
 | Ação | Handler | O que faz |
 |------|---------|-----------|
-| Clicar em "Assinar e ativar" num plano | `handleSubscribe(plan)` | Chama `billingService.subscribe`. Se retorna `checkoutUrl`, redireciona para o checkout seguro do MercadoPago. Caso contrário (dev sem MercadoPago), exibe banner de pagamento pendente. |
+| Clicar em "Assinar e ativar" num plano | `handleSubscribe(plan)` | Chama `billingService.subscribe`. Se retorna `checkoutUrl`, redireciona para o checkout seguro do Stripe. Caso contrário (dev sem Stripe), exibe banner de pagamento pendente. |
 
 ## Módulos utilizados
 
@@ -44,4 +44,4 @@ Ao assinar: `billingService.subscribe(planId, token)` → se retorna `checkoutUr
 - A página exibe apenas planos pagos (`priceInCents > 0`), diferente da página de Plano que mostra todos.
 - Três cenários de banner: (1) teste ativo com dias restantes (laranja), (2) teste vencido e loja fora do ar (vermelho), (3) pagamento em processamento (azul).
 - Se a loja já tem assinatura ativa (`hasActiveSubscription`), a página exibe apenas uma mensagem de sucesso com link para `/admin/plano`.
-- O cadastro do cartão acontece no checkout seguro do MercadoPago (fora do sistema). Quando o pagamento é aprovado, o webhook ativa a assinatura automaticamente.
+- O cadastro do cartão acontece no checkout seguro do Stripe (fora do sistema). Quando o pagamento é aprovado, o webhook ativa a assinatura automaticamente.

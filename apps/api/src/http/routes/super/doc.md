@@ -23,7 +23,7 @@ Rotas exclusivas do administrador da plataforma. Todas exigem `app.authenticate`
 | Rota | O que faz |
 |------|-----------|
 | `GET /` | Lista todos os planos |
-| `POST /` | Cria plano (com criação de preapproval plan no MercadoPago) |
+| `POST /` | Cria plano (com criação de Product + Price no Stripe) |
 | `PUT /:id` | Atualiza plano |
 | `DELETE /:id` | Remove plano (bloqueado se há assinaturas ACTIVE/PENDING/PAUSED) |
 

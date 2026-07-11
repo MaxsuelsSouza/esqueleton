@@ -25,7 +25,7 @@ O Esqueleton é uma **plataforma SaaS multi-tenant** para criação de catálogo
 2. **Trial** — a loja nasce com **7 dias de teste grátis**, contados de `Store.createdAt`. Nenhuma assinatura é criada no cadastro — o trial é implícito.
 3. **Montagem do catálogo** — cadastra categorias (árvore de qualquer profundidade), produtos (com foto, marca, variantes, características), promoções, cupons e destaques.
 4. **Divulgação** — compartilha o link da loja. O catálogo público funciona por path (`/loja/meu-slug`) e por subdomínio (`meu-slug.plataforma.com`).
-5. **Assinatura** — ao fim do trial, o catálogo público para de responder (erro 503 genérico — ver [Billing](08-billing.md)). O painel admin **continua acessível** para o lojista assinar um plano via MercadoPago.
+5. **Assinatura** — ao fim do trial, o catálogo público para de responder (erro 503 genérico — ver [Billing](08-billing.md)). O painel admin **continua acessível** para o lojista assinar um plano via Stripe.
 
 ## Jornada do cliente final
 

@@ -21,7 +21,7 @@ function PaymentLinkBox({ link }: { link: string | null }) {
     return (
       <p className="rounded-lg bg-yellow-50 px-3.5 py-2.5 text-sm text-yellow-700">
         A assinatura ficou aguardando pagamento, mas o link não pôde ser gerado
-        (verifique a configuração do MercadoPago). Você pode gerar um novo link
+        (verifique a configuração do Stripe). Você pode gerar um novo link
         pela lista de lojas.
       </p>
     )

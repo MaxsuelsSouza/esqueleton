@@ -51,22 +51,22 @@ export const storeAdminRoutes: FastifyPluginAsync = async (app) => {
         return reply.status(403).send({ message: 'Senha incorreta' })
       }
 
-      // Cancela assinaturas recorrentes no MercadoPago antes de apagar —
+      // Cancela assinaturas recorrentes no Stripe antes de apagar —
       // sem isso a cobrança continuaria mesmo com a loja excluída
       const assinaturasCobrando = await app.prisma.subscription.findMany({
         where: {
           storeId,
           status: { in: ['ACTIVE', 'PENDING', 'PAUSED'] },
-          mercadoPagoPreapprovalId: { not: null },
+          stripeSubscriptionId: { not: null },
         },
-        select: { mercadoPagoPreapprovalId: true },
+        select: { stripeSubscriptionId: true },
       })
       for (const assinatura of assinaturasCobrando) {
-        const cancelou = await app.mercadopago.cancelSubscription(assinatura.mercadoPagoPreapprovalId!)
+        const cancelou = await app.stripe.cancelSubscription(assinatura.stripeSubscriptionId!)
         if (!cancelou) {
           app.log.error(
-            { storeId, preapprovalId: assinatura.mercadoPagoPreapprovalId },
-            'Falha ao cancelar assinatura no MercadoPago durante exclusão da loja',
+            { storeId, stripeSubscriptionId: assinatura.stripeSubscriptionId },
+            'Falha ao cancelar assinatura no Stripe durante exclusão da loja',
           )
         }
       }

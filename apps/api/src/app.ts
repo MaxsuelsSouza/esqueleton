@@ -14,7 +14,7 @@ import { auditPlugin } from './http/plugins/audit.plugin'
 import { storeContextPlugin } from './http/plugins/store-context.plugin'
 import { planLimitsPlugin } from './http/plugins/plan-limits.plugin'
 import { sessionPlugin } from './http/plugins/session.plugin'
-import { mercadopagoPlugin } from './domain/billing/integrations/mercadopago.adapter'
+import { stripePlugin } from './domain/billing/integrations/stripe.adapter'
 import { whatsappCatalogPlugin } from './http/plugins/whatsapp-catalog.plugin'
 import { authRoutes, passwordResetRoutes, emailVerificationRoutes, changePasswordRoutes } from './http/routes/auth'
 import { catalogPublicRoutes, catalogAdminRoutes, categoryPublicRoutes, categoryAdminRoutes } from './http/routes/catalog'
@@ -27,7 +27,7 @@ import { notificationRoutes } from './http/routes/notification'
 import { userAdminRoutes, storeProfilePublicRoutes, storeProfileAdminRoutes, storeAdminRoutes } from './http/routes/admin'
 import { superStoresRoutes, superPlansRoutes, superUsersRoutes, superMetricsRoutes } from './http/routes/super'
 import { sessionPublicRoutes } from './http/routes/session'
-import { dataRetentionJobRoutes } from './http/routes/jobs'
+import { dataRetentionJobRoutes, billingReconcileJobRoutes } from './http/routes/jobs'
 
 // Nos testes é possível injetar um banco de dados falso — veja prisma.plugin.ts
 type BuildAppOptions = {
@@ -114,8 +114,8 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.register(resendPlugin)
   app.register(r2Plugin)
   app.register(storeContextPlugin)
-  // Cobrança: integração com o MercadoPago e verificação dos limites do plano
-  app.register(mercadopagoPlugin)
+  // Cobrança: integração com o Stripe e verificação dos limites do plano
+  app.register(stripePlugin)
   app.register(planLimitsPlugin)
   // Catálogo do WhatsApp Business — sincroniza produtos com a Meta Catalog API
   app.register(whatsappCatalogPlugin)
@@ -127,7 +127,7 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.register(emailVerificationRoutes, { prefix: '/api/auth' })
   app.register(changePasswordRoutes, { prefix: '/api/auth' })
 
-  // ── Cobrança — planos públicos, assinatura da loja e webhook do MercadoPago ──
+  // ── Cobrança — planos públicos, assinatura da loja e webhook do Stripe ──
   app.register(billingPublicRoutes, { prefix: '/api/billing' })
   app.register(billingAdminRoutes, { prefix: '/api/billing' })
   app.register(webhookRoutes, { prefix: '/api/webhooks' })
@@ -177,8 +177,10 @@ export function buildApp(options: BuildAppOptions = {}) {
   // Conta/loja (LGPD): exportação de dados e exclusão definitiva — OWNER only
   app.register(storeAdminRoutes, { prefix: '/api/store' })
 
-  // Job agendado (Vercel Cron) — limpeza de retenção de dados (LGPD)
+  // Jobs agendados (Vercel Cron) — limpeza de retenção de dados (LGPD) e
+  // reconciliação de assinaturas com o Stripe (todo dia 10)
   app.register(dataRetentionJobRoutes, { prefix: '/api/jobs' })
+  app.register(billingReconcileJobRoutes, { prefix: '/api/jobs' })
 
   app.get('/api/health', async () => ({ status: 'ok' }))
 

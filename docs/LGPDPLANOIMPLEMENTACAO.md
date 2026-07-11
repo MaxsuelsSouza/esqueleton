@@ -68,7 +68,7 @@ Consequências práticas:
    - A plataforma só age sobre dados de clientes finais por instrução do lojista
      (exceção: obrigação legal ou ordem da ANPD).
 3. **Sub-operadores da cadeia** (ver §5): Vercel, Neon/RDS (Postgres), Upstash (Redis),
-   Resend (e-mail), Cloudflare R2 (imagens), MercadoPago (pagamentos).
+   Resend (e-mail), Cloudflare R2 (imagens), Stripe (pagamentos).
 
 ---
 
@@ -85,10 +85,10 @@ retenção que o plano vai implementar.
 | Flags `emailVerified`, `mustChangePassword`, `isSuperAdmin` | `User` | Segurança da conta | Execução de contrato | Idem |
 | Tokens de reset de senha / verificação de e-mail | `PasswordResetToken`, `EmailVerificationToken` | Fluxos de segurança | Execução de contrato | **Eliminar após uso ou expiração** (hoje ficam para sempre — só os de reset anteriores são apagados a cada novo pedido) |
 | WhatsApp, Instagram, endereço da loja, logo | `StoreProfile:233-247` | Exibição no catálogo público | Execução de contrato | Enquanto a conta existir |
-| Dados de assinatura, IDs MercadoPago | `Subscription`, `Plan.mercadoPagoPreapprovalPlanId` | Cobrança | Execução de contrato + obrigação legal (fiscal) | 5 anos após término (prazo fiscal) |
+| Dados de assinatura, IDs Stripe | `Subscription`, `Plan.stripePriceId` | Cobrança | Execução de contrato + obrigação legal (fiscal) | 5 anos após término (prazo fiscal) |
 | E-mail + IP em logs de login falho | `auth.routes` → `app.log.warn` | Segurança / antifraude | Legítimo interesse (art. 7º, IX) | Máx. 6 meses (política de logs) |
 | IP para rate limiting | memória/Redis (`@fastify/rate-limit`) | Segurança | Legítimo interesse | Minutos (janela do limite) — já adequado |
-| Dados de cartão | **Não armazenados** — ficam no MercadoPago | Cobrança | — | — |
+| Dados de cartão | **Não armazenados** — ficam no Stripe | Cobrança | — | — |
 
 ### 3.2 Dados de CLIENTES FINAIS (plataforma = operadora; lojista = controlador)
 
@@ -112,7 +112,7 @@ retenção que o plano vai implementar.
 | Upstash (Redis) | Sacolas, favoritos, contadores de rate limit | Sub-operador | configurável | Escolher região Brasil/us-east + DPA |
 | Resend (e-mail) | E-mail do lojista, links de reset/verificação | Sub-operador | EUA | DPA do Resend |
 | Cloudflare R2 | Imagens (produtos, logos) — baixo teor pessoal | Sub-operador | global | DPA da Cloudflare |
-| MercadoPago | Dados de pagamento do lojista | **Controlador próprio** (instituição de pagamento) | Brasil | Contrato de adesão já cobre; citar na política |
+| Stripe | Dados de pagamento do lojista | **Controlador próprio** (instituição de pagamento) | Brasil | Contrato de adesão já cobre; citar na política |
 | WhatsApp/Meta | Mensagem do pedido (nome, telefone, itens) | Escolha do cliente final (ele abre o wa.me) | — | Informar na política que o pedido é enviado via WhatsApp |
 
 ---
@@ -137,8 +137,8 @@ retenção que o plano vai implementar.
 - ✓ `onDelete: Cascade` de `Store` para **todos** os modelos → apagar a loja já apaga todos os dados dela (fundação pronta para "excluir conta")
 - ✓ Sacola/favoritos com TTL de 30 dias no Redis
 - ✓ Analytics sem identificador pessoal (`ProductEvent` não grava IP/sessão)
-- ✓ Rate limiting, HMAC no webhook, erros 5xx mascarados, keys R2 segregadas por tenant
-- ✓ Minimização razoável: cliente final só informa nome + telefone; pagamento fica no MercadoPago
+- ✓ Rate limiting, assinatura verificada no webhook, erros 5xx mascarados, keys R2 segregadas por tenant
+- ✓ Minimização razoável: cliente final só informa nome + telefone; pagamento fica no Stripe
 
 ### Riscos agravados por bugs já conhecidos (ver `RELATORIO-VARREDURA-BUGS.md`):
 - ⚠️ **Item 5 (campos não limpam):** o direito de **retificação/eliminação** (art. 18, III)
@@ -164,7 +164,7 @@ Organizado em 6 fases. Cada tarefa tem esforço estimado: **P** (≤ ½ dia), **
 | 0.3 | Redigir **Termos de Uso** com capítulo de tratamento de dados (DPA plataforma↔lojista): instruções, sub-operadores autorizados, segurança, auxílio ao art. 18, devolução/eliminação no encerramento | M |
 | 0.4 | Redigir **modelo de aviso de privacidade da loja** (texto curto exibido ao cliente final na identificação) | P |
 | 0.5 | Formalizar este inventário como **Registro de Operações (RoT)** vivo, com dono e revisão semestral | P |
-| 0.6 | Levantar e arquivar os **DPAs dos sub-operadores** (Vercel, Resend, Cloudflare, Upstash, provedor Postgres, MercadoPago) e registrar as bases de transferência internacional | M |
+| 0.6 | Levantar e arquivar os **DPAs dos sub-operadores** (Vercel, Resend, Cloudflare, Upstash, provedor Postgres, Stripe) e registrar as bases de transferência internacional | M |
 
 ### Fase 1 — Transparência nas telas (web)
 
@@ -192,7 +192,7 @@ Organizado em 6 fases. Cada tarefa tem esforço estimado: **P** (≤ ½ dia), **
 | # | Tarefa | Onde mexer | Esforço |
 |---|---|---|---|
 | 2.5 | **Exportar dados da conta/loja** (portabilidade): dump JSON de perfil, usuários (sem hash de senha), produtos, pedidos, clientes, cupons etc. | `GET /api/store/export` (OWNER only) + botão em `/admin/perfil` | M |
-| 2.6 | **Excluir a conta/loja**: rota `DELETE /api/store` (OWNER, confirmação por senha + assinatura não-ativa), executando `prisma.store.delete` (cascade já apaga tudo) + `deleteByPrefix` no R2 (`{storeId}/`) + varredura das chaves Redis da loja + cancelamento MercadoPago | nova rota + tela em `/admin/perfil`; reaproveitar `buildR2Prefix` | G |
+| 2.6 | **Excluir a conta/loja**: rota `DELETE /api/store` (OWNER, confirmação por senha + assinatura não-ativa), executando `prisma.store.delete` (cascade já apaga tudo) + `deleteByPrefix` no R2 (`{storeId}/`) + varredura das chaves Redis da loja + cancelamento Stripe | nova rota + tela em `/admin/perfil`; reaproveitar `buildR2Prefix` | G |
 | 2.7 | Membro STAFF removido (`DELETE /api/users/:id`) já existe ✓ — complementar apagando os tokens de reset/verificação dele (cascade de `User` já cobre ✓) e registrando o evento em log de auditoria (Fase 4) | — | P |
 | 2.8 | Corrigir o bug **"campos não limpam"** (relatório, item 5) — sem isso, retificação/eliminação parcial não funciona | schemas da API + hooks do front | M |
 | 2.9 | Processo documentado de atendimento ao art. 18 com prazo (15 dias, art. 19 §2º): quem recebe (DPO), como valida identidade, como executa | documento + planilha/issue tracker | P |
@@ -286,7 +286,7 @@ plano de incidentes (5.1/5.2) escrito.
 - Não coleta **dados sensíveis** (art. 5º, II — saúde, biometria, religião etc.) — manter.
 - Não usa cookies/pixels de terceiros nem publicidade — o que dispensa banner de consentimento.
 - Não grava IP/identificador de visitante nos eventos de analytics — manter essa anonimização.
-- Não armazena dados de cartão — pagamentos ficam integralmente no MercadoPago.
+- Não armazena dados de cartão — pagamentos ficam integralmente no Stripe.
 - Não trata dados de crianças intencionalmente — reforçar nos Termos (maiores de 18 para lojistas).
 
 Qualquer mudança nesses pontos exige atualizar o RoT (§3), a política e possivelmente o RIPD (6.2).

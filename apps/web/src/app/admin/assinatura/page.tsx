@@ -1,8 +1,8 @@
 'use client'
 
 // Onboarding da assinatura — explica o modelo ("pagou, usou"), mostra a situação
-// do período de teste e leva ao pagamento recorrente no MercadoPago.
-// O cartão é cadastrado no checkout seguro do MercadoPago (nada de cartão aqui);
+// do período de teste e leva ao pagamento recorrente no Stripe.
+// O cartão é cadastrado no checkout seguro do Stripe (nada de cartão aqui);
 // quando o pagamento é aprovado, o webhook ativa a assinatura automaticamente.
 import Link from 'next/link'
 import { CheckCircle2, CreditCard, Rocket, ShieldCheck, Clock, AlertTriangle } from 'lucide-react'
@@ -60,7 +60,7 @@ export default function AssinaturaPage() {
           <div>
             <p className="text-sm font-semibold text-blue-800">Pagamento em processamento</p>
             <p className="mt-0.5 text-sm text-blue-700">
-              Assim que o MercadoPago confirmar o pagamento, sua loja é ativada automaticamente —
+              Assim que o Stripe confirmar o pagamento, sua loja é ativada automaticamente —
               não precisa fazer mais nada.
             </p>
           </div>
@@ -106,14 +106,14 @@ export default function AssinaturaPage() {
           <CreditCard size={18} className="text-gray-400" />
           <p className="mt-2 text-sm font-semibold text-gray-900">1. Escolha o plano</p>
           <p className="mt-1 text-xs text-gray-500">
-            O pagamento é recorrente, renovado automaticamente pelo MercadoPago.
+            O pagamento é recorrente, renovado automaticamente pelo Stripe.
           </p>
         </div>
         <div className="rounded-2xl border border-gray-100 bg-white p-4">
           <ShieldCheck size={18} className="text-gray-400" />
           <p className="mt-2 text-sm font-semibold text-gray-900">2. Cadastre o cartão</p>
           <p className="mt-1 text-xs text-gray-500">
-            No checkout seguro do MercadoPago. Cancele quando quiser, sem multa.
+            No checkout seguro do Stripe. Cancele quando quiser, sem multa.
           </p>
         </div>
         <div className="rounded-2xl border border-gray-100 bg-white p-4">

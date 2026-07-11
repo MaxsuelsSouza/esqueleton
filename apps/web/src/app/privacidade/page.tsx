@@ -43,13 +43,13 @@ export default function PrivacidadePage() {
         <ul className="mt-3">
           <li>E-mail, senha (armazenada com criptografia bcrypt), nome e papel na equipe;</li>
           <li>WhatsApp, Instagram, endereço e logotipo da loja (exibidos no catálogo público);</li>
-          <li>Dados de assinatura do plano (identificadores de cobrança do MercadoPago);</li>
+          <li>Dados de assinatura do plano (identificadores de cobrança do Stripe);</li>
           <li>Endereço IP e e-mail em registros de segurança (tentativas de login);</li>
           <li>Data e versão do aceite destes documentos legais.</li>
         </ul>
         <p className="mt-3">
           <strong>Não armazenamos dados de cartão de crédito</strong> — pagamentos são
-          processados integralmente pelo MercadoPago.
+          processados integralmente pelo Stripe.
         </p>
 
         <h3 className="mt-4">2.2 De clientes finais (quem compra nas lojas)</h3>
@@ -119,7 +119,7 @@ export default function PrivacidadePage() {
           <li><strong>Resend</strong> (EUA) — envio de e-mails transacionais;</li>
           <li><strong>Cloudflare R2</strong> — armazenamento de imagens de produtos e logotipos;</li>
           <li>
-            <strong>MercadoPago</strong> (Brasil) — processa os pagamentos de assinaturas como
+            <strong>Stripe</strong> — processa os pagamentos de assinaturas como
             controlador próprio, sob a política de privacidade dele;
           </li>
           <li>

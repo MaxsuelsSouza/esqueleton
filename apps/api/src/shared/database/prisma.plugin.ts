@@ -8,7 +8,7 @@ declare module 'fastify' {
     prisma: PrismaClient
     /**
      * Cliente SEM a proteção de loja — apenas para operações da plataforma que
-     * são globais por natureza (ex: webhook do MercadoPago, que localiza a
+     * são globais por natureza (ex: webhook do Stripe, que localiza a
      * assinatura pelo ID externo; rotas super-admin). NUNCA use em rotas de loja.
      */
     prismaRaw: PrismaClient

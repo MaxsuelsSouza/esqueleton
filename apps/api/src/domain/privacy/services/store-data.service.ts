@@ -55,7 +55,7 @@ export async function exportarDadosDaLoja(prisma: PrismaClient, storeId: string)
 
 // Exclui a loja definitivamente. O onDelete: Cascade do schema apaga todos os
 // dados relacionados (usuários, produtos, pedidos, clientes, notificações...).
-// Imagens no R2 e cancelamento no MercadoPago são tratados pela rota, que tem
+// Imagens no R2 e cancelamento no Stripe são tratados pela rota, que tem
 // acesso aos serviços de infraestrutura.
 export async function excluirLoja(prisma: PrismaClient, storeId: string): Promise<void> {
   await prisma.store.delete({ where: { id: storeId } })

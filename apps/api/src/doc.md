@@ -17,7 +17,7 @@ node dist/main.js  →  Fastify escutando em 0.0.0.0:3001
 Fábrica do servidor — **o arquivo mais importante da API**. Monta o Fastify completo:
 
 1. Configura `helmet`, `cors`, `rateLimit`
-2. Registra plugins: `prisma` → `jwt` → `resend` → `storeContext` → `mercadopago` → `planLimits` → `session`
+2. Registra plugins: `prisma` → `jwt` → `resend` → `storeContext` → `stripe` → `planLimits` → `session`
 3. Registra rotas: `auth` → `billing` → `webhooks` → `super` → públicas (com `resolveStore`) → admin
 4. Health check (`GET /api/health`)
 5. Error handler

@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs'
 import { requireSuperAdmin } from '../../../domain/identity/guards/super-admin.guard'
 import { idParamSchema } from '../../../shared/validation/schemas'
 import { registerStore } from '../../../domain/identity/services/auth.service'
+import { primeiroDebitoVendaPresencial } from '../../../domain/billing/billing-cycle'
 import { emailVerificationEmail } from '../../../shared/email/templates'
 import {
   listStoresQuerySchema,
@@ -19,12 +20,12 @@ const LOJAS_POR_PAGINA = 20
 type PlanoEscolhido = {
   id: string
   priceInCents: number
-  mercadoPagoPreapprovalPlanId: string | null
+  stripePriceId: string | null
 }
 
 // Cria a assinatura da loja no plano escolhido e, se for pago, gera o link de
-// pagamento do MercadoPago (init_point). O cliente abre o link, cadastra o
-// cartão e o webhook muda a assinatura de PENDING para ACTIVE.
+// checkout do Stripe. O cliente abre o link, cadastra o cartão e o webhook
+// (checkout.session.completed) muda a assinatura de PENDING para ACTIVE.
 // Plano gratuito nasce ACTIVE direto, sem link.
 async function criarAssinaturaComLink(
   app: FastifyInstance,
@@ -44,29 +45,28 @@ async function criarAssinaturaComLink(
     data: { storeId, planId: plan.id, status: 'PENDING' },
   })
 
-  // Sem MercadoPago configurado (dev), a assinatura fica PENDING sem link
-  if (!app.mercadopago.isConfigured) {
-    app.log.warn('MercadoPago não configurado — assinatura criada como PENDING sem link de pagamento')
+  // Sem Stripe configurado (dev), a assinatura fica PENDING sem link
+  if (!app.stripe.isConfigured) {
+    app.log.warn('Stripe não configurado — assinatura criada como PENDING sem link de pagamento')
     return { subscription, paymentLink: null }
   }
 
   const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000'
-  const mpResult = await app.mercadopago.createSubscription({
-    planId: plan.mercadoPagoPreapprovalPlanId!,
-    payerEmail,
-    externalReference: subscription.id,
-    backUrl: `${frontendUrl}/admin/plano`,
+  // Reaproveita o Customer da loja se já houver; senão o Stripe cria a partir do e-mail
+  const store = await app.prisma.store.findUnique({ where: { id: storeId } })
+  const session = await app.stripe.createCheckoutSession({
+    priceId: plan.stripePriceId!,
+    referenceId: subscription.id,
+    customerId: store?.stripeCustomerId,
+    customerEmail: payerEmail,
+    // Venda presencial: 30 dias de carência e então o próximo dia 10
+    // (ex.: compra em 20/jul → débito ancorado em 10/set)
+    trialEnd: primeiroDebitoVendaPresencial(new Date()),
+    successUrl: `${frontendUrl}/admin/plano`,
+    cancelUrl: `${frontendUrl}/admin/plano`,
   })
 
-  if (!mpResult) {
-    return { subscription, paymentLink: null }
-  }
-
-  await app.prisma.subscription.updateMany({
-    where: { id: subscription.id, storeId },
-    data: { mercadoPagoPreapprovalId: mpResult.id },
-  })
-  return { subscription, paymentLink: mpResult.initPoint }
+  return { subscription, paymentLink: session?.url ?? null }
 }
 
 export const superStoresRoutes: FastifyPluginAsync = async (app) => {
@@ -175,8 +175,8 @@ export const superStoresRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(404).send({ message: 'Plano não encontrado' })
     }
 
-    // Plano pago sem recorrência criada no MercadoPago não tem como gerar link
-    if (plan.priceInCents > 0 && app.mercadopago.isConfigured && !plan.mercadoPagoPreapprovalPlanId) {
+    // Plano pago sem Price criado no Stripe não tem como gerar link
+    if (plan.priceInCents > 0 && app.stripe.isConfigured && !plan.stripePriceId) {
       return reply.status(400).send({
         message: 'Plano não configurado para cobrança. Edite o plano em Plataforma → Planos.',
       })
@@ -274,7 +274,7 @@ export const superStoresRoutes: FastifyPluginAsync = async (app) => {
         message: 'Plano gratuito não precisa de link de pagamento — use a troca de plano na lista de lojas.',
       })
     }
-    if (app.mercadopago.isConfigured && !plan.mercadoPagoPreapprovalPlanId) {
+    if (app.stripe.isConfigured && !plan.stripePriceId) {
       return reply.status(400).send({
         message: 'Plano não configurado para cobrança. Edite o plano em Plataforma → Planos.',
       })
@@ -290,7 +290,7 @@ export const superStoresRoutes: FastifyPluginAsync = async (app) => {
       })
     }
 
-    // O e-mail do dono vai no checkout do MercadoPago
+    // O e-mail do dono vai no checkout do Stripe
     const owner = await app.prismaRaw.user.findFirst({
       where: { storeId: id, role: 'OWNER' },
       orderBy: { createdAt: 'asc' },
@@ -304,8 +304,8 @@ export const superStoresRoutes: FastifyPluginAsync = async (app) => {
       where: { storeId: id, status: 'PENDING' },
     })
     for (const pendente of pendentes) {
-      if (pendente.mercadoPagoPreapprovalId) {
-        await app.mercadopago.cancelSubscription(pendente.mercadoPagoPreapprovalId)
+      if (pendente.stripeSubscriptionId) {
+        await app.stripe.cancelSubscription(pendente.stripeSubscriptionId)
       }
     }
     if (pendentes.length > 0) {
@@ -348,7 +348,7 @@ export const superStoresRoutes: FastifyPluginAsync = async (app) => {
     }
 
     // Troca de plano direta (cortesia/ajuste) — cancela a assinatura atual e
-    // cria uma nova já ativa, sem passar pelo checkout do MercadoPago
+    // cria uma nova já ativa, sem passar pelo checkout do Stripe
     if (planId) {
       const plan = await app.prisma.plan.findUnique({ where: { id: planId } })
       if (!plan) {
@@ -359,9 +359,9 @@ export const superStoresRoutes: FastifyPluginAsync = async (app) => {
         where: { storeId: id, status: 'ACTIVE' },
       })
       if (currentSub) {
-        // Cancela a recorrência no MercadoPago se existir
-        if (currentSub.mercadoPagoPreapprovalId) {
-          await app.mercadopago.cancelSubscription(currentSub.mercadoPagoPreapprovalId)
+        // Cancela a recorrência no Stripe se existir
+        if (currentSub.stripeSubscriptionId) {
+          await app.stripe.cancelSubscription(currentSub.stripeSubscriptionId)
         }
         await app.prismaRaw.subscription.update({
           where: { id: currentSub.id },

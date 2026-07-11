@@ -46,10 +46,10 @@ export const dataRetentionJobRoutes: FastifyPluginAsync = async (app) => {
             `Sua loja ${nomeDaLoja} será excluída em 30 dias`,
             storeDeletionWarningEmail(nomeDaLoja, `${frontendUrl}/admin/login`),
           ),
-        cancelarAssinatura: async (preapprovalId) => {
-          const cancelou = await app.mercadopago.cancelSubscription(preapprovalId)
+        cancelarAssinatura: async (stripeSubscriptionId) => {
+          const cancelou = await app.stripe.cancelSubscription(stripeSubscriptionId)
           if (!cancelou) {
-            app.log.error({ preapprovalId }, 'Falha ao cancelar assinatura na exclusão de loja inativa')
+            app.log.error({ stripeSubscriptionId }, 'Falha ao cancelar assinatura na exclusão de loja inativa')
           }
           return cancelou
         },

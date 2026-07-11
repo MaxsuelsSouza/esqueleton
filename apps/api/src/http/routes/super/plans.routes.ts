@@ -30,7 +30,7 @@ export const superPlansRoutes: FastifyPluginAsync = async (app) => {
     }))
   })
 
-  // POST /api/super/plans — cria um plano; planos pagos ganham a recorrência no MercadoPago
+  // POST /api/super/plans — cria um plano; planos pagos ganham Product + Price no Stripe
   app.post('/', async (request, reply) => {
     const data = planSchema.parse(request.body)
 
@@ -39,33 +39,33 @@ export const superPlansRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(409).send({ message: 'Já existe um plano com este identificador (slug)' })
     }
 
-    // Plano pago: cria o plano de recorrência no MercadoPago antes de salvar
-    let mercadoPagoPreapprovalPlanId: string | null = null
-    if (data.priceInCents > 0 && app.mercadopago.isConfigured) {
-      const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000'
-      const mpPlan = await app.mercadopago.createPlan({
+    // Plano pago: cria o Product + Price no Stripe antes de salvar
+    let stripeProductId: string | null = null
+    let stripePriceId: string | null = null
+    if (data.priceInCents > 0 && app.stripe.isConfigured) {
+      const stripePlan = await app.stripe.createProductWithPrice({
         name: data.name,
         amountInCents: data.priceInCents,
         billingPeriod: data.billingPeriod,
-        backUrl: `${frontendUrl}/admin/plano`,
       })
-      if (!mpPlan) {
-        return reply.status(502).send({ message: 'Não foi possível criar o plano no MercadoPago. Tente novamente.' })
+      if (!stripePlan) {
+        return reply.status(502).send({ message: 'Não foi possível criar o plano no Stripe. Tente novamente.' })
       }
-      mercadoPagoPreapprovalPlanId = mpPlan.id
+      stripeProductId = stripePlan.productId
+      stripePriceId = stripePlan.priceId
     }
 
     const plan = await app.prisma.plan.create({
-      data: { ...data, mercadoPagoPreapprovalPlanId },
+      data: { ...data, stripeProductId, stripePriceId },
     })
 
     return reply.status(201).send(plan)
   })
 
   // PUT /api/super/plans/:id — atualiza um plano.
-  // Atenção: o valor da recorrência no MercadoPago não é alterado automaticamente —
-  // assinaturas existentes continuam no preço antigo; as novas usam o plano novo
-  // somente se um novo plano de recorrência for criado (preço alterado → recria).
+  // Atenção: o Price do Stripe é imutável — assinaturas existentes continuam no
+  // preço antigo; mudança de preço/período cria um novo Price no mesmo Product,
+  // que passa a valer para as novas assinaturas.
   app.put('/:id', async (request, reply) => {
     const { id } = idParamSchema.parse(request.params)
     const data = planSchema.parse(request.body)
@@ -81,26 +81,26 @@ export const superPlansRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(409).send({ message: 'Já existe um plano com este identificador (slug)' })
     }
 
-    // Virou pago (ou mudou de preço/período) e ainda não tem recorrência? Cria no MercadoPago.
-    let mercadoPagoPreapprovalPlanId = plan.mercadoPagoPreapprovalPlanId
+    // Virou pago (ou mudou de preço/período) e ainda não tem Price? Cria no Stripe.
+    let stripeProductId = plan.stripeProductId
+    let stripePriceId = plan.stripePriceId
     const precoMudou = data.priceInCents !== plan.priceInCents || data.billingPeriod !== plan.billingPeriod
-    if (data.priceInCents > 0 && app.mercadopago.isConfigured && (precoMudou || !mercadoPagoPreapprovalPlanId)) {
-      const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000'
-      const mpPlan = await app.mercadopago.createPlan({
+    if (data.priceInCents > 0 && app.stripe.isConfigured && (precoMudou || !stripePriceId)) {
+      const stripePlan = await app.stripe.createProductWithPrice({
         name: data.name,
         amountInCents: data.priceInCents,
         billingPeriod: data.billingPeriod,
-        backUrl: `${frontendUrl}/admin/plano`,
       })
-      if (!mpPlan) {
-        return reply.status(502).send({ message: 'Não foi possível atualizar o plano no MercadoPago. Tente novamente.' })
+      if (!stripePlan) {
+        return reply.status(502).send({ message: 'Não foi possível atualizar o plano no Stripe. Tente novamente.' })
       }
-      mercadoPagoPreapprovalPlanId = mpPlan.id
+      stripeProductId = stripePlan.productId
+      stripePriceId = stripePlan.priceId
     }
 
     const updated = await app.prisma.plan.update({
       where: { id },
-      data: { ...data, mercadoPagoPreapprovalPlanId },
+      data: { ...data, stripeProductId, stripePriceId },
     })
 
     return updated

@@ -15,7 +15,7 @@ Camada de negócio pura. **Não conhece HTTP, Fastify, request nem reply.** Rece
 | [`pricing/`](pricing/doc.md) | Validação de cupons (ativo, datas, limite de usos) |
 | [`order/`](order/doc.md) | Validação aritmética de pedidos (anti-manipulação) |
 | [`store/`](store/doc.md) | Disponibilidade da loja (trial ou assinatura ativa) |
-| [`billing/`](billing/doc.md) | Período de teste + integração MercadoPago |
+| [`billing/`](billing/doc.md) | Período de teste + integração Stripe |
 | [`analytics/`](analytics/doc.md) | Agregação de métricas do dashboard |
 | [`notification/`](notification/doc.md) | Detecção de promoções/cupons/destaques expirados |
 | [`session/`](session/doc.md) | Armazenamento de sacola e favoritos (Redis ou memória) |

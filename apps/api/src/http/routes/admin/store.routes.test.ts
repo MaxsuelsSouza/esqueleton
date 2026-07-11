@@ -124,11 +124,11 @@ describe('DELETE /api/store (exclusão da loja — LGPD)', () => {
     expect(storeDelete).not.toHaveBeenCalled()
   })
 
-  it('exclui a loja e cancela as assinaturas ativas no MercadoPago', async () => {
+  it('exclui a loja e cancela as assinaturas ativas no Stripe', async () => {
     const hashed = await bcrypt.hash('senha-correta-123', 10)
     const storeDelete = vi.fn(async () => LOJA_TESTE)
     const subscriptionFindMany = vi.fn(async () => [
-      { mercadoPagoPreapprovalId: 'preapproval-1' },
+      { stripeSubscriptionId: 'sub_stripe_1' },
     ])
     app = await buildTestApp(
       createPrismaFake({

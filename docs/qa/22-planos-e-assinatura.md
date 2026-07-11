@@ -1,16 +1,16 @@
-# QA — Planos e Assinatura (MercadoPago)
+# QA — Planos e Assinatura (Stripe)
 
 **Commits relacionados:** `660303a`, `38c5417`, `0260a2a`
 **Data:** 2026-06-12
 
 ## Descrição
 
-Planos definem limites (maxProducts, maxUsers, maxOrdersPerMonth). Cada loja tem uma Subscription. Pagamento via MercadoPago (checkout redirect). Webhook HMAC valida eventos de pagamento.
+Planos definem limites (maxProducts, maxUsers, maxOrdersPerMonth). Cada loja tem uma Subscription. Pagamento via Stripe (checkout redirect). Webhook do Stripe valida eventos de pagamento (assinatura verificada pelo SDK).
 
 ## Pré-condições
 
 - Planos cadastrados pelo super-admin
-- `MERCADOPAGO_ACCESS_TOKEN` e `MERCADOPAGO_WEBHOOK_SECRET` configurados (opcional — sem eles, operações são no-op)
+- `STRIPE_SECRET_KEY` e `STRIPE_WEBHOOK_SECRET` configurados (opcional — sem eles, operações são no-op)
 
 ## Casos de Teste
 
@@ -20,11 +20,11 @@ Planos definem limites (maxProducts, maxUsers, maxOrdersPerMonth). Cada loja tem
 
 ### CT-02: Assinar plano (OWNER)
 1. Clicar em "Assinar" em um plano pago
-2. **Esperado:** Redireciona para checkout MercadoPago (`init_point`). Subscription criada com status `PENDING`.
+2. **Esperado:** Redireciona para checkout Stripe (`session.url`). Subscription criada com status `PENDING`.
 
 ### CT-03: Webhook confirma pagamento
-1. MercadoPago envia webhook de pagamento confirmado
-2. **Esperado:** Subscription atualizada para `ACTIVE`. Webhook validado via HMAC.
+1. Stripe envia webhook de pagamento confirmado
+2. **Esperado:** Subscription atualizada para `ACTIVE`. Webhook validado pela assinatura do Stripe.
 
 ### CT-04: Webhook — falha de pagamento
 1. Webhook de falha de pagamento
@@ -62,11 +62,11 @@ Planos definem limites (maxProducts, maxUsers, maxOrdersPerMonth). Cada loja tem
 2. Tentar `POST /api/billing/subscribe` ou `cancel`
 3. **Esperado:** 403 Forbidden.
 
-### CT-12: Webhook HMAC inválido
-1. Enviar webhook com assinatura HMAC incorreta
+### CT-12: Webhook com assinatura inválida
+1. Enviar webhook com assinatura inválida
 2. **Esperado:** 401 — webhook rejeitado.
 
-### CT-13: Sem MERCADOPAGO_ACCESS_TOKEN
+### CT-13: Sem STRIPE_SECRET_KEY
 1. Rodar API sem a variável
 2. Tentar assinar
 3. **Esperado:** No-op (sem erro crítico, operação ignorada).
@@ -78,10 +78,10 @@ Planos definem limites (maxProducts, maxUsers, maxOrdersPerMonth). Cada loja tem
 ## Critérios de Aceite
 
 - [ ] Visualização do plano atual com limites e uso
-- [ ] Assinatura redireciona para MercadoPago
+- [ ] Assinatura redireciona para Stripe
 - [ ] Webhook confirma/cancela/pausa assinatura
 - [ ] Limites de plano são respeitados (403)
 - [ ] Notificação de limite próximo (80%)
 - [ ] Sem assinatura = ilimitado
 - [ ] Apenas OWNER pode assinar/cancelar
-- [ ] HMAC validado no webhook
+- [ ] Assinatura validada no webhook

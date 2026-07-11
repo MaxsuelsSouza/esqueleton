@@ -35,7 +35,7 @@ Esta wiki explica **como o sistema funciona de ponta a ponta**: da arquitetura a
 
 | Página | O que você vai encontrar |
 |--------|--------------------------|
-| [08 — Billing e Assinaturas](08-billing.md) | Trial de 7 dias, planos, limites, MercadoPago, webhook |
+| [08 — Billing e Assinaturas](08-billing.md) | Trial de 7 dias, planos, limites, Stripe, webhook |
 
 ## 🖥️ Frontend e infraestrutura
 
@@ -51,6 +51,6 @@ Esta wiki explica **como o sistema funciona de ponta a ponta**: da arquitetura a
 
 1. **Uma API, um banco, várias lojas** — cada loja (tenant) é um `Store` com `slug` único; todo dado carrega `storeId` e um *tenant guard* impede vazamento entre lojas.
 2. **Painel admin** em `/admin` (JWT) e **catálogo público** em `/loja/{slug}` ou `{slug}.plataforma.com`.
-3. **"Pagou, usou"** — 7 dias de trial; depois, catálogo público só com assinatura ativa (MercadoPago).
+3. **"Pagou, usou"** — 7 dias de trial; depois, catálogo público só com assinatura ativa (Stripe).
 4. **Checkout via WhatsApp** — o cliente monta a sacola no site e envia o pedido pela conversa.
 5. **Stack:** Fastify + Prisma + PostgreSQL na API; Next.js 14 + Tailwind no web; pnpm workspaces no monorepo.

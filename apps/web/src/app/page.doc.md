@@ -35,4 +35,4 @@ Nao utiliza providers, hooks, contextos ou chamadas a API.
 - A constante `DEMO_SLUG` (`'eletrc-store'`) define o slug da loja de exemplo usada nos CTAs. Para funcionar, precisa existir uma loja com esse slug e produtos cadastrados no banco.
 - A pagina e inteiramente estatica — nao usa `'use client'`, o que permite renderizacao no servidor sem JavaScript no cliente.
 - Os textos de marketing sao em portugues coloquial, voltados para lojistas de bairro.
-- A secao de preco menciona "Gratis" e "sem taxa por venda", mas o sistema ja possui billing com planos pagos (MercadoPago). O conteudo pode estar desatualizado em relacao a logica real de cobranca.
+- A secao de preco menciona "Gratis" e "sem taxa por venda", mas o sistema ja possui billing com planos pagos (Stripe). O conteudo pode estar desatualizado em relacao a logica real de cobranca.

@@ -38,7 +38,7 @@ apps/api/src/
     catalog/     #   product.service, category.service (BFS de descendentes)
     pricing/     #   coupon.service (isCouponUsable)
     order/       #   order.service (validateOrderArithmetic — função pura)
-    billing/     #   trial.ts, mercadopago.adapter
+    billing/     #   trial.ts, stripe.adapter
     analytics/   #   analytics.service (agregações)
     notification/#   notification.service (entidades expiradas)
     session/     #   session-store (Redis ou memória)

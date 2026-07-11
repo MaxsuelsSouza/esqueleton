@@ -7,7 +7,7 @@ Plataforma **SaaS multi-tenant** para criação de catálogos e vitrines online.
 ## Como funciona (visão de 1 minuto)
 
 1. O lojista cria a conta em `/admin/login` ("Criar minha loja") — isso cria a `Store`, o perfil e o primeiro usuário (`OWNER`) em uma única transação.
-2. Ele ganha **7 dias de teste grátis** (contados da criação da loja). Depois disso, o catálogo público só funciona com uma **assinatura ativa** (MercadoPago) — o painel admin continua acessível para assinar.
+2. Ele ganha **7 dias de teste grátis** (contados da criação da loja). Depois disso, o catálogo público só funciona com uma **assinatura ativa** (Stripe) — o painel admin continua acessível para assinar.
 3. O catálogo público fica disponível em `plataforma.com/loja/meu-slug` **ou** via subdomínio `meu-slug.plataforma.com`.
 4. O cliente final navega no catálogo, monta a sacola e envia o pedido pelo **WhatsApp**.
 
@@ -22,7 +22,7 @@ Plataforma **SaaS multi-tenant** para criação de catálogos e vitrines online.
 | Auth | JWT (`@fastify/jwt`) + bcryptjs |
 | E-mail | Resend (reset de senha, verificação de e-mail) |
 | Imagens | Cloudflare R2 (S3-compatible) — base64 inline em dev |
-| Billing | MercadoPago (assinaturas recorrentes + webhook HMAC) |
+| Billing | Stripe (assinaturas recorrentes + webhook) |
 | Rate limit | `@fastify/rate-limit` (memória ou Redis via `REDIS_URL`) |
 | Tipos compartilhados | `packages/shared` (sem build step) |
 
@@ -46,7 +46,7 @@ pnpm --filter @esqueleton/api db:migrate
 pnpm dev
 ```
 
-Em dev, tudo que é integração externa é opcional: sem `RESEND_API_KEY` os e-mails são apenas logados; sem credenciais R2 as imagens ficam em base64 no banco; sem `MERCADOPAGO_ACCESS_TOKEN` o billing vira no-op.
+Em dev, tudo que é integração externa é opcional: sem `RESEND_API_KEY` os e-mails são apenas logados; sem credenciais R2 as imagens ficam em base64 no banco; sem `STRIPE_SECRET_KEY` o billing vira no-op.
 
 ### Comandos úteis
 

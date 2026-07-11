@@ -16,6 +16,10 @@
     {
       "path": "/api/jobs/limpeza-lgpd",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/jobs/verificar-assinaturas",
+      "schedule": "0 4 10 * *"
     }
   ]
 }

@@ -510,10 +510,31 @@ export interface BillingCurrentResponse {
   storeAvailable: boolean
 }
 
-// Resposta do POST /api/billing/subscribe — checkoutUrl preenchida apenas em planos pagos
+// Resposta do POST /api/billing/subscribe — checkoutUrl (link do Stripe Checkout)
+// preenchida apenas em planos pagos
 export interface SubscribeResponse {
   subscription: Subscription
   checkoutUrl: string | null
+}
+
+// Fatura da assinatura (histórico de pagamentos no painel)
+export interface Invoice {
+  id: string
+  // Data de emissão em ISO (a API converte o unix do Stripe)
+  createdAt: string
+  // Valor total em centavos
+  amountInCents: number
+  currency: string
+  // Status do Stripe: paid, open, void, uncollectible, draft
+  status: string
+  // Página hospedada da fatura no Stripe (o botão "Ver" abre isto)
+  hostedInvoiceUrl: string | null
+}
+
+// Resposta do GET /api/billing/invoices — hasMore habilita "Carregar mais"
+export interface InvoicesResponse {
+  data: Invoice[]
+  hasMore: boolean
 }
 
 // ── Super-admin (gestão da plataforma) ──────────────────────────────────────
@@ -559,7 +580,8 @@ export interface SuperUser {
 // Plano na visão do super-admin — inclui inativos e a contagem de lojas ativas nele
 export interface SuperPlan extends Plan {
   active: boolean
-  mercadoPagoPreapprovalPlanId?: string | null
+  stripeProductId?: string | null
+  stripePriceId?: string | null
   activeSubscriptions: number
   createdAt: string
   updatedAt: string
@@ -588,8 +610,8 @@ export interface SuperStoreCreateInput {
 }
 
 // Resultado da criação de loja pelo super-admin. paymentLink é o link do
-// MercadoPago para o cliente cadastrar o cartão (null para plano gratuito
-// ou em dev sem MercadoPago configurado)
+// Stripe Checkout para o cliente cadastrar o cartão (null para plano gratuito
+// ou em dev sem Stripe configurado)
 export interface SuperStoreCreateResult {
   store: { id: string; slug: string; name: string }
   owner: { id: string; email: string }

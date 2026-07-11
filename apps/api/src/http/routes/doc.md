@@ -23,7 +23,7 @@ Rotas agrupadas por feature. Cada pasta exporta plugins Fastify via `index.ts` (
 | [`pricing/`](pricing/doc.md) | `/api/lojas/:slug/featured` | `/api/featured` | CRUD de destaques |
 | [`order/`](order/doc.md) | `/api/lojas/:slug/orders` | `/api/orders` | Pedidos e clientes |
 | [`billing/`](billing/doc.md) | `/api/billing` (planos públicos) | `/api/billing` | Assinatura e planos |
-| [`webhooks/`](webhooks/doc.md) | — | `/api/webhooks` | Webhook MercadoPago |
+| [`webhooks/`](webhooks/doc.md) | — | `/api/webhooks` | Webhook Stripe |
 | [`analytics/`](analytics/doc.md) | `/api/lojas/:slug/analytics` | `/api/analytics` | Eventos e métricas |
 | [`notification/`](notification/doc.md) | — | `/api/notifications` | Notificações do admin |
 | [`admin/`](admin/doc.md) | `/api/lojas/:slug/store-profile` | `/api/store-profile`, `/api/users` | Perfil da loja e equipe |
