@@ -86,20 +86,59 @@ function extrairSubdominio(host: string): string | null {
 
 export function middleware(request: NextRequest) {
   const host = request.headers.get('host') ?? ''
+  const { pathname } = request.nextUrl
   const subdomain = extrairSubdominio(host)
 
-  if (!subdomain) return NextResponse.next()
+  // ── Já estamos num subdomínio de loja (ex: meu-slug.plataforma.com) ──────────
+  if (subdomain) {
+    const prefixoRedundante = `/loja/${subdomain}`
 
-  const { pathname } = request.nextUrl
+    // Se a URL ainda carrega o prefixo /loja/{slug} (veio de um link montado no
+    // formato antigo), redireciona para a versão limpa — assim o endereço na
+    // barra do navegador mostra sempre só o subdomínio da loja.
+    if (pathname === prefixoRedundante || pathname.startsWith(`${prefixoRedundante}/`)) {
+      const url = request.nextUrl.clone()
+      url.pathname = pathname.slice(prefixoRedundante.length) || '/'
+      return NextResponse.redirect(url)
+    }
 
-  // Se já está em /loja/... não reescreve (evita loop)
-  if (pathname.startsWith('/loja/')) return NextResponse.next()
+    // Se por acaso o path aponta para OUTRA loja (/loja/outro-slug), não reescreve
+    if (pathname.startsWith('/loja/')) return NextResponse.next()
 
-  // Faz rewrite interno — o usuário continua vendo meu-slug.plataforma.com/
-  // mas internamente o Next.js processa como /loja/meu-slug/
-  const url = request.nextUrl.clone()
-  url.pathname = `/loja/${subdomain}${pathname}`
-  return NextResponse.rewrite(url)
+    // Caminho limpo (ex: /produto/1) — faz rewrite interno para /loja/{slug}/produto/1.
+    // O usuário continua vendo meu-slug.plataforma.com/produto/1.
+    const url = request.nextUrl.clone()
+    url.pathname = `/loja/${subdomain}${pathname}`
+    return NextResponse.rewrite(url)
+  }
+
+  // ── Estamos no domínio raiz (ex: plataforma.com) ─────────────────────────────
+  // Se alguém acessa /loja/{slug}/... no domínio raiz, redireciona para o
+  // subdomínio da loja — o endereço passa a mostrar o nome da loja primeiro
+  // (ex: /loja/meu-slug/produto/1 → meu-slug.plataforma.com/produto/1).
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN
+  if (rootDomain) {
+    const rootSemPorta = rootDomain.split(':')[0]
+    const hostSemPorta = host.split(':')[0]
+    // Só redireciona quando realmente estamos no domínio raiz — evita mexer em
+    // previews da Vercel (*.vercel.app), onde subdomínios de loja não existem.
+    const noDominioRaiz = hostSemPorta === rootSemPorta || hostSemPorta === `www.${rootSemPorta}`
+
+    const partesDaLoja = pathname.match(/^\/loja\/([^/]+)(\/.*)?$/)
+    if (noDominioRaiz && partesDaLoja) {
+      const slug = partesDaLoja[1]
+      const restante = partesDaLoja[2] ?? ''
+      // Não redireciona slugs reservados (não são lojas de verdade)
+      if (!SUBDOMAINS_RESERVADOS.has(slug)) {
+        const url = request.nextUrl.clone()
+        url.host = `${slug}.${rootDomain}`
+        url.pathname = restante || '/'
+        return NextResponse.redirect(url)
+      }
+    }
+  }
+
+  return NextResponse.next()
 }
 
 export const config = {
