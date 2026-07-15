@@ -34,8 +34,10 @@ export const catalogAdminRoutes: FastifyPluginAsync = async (app) => {
   // Todas as rotas deste grupo exigem login
   app.addHook('preHandler', app.authenticate)
 
+  // Listagem enxuta — a tabela do painel só precisa de nome, marca, foto e preço.
+  // As variantes, fotos adicionais e características só carregam ao abrir a edição.
   app.get('/', async (request) => {
-    return listarProdutos(app.prisma,request.user.storeId, request.query as ListQuery)
+    return listarProdutos(app.prisma, request.user.storeId, request.query as ListQuery, { summary: true })
   })
 
   // Lista enxuta para os seletores do admin (cupons, promoções, destaques).

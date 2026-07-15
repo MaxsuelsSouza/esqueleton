@@ -2,12 +2,12 @@
 
 // Página de gestão de produtos — listagem com ações de criar, editar e excluir
 import { useState, useRef } from 'react'
-import { Plus, Pencil, Trash2, X, PackageSearch, ImagePlus, Camera, ChevronLeft, ChevronRight, ChevronDown, Search, ListPlus, Eye, EyeOff } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, PackageSearch, ImagePlus, ChevronLeft, ChevronRight, ChevronDown, Search, ListPlus, Eye, EyeOff } from 'lucide-react'
 import { compressImage } from '@/modules/catalog/utils/image'
-import type { Product, Category, ProductCharacteristic, ProductVariant } from '@esqueleton/shared'
+import { ImageUploader } from '@/modules/catalog/components/ImageUploader'
+import { VariantsEditor } from '@/modules/catalog/components/VariantsEditor'
+import type { Product, Category, ProductCharacteristic } from '@esqueleton/shared'
 import { useProdutosPage } from './page.hooks'
-import type { VariantFormData, ProductFormData } from './page.hooks'
-import { EMPTY_VARIANT } from './page.hooks'
 
 export default function AdminProdutosPage() {
   const {
@@ -33,13 +33,14 @@ export default function AdminProdutosPage() {
     flatCats,
     modalOpen,
     setModalOpen,
-    editingProduct,
+    editingId,
     formData,
     setFormData,
     isSaving,
     formError,
     openCreateModal,
     openEditModal,
+    isEditLoading,
     handleSave,
     deletingProduct,
     setDeletingProduct,
@@ -289,108 +290,155 @@ export default function AdminProdutosPage() {
 
       {/* Modal de criar / editar produto */}
       {modalOpen && (
-        <Modal title={editingProduct ? 'Editar produto' : 'Novo produto'} onClose={() => setModalOpen(false)}>
-          <div className="flex flex-col gap-4">
+        <Modal
+          title={editingId ? 'Editar produto' : 'Novo produto'}
+          subtitle={editingId ? 'Atualize as informações do produto' : 'Preencha os dados do novo produto'}
+          onClose={() => setModalOpen(false)}
+          size="lg"
+          footer={
+            <div className="flex flex-col gap-3">
+              {formError && (
+                <p className="rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-600">{formError}</p>
+              )}
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setModalOpen(false)}
+                  className="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving || isEditLoading}
+                  className="rounded-xl bg-gray-900 px-8 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-gray-700 disabled:opacity-60"
+                >
+                  {isSaving ? 'Salvando...' : 'Salvar produto'}
+                </button>
+              </div>
+            </div>
+          }
+        >
+          <div className="flex flex-col gap-7">
 
-            <FormField label="Marca" optional>
-              <input
-                type="text"
-                value={formData.brand}
-                onChange={(e) => setFormData((f) => ({ ...f, brand: e.target.value }))}
-                placeholder="Ex: Dior"
-                className={inputClass}
-              />
-            </FormField>
+            {/* Ao editar, a listagem é enxuta — variantes, fotos extras e características
+                chegam nesta busca. Enquanto isso, os dados básicos já ficam editáveis. */}
+            {isEditLoading && (
+              <div className="flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-2.5 text-sm text-blue-600">
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-300 border-t-blue-600" />
+                Carregando variantes, fotos e características...
+              </div>
+            )}
 
-            <FormField label="Nome do produto">
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))}
-                placeholder="Ex: Sauvage EDP"
-                maxLength={200}
-                className={inputClass}
-              />
-            </FormField>
+            {/* Bloco superior: dados à esquerda, imagens à direita */}
+            <div className="grid gap-x-8 gap-y-6 lg:grid-cols-2">
 
-            <FormField label="Preço (R$)">
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={formData.price}
-                onChange={(e) => setFormData((f) => ({ ...f, price: e.target.value }))}
-                placeholder="0,00"
-                className={inputClass}
-              />
-            </FormField>
+              {/* Coluna 1 — informações básicas e categorias */}
+              <div className="flex flex-col gap-5">
+                <div className="flex flex-col gap-4">
+                  <SectionTitle>Informações básicas</SectionTitle>
 
-            <FormField label="Foto principal" optional>
-              <ImageUploader
-                value={formData.imageUrl}
-                onChange={(url) => setFormData((f) => ({ ...f, imageUrl: url }))}
-              />
-            </FormField>
+                  <FormField label="Nome do produto" required>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))}
+                      placeholder="Ex: Galaxy S24 Ultra"
+                      maxLength={200}
+                      className={inputClass}
+                    />
+                  </FormField>
 
-            <FormField label="Fotos adicionais" optional>
-              <MultiImageUploader
-                images={formData.images}
-                onChange={(imgs) => setFormData((f) => ({ ...f, images: imgs }))}
-              />
-            </FormField>
+                  {/* Marca e preço lado a lado — ocupam melhor a largura */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField label="Marca" optional>
+                      <input
+                        type="text"
+                        value={formData.brand}
+                        onChange={(e) => setFormData((f) => ({ ...f, brand: e.target.value }))}
+                        placeholder="Ex: Samsung"
+                        className={inputClass}
+                      />
+                    </FormField>
 
-            {categories.length > 0 && (
-              <FormField label="Categorias" optional>
-                <CategoryCheckboxTree
-                  categories={categories}
-                  selectedIds={formData.categoryIds}
-                  onChange={(ids) => setFormData((f) => ({ ...f, categoryIds: ids }))}
+                    <FormField label="Preço (R$)" required>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={formData.price}
+                        onChange={(e) => setFormData((f) => ({ ...f, price: e.target.value }))}
+                        placeholder="0,00"
+                        className={inputClass}
+                      />
+                    </FormField>
+                  </div>
+                </div>
+
+                {categories.length > 0 && (
+                  <div className="flex flex-col gap-4">
+                    <SectionTitle>Organização</SectionTitle>
+                    <FormField label="Categorias" optional>
+                      <CategoryCheckboxTree
+                        categories={categories}
+                        selectedIds={formData.categoryIds}
+                        onChange={(ids) => setFormData((f) => ({ ...f, categoryIds: ids }))}
+                      />
+                    </FormField>
+                  </div>
+                )}
+              </div>
+
+              {/* Coluna 2 — imagens */}
+              <div className="flex flex-col gap-4">
+                <SectionTitle>Imagens</SectionTitle>
+
+                <FormField label="Foto principal" required>
+                  <ImageUploader
+                    value={formData.imageUrl}
+                    onChange={(url) => setFormData((f) => ({ ...f, imageUrl: url }))}
+                  />
+                </FormField>
+
+                <FormField label="Fotos adicionais" optional>
+                  <MultiImageUploader
+                    images={formData.images}
+                    onChange={(imgs) => setFormData((f) => ({ ...f, images: imgs }))}
+                  />
+                </FormField>
+              </div>
+            </div>
+
+            {/* Bloco inferior: detalhes (largura total) */}
+            <div className="flex flex-col gap-6 border-t border-gray-100 pt-6">
+              <SectionTitle>Detalhes</SectionTitle>
+
+              <FormField label="Descrição" optional>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData((f) => ({ ...f, description: e.target.value }))}
+                  placeholder="Descrição do produto..."
+                  rows={3}
+                  className={`${inputClass} resize-none`}
                 />
               </FormField>
-            )}
 
-            <FormField label="Características" optional>
-              <CharacteristicsEditor
-                items={formData.characteristics}
-                onChange={(items) => setFormData((f) => ({ ...f, characteristics: items }))}
-              />
-            </FormField>
+              {/* Características e variantes lado a lado no desktop */}
+              <div className="grid gap-x-8 gap-y-6 lg:grid-cols-2">
+                <FormField label="Características" optional>
+                  <CharacteristicsEditor
+                    items={formData.characteristics}
+                    onChange={(items) => setFormData((f) => ({ ...f, characteristics: items }))}
+                  />
+                </FormField>
 
-            <FormField label="Variantes" optional>
-              <VariantsEditor
-                variants={formData.variants}
-                onChange={(v) => setFormData((f) => ({ ...f, variants: v }))}
-              />
-            </FormField>
-
-            <FormField label="Descrição" optional>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData((f) => ({ ...f, description: e.target.value }))}
-                placeholder="Descrição do produto..."
-                rows={3}
-                className={`${inputClass} resize-none`}
-              />
-            </FormField>
-
-            {formError && (
-              <p className="rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-600">{formError}</p>
-            )}
-
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={() => setModalOpen(false)}
-                className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="flex-1 rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-60"
-              >
-                {isSaving ? 'Salvando...' : 'Salvar'}
-              </button>
+                <FormField label="Variantes" optional>
+                  <VariantsEditor
+                    variants={formData.variants}
+                    onChange={(v) => setFormData((f) => ({ ...f, variants: v }))}
+                    basePrice={formData.price}
+                  />
+                </FormField>
+              </div>
             </div>
           </div>
         </Modal>
@@ -497,130 +545,6 @@ function MultiImageUploader({
   )
 }
 
-// Editor de variantes do produto — cada variante tem opções (pares nome/valor), preço e imagem
-function VariantsEditor({
-  variants,
-  onChange,
-}: {
-  variants: VariantFormData[]
-  onChange: (variants: VariantFormData[]) => void
-}) {
-  function addVariant() {
-    onChange([...variants, { ...EMPTY_VARIANT, options: {} }])
-  }
-
-  function updateVariant(index: number, partial: Partial<VariantFormData>) {
-    onChange(variants.map((v, i) => i === index ? { ...v, ...partial } : v))
-  }
-
-  function removeVariant(index: number) {
-    onChange(variants.filter((_, i) => i !== index))
-  }
-
-  function addOption(variantIndex: number) {
-    const v = variants[variantIndex]
-    const newKey = ''
-    updateVariant(variantIndex, { options: { ...v.options, [newKey]: '' } })
-  }
-
-  function updateOptionKey(variantIndex: number, oldKey: string, newKey: string) {
-    const v = variants[variantIndex]
-    const entries = Object.entries(v.options).map(([k, val]) =>
-      k === oldKey ? [newKey, val] : [k, val],
-    )
-    updateVariant(variantIndex, { options: Object.fromEntries(entries) })
-  }
-
-  function updateOptionValue(variantIndex: number, key: string, value: string) {
-    const v = variants[variantIndex]
-    updateVariant(variantIndex, { options: { ...v.options, [key]: value } })
-  }
-
-  function removeOption(variantIndex: number, key: string) {
-    const v = variants[variantIndex]
-    const { [key]: _, ...rest } = v.options
-    updateVariant(variantIndex, { options: rest })
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      {variants.map((variant, vIdx) => (
-        <div key={vIdx} className="rounded-xl border border-gray-200 p-3">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500">Variante {vIdx + 1}</span>
-            <button type="button" onClick={() => removeVariant(vIdx)} className="text-gray-400 hover:text-red-500">
-              <X size={14} />
-            </button>
-          </div>
-
-          {/* Opções da variante */}
-          <div className="mb-2 flex flex-col gap-1.5">
-            {Object.entries(variant.options).map(([key, value], oIdx) => (
-              <div key={oIdx} className="flex items-center gap-1.5">
-                <input
-                  type="text"
-                  value={key}
-                  onChange={(e) => updateOptionKey(vIdx, key, e.target.value)}
-                  placeholder="Ex: Cor"
-                  className={`flex-1 ${inputClass} !py-1.5 !text-xs`}
-                />
-                <input
-                  type="text"
-                  value={value}
-                  onChange={(e) => updateOptionValue(vIdx, key, e.target.value)}
-                  placeholder="Ex: Branco"
-                  className={`flex-1 ${inputClass} !py-1.5 !text-xs`}
-                />
-                <button type="button" onClick={() => removeOption(vIdx, key)} className="shrink-0 text-gray-400 hover:text-red-500">
-                  <X size={14} />
-                </button>
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={() => addOption(vIdx)}
-              className="flex items-center gap-1 self-start text-xs text-gray-500 hover:text-gray-700"
-            >
-              <Plus size={12} /> Opção
-            </button>
-          </div>
-
-          {/* Preço da variante */}
-          <div className="mb-2">
-            <label className="text-xs text-gray-500">Preço (R$)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={variant.price}
-              onChange={(e) => updateVariant(vIdx, { price: e.target.value })}
-              placeholder="0,00"
-              className={`${inputClass} !py-1.5 !text-xs`}
-            />
-          </div>
-
-          {/* Imagem da variante */}
-          <div>
-            <label className="text-xs text-gray-500">Imagem da variante (opcional)</label>
-            <ImageUploader
-              value={variant.imageUrl}
-              onChange={(url) => updateVariant(vIdx, { imageUrl: url })}
-            />
-          </div>
-        </div>
-      ))}
-      <button
-        type="button"
-        onClick={addVariant}
-        className="flex items-center gap-1.5 self-start rounded-lg px-2 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
-      >
-        <Plus size={14} />
-        Adicionar variante
-      </button>
-    </div>
-  )
-}
-
 // Editor de características do produto — pares nome/valor com adicionar e remover
 function CharacteristicsEditor({
   items,
@@ -652,14 +576,14 @@ function CharacteristicsEditor({
             type="text"
             value={item.name}
             onChange={(e) => updateItem(index, 'name', e.target.value)}
-            placeholder="Ex: Tamanho"
+            placeholder="Ex: Armazenamento"
             className={`flex-1 ${inputClass}`}
           />
           <input
             type="text"
             value={item.value}
             onChange={(e) => updateItem(index, 'value', e.target.value)}
-            placeholder="Ex: 100ml"
+            placeholder="Ex: 256 GB"
             className={`flex-1 ${inputClass}`}
           />
           <button
@@ -757,175 +681,26 @@ function CategoryCheckboxTree({
   )
 }
 
-// Área de upload de imagem — suporta clique (galeria/câmera) e arrastar arquivo
-function ImageUploader({ value, onChange }: { value: string; onChange: (url: string) => void }) {
-  const galleryInputRef = useRef<HTMLInputElement>(null)
-  const cameraInputRef = useRef<HTMLInputElement>(null)
-  const [chooserOpen, setChooserOpen] = useState(false)
-  const [isDragging, setIsDragging] = useState(false)
-
-  async function readFile(file: File) {
-    try {
-      // Comprime e redimensiona antes de enviar — mantém o tamanho dentro do limite da API
-      onChange(await compressImage(file))
-    } catch {
-      // Se a compressão falhar, envia o arquivo original como base64
-      const reader = new FileReader()
-      reader.onload = () => onChange(reader.result as string)
-      reader.readAsDataURL(file)
-    }
-  }
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (file) readFile(file)
-  }
-
-  function handleRemove(e: React.MouseEvent) {
-    e.stopPropagation()
-    onChange('')
-    if (galleryInputRef.current) galleryInputRef.current.value = ''
-    if (cameraInputRef.current) cameraInputRef.current.value = ''
-  }
-
-  function handleDragOver(e: React.DragEvent) {
-    e.preventDefault()
-    setIsDragging(true)
-  }
-
-  function handleDragLeave(e: React.DragEvent) {
-    // Só desativa quando o cursor sai da área por completo (não ao passar sobre filhos)
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-      setIsDragging(false)
-    }
-  }
-
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault()
-    setIsDragging(false)
-    const file = e.dataTransfer.files?.[0]
-    if (file && file.type.startsWith('image/')) readFile(file)
-  }
-
-  function handleClick() {
-    // No desktop abre diretamente a galeria; no mobile mostra a pergunta galeria/câmera
-    const isMobile = /Mobi|Android/i.test(navigator.userAgent)
-    if (isMobile) {
-      setChooserOpen(true)
-    } else {
-      galleryInputRef.current?.click()
-    }
-  }
-
-  function pickGallery() {
-    setChooserOpen(false)
-    galleryInputRef.current?.click()
-  }
-
-  function pickCamera() {
-    setChooserOpen(false)
-    cameraInputRef.current?.click()
-  }
-
-  return (
-    <>
-      <input ref={galleryInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileChange} />
-
-      {/* Área de drop e clique */}
-      <div
-        onClick={handleClick}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        className={`relative flex h-32 w-full cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-dashed transition-colors ${
-          isDragging
-            ? 'border-gray-900 bg-gray-100'
-            : 'border-gray-200 bg-gray-50 hover:border-gray-400 hover:bg-gray-100'
-        }`}
-      >
-        {value ? (
-          <>
-            <img src={value} alt="Preview" className="h-full w-full object-cover" />
-            <button
-              onClick={handleRemove}
-              aria-label="Remover imagem"
-              className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white transition-colors hover:bg-black"
-            >
-              <X size={14} />
-            </button>
-            <div className="absolute bottom-0 left-0 right-0 bg-black/40 py-1.5 text-center text-xs text-white">
-              {isDragging ? 'Solte para trocar' : 'Clique ou arraste para trocar'}
-            </div>
-          </>
-        ) : (
-          <div className="flex flex-col items-center gap-1.5 text-gray-400">
-            <ImagePlus size={24} strokeWidth={1.5} />
-            <span className="text-xs font-medium">
-              {isDragging ? 'Solte a imagem aqui' : 'Clique ou arraste uma foto'}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Pergunta: galeria ou câmera (apenas mobile) */}
-      {chooserOpen && (
-        <div
-          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center"
-          onClick={() => setChooserOpen(false)}
-        >
-          <div
-            className="w-full max-w-sm overflow-hidden rounded-t-2xl bg-white sm:rounded-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="border-b px-5 py-4 text-sm font-semibold text-gray-700">
-              Como deseja adicionar a foto?
-            </p>
-            <div className="flex flex-col divide-y">
-              <button
-                onClick={pickGallery}
-                className="flex items-center gap-3 px-5 py-4 text-sm text-gray-700 transition-colors hover:bg-gray-50"
-              >
-                <ImagePlus size={18} className="text-gray-400" />
-                Escolher da galeria
-              </button>
-              <button
-                onClick={pickCamera}
-                className="flex items-center gap-3 px-5 py-4 text-sm text-gray-700 transition-colors hover:bg-gray-50"
-              >
-                <Camera size={18} className="text-gray-400" />
-                Tirar uma foto
-              </button>
-              <button
-                onClick={() => setChooserOpen(false)}
-                className="px-5 py-4 text-sm font-medium text-gray-400 transition-colors hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  )
-}
-
 const inputClass =
   'w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900'
 
 function FormField({
   label,
   optional = false,
+  required = false,
   children,
 }: {
   label: string
   optional?: boolean
+  // Campo obrigatório — mostra um asterisco vermelho ao lado do rótulo
+  required?: boolean
   children: React.ReactNode
 }) {
   return (
     <div className="flex flex-col gap-1.5">
       <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
         {label}
+        {required && <span className="text-red-500" aria-label="obrigatório">*</span>}
         {optional && <span className="text-xs font-normal text-gray-400">(opcional)</span>}
       </label>
       {children}
@@ -933,33 +708,66 @@ function FormField({
   )
 }
 
+// Título de seção dentro do formulário — separa grupos de campos relacionados
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+      {children}
+    </h3>
+  )
+}
+
 function Modal({
   title,
+  subtitle,
   onClose,
   children,
+  footer,
+  size = 'md',
 }: {
   title: string
+  subtitle?: string
   onClose: () => void
   children: React.ReactNode
+  // Rodapé fixo (ações) — fica sempre visível mesmo com o corpo rolando
+  footer?: React.ReactNode
+  // 'md' para diálogos simples (confirmação); 'lg' para formulários grandes
+  size?: 'md' | 'lg'
 }) {
+  const maxWidth = size === 'lg' ? 'max-w-3xl' : 'max-w-md'
+
   return (
     // Fundo escurecido — clique fora fecha o modal
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 sm:p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl">
+      <div className={`flex max-h-[92vh] w-full ${maxWidth} flex-col overflow-hidden rounded-2xl bg-white shadow-xl`}>
 
-        {/* Cabeçalho do modal */}
-        <div className="flex items-center justify-between border-b px-5 py-4">
-          <h2 className="text-base font-bold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700">
+        {/* Cabeçalho do modal (fixo no topo) */}
+        <div className="flex shrink-0 items-start justify-between border-b border-gray-100 px-5 py-4 sm:px-6">
+          <div>
+            <h2 className="text-base font-bold text-gray-900 sm:text-lg">{title}</h2>
+            {subtitle && <p className="mt-0.5 text-sm text-gray-500">{subtitle}</p>}
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Fechar"
+            className="-mr-1 rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+          >
             <X size={18} />
           </button>
         </div>
 
-        {/* Conteúdo */}
-        <div className="max-h-[75vh] overflow-y-auto px-5 py-4">{children}</div>
+        {/* Conteúdo (rola quando maior que a tela) */}
+        <div className="flex-1 overflow-y-auto px-5 py-5 sm:px-6">{children}</div>
+
+        {/* Rodapé fixo com as ações */}
+        {footer && (
+          <div className="shrink-0 border-t border-gray-100 bg-gray-50/70 px-5 py-4 sm:px-6">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   )

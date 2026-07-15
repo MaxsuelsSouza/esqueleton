@@ -7,7 +7,7 @@ import { categoriesService } from '@/modules/categories/services/categories.serv
 import { getMockProducts, setMockProducts } from '@/modules/catalog/mocks/products-store'
 import { getMockCategories } from '@/modules/categories/mocks/categories-store'
 import { buildCategoryTree } from '@/modules/categories/utils/categories'
-import type { Product, Category } from '@esqueleton/shared'
+import type { Product, ProductListItem, Category } from '@esqueleton/shared'
 import { buildDiff } from '@/shared/utils/diff'
 
 // Troque para false quando a API estiver pronta
@@ -60,7 +60,8 @@ const EMPTY_FORM: ProductFormData = {
 }
 
 export function useProdutosPage() {
-  const [products, setProducts] = useState<Product[]>([])
+  // A listagem é enxuta — cada item tem só id, nome, marca, foto e disponibilidade
+  const [products, setProducts] = useState<ProductListItem[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -72,13 +73,18 @@ export function useProdutosPage() {
 
   // Controle do modal de criar/editar
   const [modalOpen, setModalOpen] = useState(false)
+  // ID do produto em edição (definido na hora); editingProduct guarda o produto
+  // COMPLETO após a busca — usado como base do diff ao salvar
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [formData, setFormData] = useState<ProductFormData>(EMPTY_FORM)
   const [isSaving, setIsSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  // Carregando o produto completo ao abrir a edição (a listagem é enxuta)
+  const [isEditLoading, setIsEditLoading] = useState(false)
 
   // Controle da confirmação de exclusão
-  const [deletingProduct, setDeletingProduct] = useState<Product | null>(null)
+  const [deletingProduct, setDeletingProduct] = useState<ProductListItem | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
   // ID do produto sendo alternado entre disponível/indisponível (loading individual)
@@ -166,16 +172,16 @@ export function useProdutosPage() {
 
   // Abre o modal para criar um novo produto
   function openCreateModal() {
+    setEditingId(null)
     setEditingProduct(null)
     setFormData(EMPTY_FORM)
     setFormError(null)
     setModalOpen(true)
   }
 
-  // Abre o modal preenchido com os dados do produto para edição
-  function openEditModal(product: Product) {
-    setEditingProduct(product)
-    setFormData({
+  // Converte um produto (completo) para os dados editáveis do formulário
+  function productToForm(product: Product): ProductFormData {
+    return {
       brand: product.brand ?? '',
       name: product.name,
       description: product.description ?? '',
@@ -191,9 +197,47 @@ export function useProdutosPage() {
         imageUrl: v.imageUrl ?? '',
         active: v.active,
       })),
-    })
+    }
+  }
+
+  // Abre o modal para editar. A listagem é enxuta (só nome, marca, foto e status),
+  // então buscamos o produto COMPLETO (preço, descrição, variantes, fotos extras,
+  // características) apenas agora — evitando carregar tudo de todos na tela principal.
+  async function openEditModal(item: ProductListItem) {
+    setEditingId(item.id)
+    setEditingProduct(null)
     setFormError(null)
+    // Preenche já com o que a listagem tem, para o modal não abrir vazio
+    setFormData({
+      ...EMPTY_FORM,
+      brand: item.brand ?? '',
+      name: item.name,
+      imageUrl: item.imageUrl ?? '',
+    })
     setModalOpen(true)
+
+    if (USE_MOCK_DATA) {
+      // No modo mock a lista já tem os produtos completos em memória
+      const full = getMockProducts().find((p) => p.id === item.id)
+      if (full) {
+        setEditingProduct(full)
+        setFormData(productToForm(full))
+      }
+      return
+    }
+
+    setIsEditLoading(true)
+    try {
+      const token = localStorage.getItem('admin_token') ?? ''
+      const full = await catalogService.getProduct(item.id, token)
+      // full passa a ser a base do diff (senão o save reenviaria tudo sempre)
+      setEditingProduct(full)
+      setFormData(productToForm(full))
+    } catch {
+      setFormError('Não foi possível carregar os dados do produto. Tente novamente.')
+    } finally {
+      setIsEditLoading(false)
+    }
   }
 
   async function handleSave() {
@@ -203,6 +247,10 @@ export function useProdutosPage() {
     }
     if (!formData.price || isNaN(Number(formData.price)) || Number(formData.price) <= 0) {
       setFormError('O preço deve ser maior que zero.')
+      return
+    }
+    if (!formData.imageUrl.trim()) {
+      setFormError('A foto principal é obrigatória.')
       return
     }
 
@@ -215,17 +263,24 @@ export function useProdutosPage() {
       (c) => c.name.trim() && c.value.trim(),
     ).map((c) => ({ name: c.name.trim(), value: c.value.trim() }))
 
-    // Filtra variantes com pelo menos uma opção e preço válido.
+    // Filtra variantes com pelo menos um atributo válido e preço válido.
     // Mantém o id das variantes existentes para a API atualizar no lugar em vez de recriar.
     const variantsLimpos = formData.variants
-      .filter((v) => Object.keys(v.options).length > 0 && v.price && !isNaN(Number(v.price)))
       .map((v) => ({
         id: v.id,
-        options: v.options,
-        price: Number(v.price),
+        // Descarta atributos sem nome ou sem valor (ex: a linha vazia inicial),
+        // para nunca enviar { "": "" } à API
+        options: Object.fromEntries(
+          Object.entries(v.options)
+            .filter(([nome, valor]) => nome.trim() && valor.trim())
+            .map(([nome, valor]) => [nome.trim(), valor.trim()]),
+        ),
+        price: v.price,
         imageUrl: v.imageUrl.trim() || null,
         active: v.active,
       }))
+      .filter((v) => Object.keys(v.options).length > 0 && v.price && !isNaN(Number(v.price)))
+      .map((v) => ({ ...v, price: Number(v.price) }))
 
     // Campos opcionais vazios vão como null — é o que faz a API LIMPAR o valor
     // no banco (undefined seria descartado do JSON e o valor antigo voltaria)
@@ -242,9 +297,9 @@ export function useProdutosPage() {
     }
 
     if (USE_MOCK_DATA) {
-      if (editingProduct) {
+      if (editingId) {
         setMockProducts(getMockProducts().map((p) =>
-          p.id === editingProduct.id ? { ...p, ...payload, updatedAt: new Date().toISOString() } as Product : p,
+          p.id === editingId ? { ...p, ...payload, updatedAt: new Date().toISOString() } as Product : p,
         ))
       } else {
         const now = new Date().toISOString()
@@ -261,24 +316,30 @@ export function useProdutosPage() {
 
     const token = localStorage.getItem('admin_token') ?? ''
     try {
-      if (editingProduct) {
-        // Normaliza as variantes do produto original para o MESMO formato do payload —
-        // sem isso o diff sempre acusaria mudança (a resposta da API tem campos extras)
-        // e toda edição reenviaria as variantes desnecessariamente
-        const originalForDiff = {
-          ...(editingProduct as unknown as Record<string, unknown>),
-          variants: (editingProduct.variants ?? []).map((v) => ({
-            id: v.id,
-            options: v.options,
-            price: v.price,
-            imageUrl: v.imageUrl ?? null,
-            active: v.active,
-          })),
-          characteristics: editingProduct.characteristics ?? [],
+      if (editingId) {
+        // Com o produto completo carregado, envia só o que mudou (diff). Se por algum
+        // motivo ele não carregou, envia o payload inteiro como atualização.
+        if (editingProduct) {
+          // Normaliza as variantes do produto original para o MESMO formato do payload —
+          // sem isso o diff sempre acusaria mudança (a resposta da API tem campos extras)
+          // e toda edição reenviaria as variantes desnecessariamente
+          const originalForDiff = {
+            ...(editingProduct as unknown as Record<string, unknown>),
+            variants: (editingProduct.variants ?? []).map((v) => ({
+              id: v.id,
+              options: v.options,
+              price: v.price,
+              imageUrl: v.imageUrl ?? null,
+              active: v.active,
+            })),
+            characteristics: editingProduct.characteristics ?? [],
+          }
+          const diff = buildDiff(originalForDiff, payload)
+          if (Object.keys(diff).length === 0) { setIsSaving(false); setModalOpen(false); return }
+          await catalogService.updateProduct(editingId, diff as Partial<Product>, token)
+        } else {
+          await catalogService.updateProduct(editingId, payload as unknown as Partial<Product>, token)
         }
-        const diff = buildDiff(originalForDiff, payload)
-        if (Object.keys(diff).length === 0) { setIsSaving(false); setModalOpen(false); return }
-        await catalogService.updateProduct(editingProduct.id, diff as Partial<Product>, token)
       } else {
         await catalogService.createProduct(payload as unknown as Omit<Product, 'id' | 'createdAt' | 'updatedAt'>, token)
       }
@@ -319,7 +380,7 @@ export function useProdutosPage() {
   }
 
   // Alterna a disponibilidade do produto (visível/oculto no catálogo público)
-  async function handleToggleAvailability(product: Product) {
+  async function handleToggleAvailability(product: ProductListItem) {
     const token = localStorage.getItem('admin_token') ?? ''
     setTogglingId(product.id)
     try {
@@ -386,13 +447,14 @@ export function useProdutosPage() {
     // Modal de criar/editar
     modalOpen,
     setModalOpen,
-    editingProduct,
+    editingId,
     formData,
     setFormData,
     isSaving,
     formError,
     openCreateModal,
     openEditModal,
+    isEditLoading,
     handleSave,
 
     // Modal de exclusão

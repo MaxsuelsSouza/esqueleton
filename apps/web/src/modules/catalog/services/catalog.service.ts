@@ -1,9 +1,18 @@
 // Todas as operações relacionadas a produtos do catálogo
 import { apiClient } from '@/shared/services/api-client'
-import type { Product, ProductOption } from '@esqueleton/shared'
+import type { Product, ProductOption, ProductListItem } from '@esqueleton/shared'
 
 export interface ProductsPage {
   data: Product[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
+// Página da LISTAGEM do admin — itens enxutos (só o exibido na tabela)
+export interface ProductListPage {
+  data: ProductListItem[]
   total: number
   page: number
   pageSize: number
@@ -51,9 +60,15 @@ export const catalogService = {
 
   // ── Painel admin — o token identifica a loja do administrador ──────────────
 
-  // Busca produtos paginados com filtros opcionais (requer login)
+  // Busca produtos paginados com filtros opcionais (requer login).
+  // Retorna a versão ENXUTA (só id, nome, marca, foto e disponibilidade) — leve na tela.
   listProducts: (query: ProductsQuery, token: string) =>
-    apiClient.get<ProductsPage>(`/products${buildQueryString(query)}`, token),
+    apiClient.get<ProductListPage>(`/products${buildQueryString(query)}`, token),
+
+  // Busca UM produto completo pelo ID (usado ao abrir a edição — traz variantes,
+  // fotos adicionais e características, que a listagem não carrega)
+  getProduct: (id: string, token: string) =>
+    apiClient.get<Product>(`/products/${id}`, token),
 
   // Lista enxuta (sem imagem) para os seletores de produto do admin — leve na memória
   listProductOptions: (token: string) =>

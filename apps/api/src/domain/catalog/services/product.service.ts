@@ -17,6 +17,18 @@ export const PRODUCT_INCLUDE = {
   },
 } as const
 
+// Campos da listagem ENXUTA (painel admin): nome, marca, foto, preço e
+// disponibilidade. NÃO traz descrição, datas, variantes, fotos adicionais nem
+// características (o pesado), que só carregam ao abrir a edição do produto.
+export const PRODUCT_SUMMARY_SELECT = {
+  id: true,
+  brand: true,
+  name: true,
+  price: true,
+  imageUrl: true,
+  isAvailable: true,
+} as const
+
 // Transforma o produto do formato Prisma (com relação categories e variants) para o formato do tipo compartilhado
 export function toProductResponse(product: {
   categories: { categoryId: string }[]
@@ -52,7 +64,7 @@ export type ListQuery = {
 
 // Listagem paginada com filtros — usada tanto pelo catálogo público quanto pelo admin.
 // O storeId garante que apenas os produtos daquela loja apareçam.
-export async function listarProdutos(prisma: PrismaClient, storeId: string, query: ListQuery, options?: { publicOnly?: boolean }) {
+export async function listarProdutos(prisma: PrismaClient, storeId: string, query: ListQuery, options?: { publicOnly?: boolean; summary?: boolean }) {
   // Busca por IDs específicos — ignora paginação e filtros
   // Limitado a 100 IDs e apenas no formato válido, para evitar consultas montadas por terceiros
   if (query.ids) {
@@ -108,14 +120,18 @@ export async function listarProdutos(prisma: PrismaClient, storeId: string, quer
     query.sortBy === 'name'       ? { name: 'asc' as const } :
     { createdAt: 'desc' as const }
 
+  // Listagem enxuta (admin): select leve, já no formato final — não traz o pesado
+  if (options?.summary) {
+    const [products, total] = await Promise.all([
+      prisma.product.findMany({ where, orderBy, skip, take: pageSize, select: PRODUCT_SUMMARY_SELECT }),
+      prisma.product.count({ where }),
+    ])
+    return { data: products, total, page, pageSize, totalPages: Math.ceil(total / pageSize) }
+  }
+
+  // Listagem completa: inclui variantes e categorias, passa pelo toProductResponse
   const [products, total] = await Promise.all([
-    prisma.product.findMany({
-      where,
-      orderBy,
-      skip,
-      take: pageSize,
-      include: PRODUCT_INCLUDE,
-    }),
+    prisma.product.findMany({ where, orderBy, skip, take: pageSize, include: PRODUCT_INCLUDE }),
     prisma.product.count({ where }),
   ])
 

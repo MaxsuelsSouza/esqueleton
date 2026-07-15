@@ -15,7 +15,7 @@ import { getMockCategories } from '@/modules/categories/mocks/categories-store'
 import { getMockPromotions } from '@/modules/promotions/mocks/promotions-store'
 import { getMockCoupons } from '@/modules/coupons/mocks/coupons-store'
 import { getMockFeatured } from '@/modules/featured/mocks/featured-store'
-import type { Product, AnalyticsSummary, Order } from '@esqueleton/shared'
+import type { ProductListItem, AnalyticsSummary, Order } from '@esqueleton/shared'
 
 // Troque para false quando a API estiver pronta
 const USE_MOCK_DATA = false
@@ -26,7 +26,7 @@ type DashboardStats = {
   activePromotions: number
   activeCoupons: number
   activeFeatured: number
-  recentProducts: Product[]
+  recentProducts: ProductListItem[]
 }
 
 export function useDashboardPage() {
@@ -145,9 +145,8 @@ export function useDashboardPage() {
           return true
         }).length,
         activeFeatured: featured.filter((f) => f.active).length,
-        recentProducts: prodsPage.data
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-          .slice(0, 5),
+        // A API já retorna os mais recentes primeiro (ordenação padrão por data)
+        recentProducts: prodsPage.data.slice(0, 5),
       })
     } catch {
       setStats({

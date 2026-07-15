@@ -65,6 +65,18 @@ export interface ProductOption {
   categoryIds?: string[]
 }
 
+// Item da LISTAGEM de produtos do painel — enxuto: foto, marca, nome, preço e
+// disponibilidade (o preço é usado nos "produtos recentes" do dashboard). NÃO traz
+// descrição, variantes, fotos adicionais nem características (buscados só ao editar).
+export interface ProductListItem {
+  id: string
+  brand?: string | null
+  name: string
+  price: number
+  imageUrl: string | null
+  isAvailable: boolean
+}
+
 // Categoria do catálogo — pode ter subcategorias formando uma árvore de qualquer profundidade
 export interface Category {
   id: string
