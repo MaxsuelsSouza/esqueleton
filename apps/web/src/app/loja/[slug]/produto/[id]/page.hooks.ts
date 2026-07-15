@@ -18,7 +18,7 @@ import { useStoreSlug } from '@/shared/hooks/useStoreSlug'
 import { normalizePhone } from '@/shared/utils/phone'
 import { applyPromotionsToProducts } from '@/modules/promotions/utils/promotions'
 import type { PromotedProduct } from '@/modules/promotions/utils/promotions'
-import { getOptionGroups, findVariant } from '@/modules/catalog/utils/variants'
+import { getOptionGroups, findVariant, isOptionAvailable, reconcileSelection } from '@/modules/catalog/utils/variants'
 import type { Product, ProductVariant, Promotion } from '@esqueleton/shared'
 
 // Quantidade mínima de sugestões exibidas — se a categoria não tiver o suficiente,
@@ -260,16 +260,23 @@ export function useProdutoDetailPage() {
 
   function handleSelectOption(name: string, value: string, isSelected: boolean) {
     setSelectedOptions((prev) => {
-      const next = { ...prev }
       if (isSelected) {
+        const next = { ...prev }
         delete next[name]
-      } else {
-        next[name] = value
+        return next
       }
-      return next
+      // Seleciona o valor e descarta as demais opções que ficaram incompatíveis
+      // (ex: trocar de cor pode invalidar o tamanho antes escolhido)
+      return reconcileSelection(activeVariants, { ...prev, [name]: value }, name)
     })
     setCurrentImageIndex(0)
     setVariantError(null)
+  }
+
+  // Diz se um valor pode ser escolhido dado o que já está selecionado — usado pela
+  // view para desabilitar combinações inexistentes (ex: Laranja não tem 500GB)
+  function canSelectOption(name: string, value: string): boolean {
+    return isOptionAvailable(activeVariants, selectedOptions, name, value)
   }
 
   // Erro exibido quando o cliente tenta adicionar sem selecionar todas as variantes
@@ -283,6 +290,11 @@ export function useProdutoDetailPage() {
       const missing = optionGroups.filter((g) => !selectedOptions[g.name])
       if (missing.length > 0) {
         setVariantError(`Selecione: ${missing.map((g) => g.name).join(', ')}`)
+        return
+      }
+      // Rede de segurança: a combinação escolhida precisa existir de fato
+      if (!selectedVariant) {
+        setVariantError('Essa combinação não está disponível.')
         return
       }
     }
@@ -422,6 +434,7 @@ export function useProdutoDetailPage() {
     handleCopyLink,
     handleAddToBag,
     handleSelectOption,
+    canSelectOption,
     variantError,
     galleryImages,
     optionGroups,

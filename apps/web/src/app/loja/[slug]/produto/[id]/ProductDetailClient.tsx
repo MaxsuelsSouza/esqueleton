@@ -29,6 +29,7 @@ export default function ProductDetailClient() {
     handleCopyLink,
     handleAddToBag,
     handleSelectOption,
+    canSelectOption,
     variantError,
     galleryImages,
     optionGroups,
@@ -178,14 +179,20 @@ export default function ProductDetailClient() {
                       <div className="flex flex-wrap gap-2">
                         {values.map((value) => {
                           const isSelected = selectedOptions[name] === value
+                          // Valor indisponível para a combinação atual (ex: Laranja sem 500GB)
+                          const available = isSelected || canSelectOption(name, value)
                           return (
                             <button
                               key={value}
                               onClick={() => handleSelectOption(name, value, isSelected)}
+                              disabled={!available}
+                              title={!available ? 'Indisponível para esta combinação' : undefined}
                               className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-all ${
                                 isSelected
                                   ? 'border-gray-900 bg-gray-900 text-white'
-                                  : 'border-gray-200 bg-white text-gray-700 hover:border-gray-400'
+                                  : available
+                                    ? 'border-gray-200 bg-white text-gray-700 hover:border-gray-400'
+                                    : 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-300 line-through'
                               }`}
                             >
                               {value}
